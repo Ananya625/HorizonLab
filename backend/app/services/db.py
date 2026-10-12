@@ -136,10 +136,25 @@ class DatabaseService:
                     files_modified_json TEXT,
                     resolved INTEGER DEFAULT 0,
                     test_run_id TEXT,
+                    error_summary TEXT,
+                    subsequent_test_run_id TEXT,
+                    test_result_status TEXT,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (run_id) REFERENCES runs (run_id) ON DELETE CASCADE
                 )
             """)
+            try:
+                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN error_summary TEXT")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN subsequent_test_run_id TEXT")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN test_result_status TEXT")
+            except Exception:
+                pass
 
             # Verification Reports table
             cursor.execute("""
@@ -436,15 +451,70 @@ class DatabaseService:
     def save_recovery_attempt(self, attempt: RecoveryAttempt) -> RecoveryAttempt:
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            try:
+                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN error_summary TEXT")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN subsequent_test_run_id TEXT")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN test_result_status TEXT")
+            except Exception:
+                pass
+
+            # Check if this attempt outcome already exists to avoid duplicates
             cursor.execute("""
-                INSERT INTO recovery_attempts (id, run_id, attempt_number, failure_reason, diagnosis, root_cause_analysis, proposed_fix, files_modified_json, resolved, test_run_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                attempt.id, attempt.run_id, attempt.attempt_number, attempt.failure_reason,
-                attempt.diagnosis, attempt.root_cause_analysis, attempt.proposed_fix,
-                json.dumps(attempt.files_modified), 1 if attempt.resolved else 0,
-                attempt.test_run_id, attempt.created_at
-            ))
+                SELECT id FROM recovery_attempts 
+                WHERE id = ? OR (run_id = ? AND attempt_number = ?)
+            """, (attempt.id, attempt.run_id, attempt.attempt_number))
+            existing = cursor.fetchone()
+
+            files_modified_json = json.dumps(attempt.files_modified)
+            resolved_int = 1 if attempt.resolved else 0
+            err_summary = attempt.error_summary or attempt.failure_reason
+
+            if existing:
+                existing_id = existing["id"]
+                cursor.execute("""
+                    UPDATE recovery_attempts SET
+                        attempt_number = ?,
+                        failure_reason = ?,
+                        diagnosis = ?,
+                        root_cause_analysis = ?,
+                        proposed_fix = ?,
+                        files_modified_json = ?,
+                        resolved = ?,
+                        test_run_id = ?,
+                        error_summary = ?,
+                        subsequent_test_run_id = ?,
+                        test_result_status = ?,
+                        created_at = ?
+                    WHERE id = ?
+                """, (
+                    attempt.attempt_number, attempt.failure_reason, attempt.diagnosis,
+                    attempt.root_cause_analysis or "", attempt.proposed_fix, files_modified_json,
+                    resolved_int, attempt.test_run_id, err_summary,
+                    attempt.subsequent_test_run_id, attempt.test_result_status,
+                    attempt.created_at, existing_id
+                ))
+            else:
+                cursor.execute("""
+                    INSERT INTO recovery_attempts (
+                        id, run_id, attempt_number, failure_reason, diagnosis,
+                        root_cause_analysis, proposed_fix, files_modified_json,
+                        resolved, test_run_id, error_summary, subsequent_test_run_id,
+                        test_result_status, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    attempt.id, attempt.run_id, attempt.attempt_number, attempt.failure_reason,
+                    attempt.diagnosis, attempt.root_cause_analysis or "", attempt.proposed_fix,
+                    files_modified_json, resolved_int, attempt.test_run_id,
+                    err_summary, attempt.subsequent_test_run_id, attempt.test_result_status,
+                    attempt.created_at
+                ))
             conn.commit()
         return attempt
 
@@ -453,22 +523,44 @@ class DatabaseService:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM recovery_attempts WHERE run_id = ? ORDER BY attempt_number ASC", (run_id,))
             rows = cursor.fetchall()
-            return [
-                RecoveryAttempt(
-                    id=r["id"],
-                    run_id=r["run_id"],
-                    attempt_number=r["attempt_number"],
-                    failure_reason=r["failure_reason"],
-                    diagnosis=r["diagnosis"],
-                    root_cause_analysis=r["root_cause_analysis"] or "",
-                    proposed_fix=r["proposed_fix"],
-                    files_modified=json.loads(r["files_modified_json"] or "[]"),
-                    resolved=bool(r["resolved"]),
-                    test_run_id=r["test_run_id"],
-                    created_at=r["created_at"]
+            if not rows:
+                return []
+
+            col_names = set(rows[0].keys()) if rows else set()
+            attempts = []
+            for r in rows:
+                err_summary = r["error_summary"] if "error_summary" in col_names and r["error_summary"] else r["failure_reason"]
+                sub_test_id = r["subsequent_test_run_id"] if "subsequent_test_run_id" in col_names else None
+                test_status = r["test_result_status"] if "test_result_status" in col_names else None
+                resolved_bool = bool(r["resolved"])
+
+                if not test_status:
+                    if resolved_bool:
+                        test_status = "PASSED"
+                    elif sub_test_id is not None:
+                        test_status = "FAILED"
+                    else:
+                        test_status = None
+
+                attempts.append(
+                    RecoveryAttempt(
+                        id=r["id"],
+                        run_id=r["run_id"],
+                        attempt_number=r["attempt_number"],
+                        failure_reason=r["failure_reason"],
+                        diagnosis=r["diagnosis"],
+                        root_cause_analysis=r["root_cause_analysis"] or "",
+                        proposed_fix=r["proposed_fix"],
+                        files_modified=json.loads(r["files_modified_json"] or "[]"),
+                        resolved=resolved_bool,
+                        test_run_id=r["test_run_id"],
+                        error_summary=err_summary,
+                        subsequent_test_run_id=sub_test_id,
+                        test_result_status=test_status,
+                        created_at=r["created_at"]
+                    )
                 )
-                for r in rows
-            ]
+            return attempts
 
     # --- Verification Methods ---
     def save_verification(self, report: VerificationReport) -> VerificationReport:

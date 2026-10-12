@@ -113,7 +113,9 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
                 messages=messages,
                 model=model_name,
                 temperature=temperature,
-                format_json=True
+                format_json=True,
+                run_id=run_id,
+                stage="requirement"
             )
             raw_content = resp.get("message", {}).get("content", "")
             if raw_content:

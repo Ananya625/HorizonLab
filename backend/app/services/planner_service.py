@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 from typing import Dict, Any, Optional, List
@@ -64,7 +65,8 @@ class PlannerService:
         if not goal_model:
             raise ValueError(f"Goal model for run_id '{run_id}' not found")
 
-        target_repo = repo_path or workspace_service.get_default_repo_path()
+        run_record = db_service.get_run_record(run_id)
+        target_repo = repo_path or (run_record.repo_path if run_record and run_record.repo_path else workspace_service.get_default_repo_path())
         inspection = workspace_service.inspect_directory(target_repo)
 
         db_service.add_log(
@@ -104,7 +106,9 @@ Generate the detailed Implementation Plan JSON for the Coding Agent."""
                 messages=messages,
                 model=model_name,
                 temperature=temperature,
-                format_json=True
+                format_json=True,
+                run_id=run_id,
+                stage="planner"
             )
             raw_content = resp.get("message", {}).get("content", "")
             if raw_content:
@@ -117,6 +121,29 @@ Generate the detailed Implementation Plan JSON for the Coding Agent."""
 
         planned_files = [PlannedFile(**pf) for pf in parsed_plan.get("planned_files", [])]
         steps = [PlanStep(**s) for s in parsed_plan.get("steps", [])]
+
+        # Guarantee at least one test file is planned for automated testing verification
+        has_test_file = any(pf.action == "test" or "test" in pf.path for pf in planned_files)
+        if not has_test_file:
+            first_impl = planned_files[0].path if planned_files else "app/service.py"
+            base_name = os.path.basename(first_impl)
+            test_path = f"tests/test_{base_name}" if not base_name.startswith("test_") else f"tests/{base_name}"
+            test_pf = PlannedFile(
+                path=test_path,
+                action="test",
+                description=f"Automated pytest test suite verifying {first_impl} and all acceptance criteria.",
+                estimated_loc=40
+            )
+            planned_files.append(test_pf)
+            steps.append(PlanStep(
+                step_number=len(steps) + 1,
+                title="Automated Test Suite Verification",
+                description=f"Author and execute pytest test suite in {test_path} validating all acceptance criteria.",
+                assigned_agent="Coding Agent",
+                target_files=[test_path],
+                dependencies=[len(steps)] if steps else [],
+                expected_outcome="Passing test suite verification"
+            ))
 
         plan = ImplementationPlan(
             run_id=run_id,

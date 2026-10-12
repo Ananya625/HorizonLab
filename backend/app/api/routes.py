@@ -11,6 +11,7 @@ from ..models.schema import (
     ExecuteTestsRequest,
     ExecuteVerificationRequest,
     RunPipelineRequest,
+    ReviseGoalRequest,
     ImplementationPlan,
     VerificationReport,
     RunRecord
@@ -25,6 +26,8 @@ from ..services.test_runner_service import test_runner_service
 from ..services.debugger_service import debugger_service
 from ..services.verifier_service import verifier_service
 from ..services.orchestrator_service import orchestrator_service
+from ..services.goal_tracker_service import goal_tracker_service
+from ..services.drift_controller_service import drift_controller_service
 from ..services.db import db_service
 
 router = APIRouter()
@@ -286,3 +289,25 @@ async def get_run_evaluation(run_id: str):
     if not ev:
         raise HTTPException(status_code=404, detail=f"Evaluation for run {run_id} not found")
     return ev
+
+# --- Goal Tracking & Drift Control ---
+
+@router.post("/goals/revise")
+async def revise_goal(req: ReviseGoalRequest):
+    try:
+        state = goal_tracker_service.revise_goal(
+            run_id=req.run_id,
+            new_goal_text=req.new_goal,
+            change_reason=req.change_reason or "User explicit goal revision"
+        )
+        return {"status": "success", "state": state}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/goals/{run_id}/tracking")
+async def get_goal_tracking(run_id: str):
+    state = goal_tracker_service.get_state(run_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Tracking state for run {run_id} not found")
+    return state
+

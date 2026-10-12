@@ -1,6 +1,8 @@
 import os
+import json
 import uuid
 import logging
+import ast
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from ..models.schema import (
@@ -11,8 +13,55 @@ from ..models.schema import (
 from .ollama_service import ollama_service
 from .workspace_service import workspace_service
 from .db import db_service
+from .telemetry_service import telemetry_manager
+from .drift_controller_service import drift_controller_service
+from .goal_tracker_service import goal_tracker_service
 
 logger = logging.getLogger(__name__)
+
+def extract_clean_python_code(raw: str) -> str:
+    """Extracts raw executable Python code from markdown blocks, JSON envelopes, or plain text."""
+    if not raw:
+        return ""
+    cleaned = raw.strip()
+
+    # 1. Markdown code fences
+    if "```python" in cleaned:
+        cleaned = cleaned.split("```python")[1].split("```")[0].strip()
+    elif "```" in cleaned:
+        cleaned = cleaned.split("```")[1].split("```")[0].strip()
+
+    # 2. JSON wrapper check (e.g. {"file": {"content": "..."}} or {"file": {"import": "...", "test": "..."}})
+    if cleaned.startswith("{") and cleaned.endswith("}"):
+        try:
+            parsed = json.loads(cleaned)
+            if isinstance(parsed, dict):
+                # If top-level dict has a single filename key, unwrap it: e.g. {"tests/test_service.py": {...}}
+                if len(parsed) == 1 and any(k.endswith(".py") or "/" in k for k in parsed.keys()):
+                    parsed = next(iter(parsed.values()))
+
+                if isinstance(parsed, dict):
+                    if "content" in parsed and isinstance(parsed["content"], str):
+                        cleaned = parsed["content"].strip()
+                    elif "code" in parsed and isinstance(parsed["code"], str):
+                        cleaned = parsed["code"].strip()
+                    else:
+                        py_lines = []
+                        for k, v in parsed.items():
+                            if isinstance(v, str) and any(w in v for w in ("def ", "import ", "from ", "class ", "assert ", "return ")):
+                                py_lines.append(v.strip())
+                            elif isinstance(v, dict):
+                                for sub_k, sub_v in v.items():
+                                    if isinstance(sub_v, str) and any(w in sub_v for w in ("def ", "import ", "from ", "class ", "assert ", "return ")):
+                                        py_lines.append(sub_v.strip())
+                        if py_lines:
+                            cleaned = "\n\n".join(py_lines)
+                elif isinstance(parsed, str):
+                    cleaned = parsed.strip()
+        except Exception:
+            pass
+
+    return cleaned
 
 CODER_SYSTEM_PROMPT = """You are the Senior Coding Agent in an autonomous software engineering system.
 
@@ -24,7 +73,7 @@ class CoderService:
     async def execute_plan(
         self,
         run_id: str,
-        model_name: Optional[str] = "qwen2.5-coder:7b",
+        model_name: Optional[str] = "qwen2.5-coder:1.5b",
         temperature: float = 0.2
     ) -> List[CodeChange]:
         plan = db_service.get_plan(run_id)
@@ -37,21 +86,58 @@ class CoderService:
         repo_path = plan.target_repo_path
         code_changes: List[CodeChange] = []
 
+        tracker = telemetry_manager.get(run_id)
+        if tracker:
+            tracker.record_agent_invocation("Coding Agent")
+
         db_service.add_log(
             run_id=run_id,
             stage="coder",
             agent_role="Coding Agent",
             event_type="info",
-            message=f"Starting implementation for {len(plan.planned_files)} planned files across {len(plan.steps)} steps.",
-            details={"repo_path": repo_path}
+            message=f"Starting implementation for {len(plan.planned_files)} planned files across {len(plan.steps)} steps using model '{model_name}'.",
+            details={"repo_path": repo_path, "model": model_name}
         )
 
+        implemented_context: Dict[str, str] = {}
         for planned_file in plan.planned_files:
             file_rel_path = planned_file.path
             action = planned_file.action
             description = planned_file.description
 
+            # Pre-action Drift Check
+            pre_check = drift_controller_service.check_action(
+                run_id=run_id,
+                action_type="file_write",
+                target=file_rel_path,
+                payload_str="",
+                repo_path=repo_path
+            )
+            if not pre_check.allowed:
+                db_service.add_log(
+                    run_id=run_id,
+                    stage="coder",
+                    agent_role="Drift Controller",
+                    event_type="warning",
+                    message=f"File edit blocked: {pre_check.reason}",
+                    details={"file": file_rel_path, "decision": pre_check.model_dump()}
+                )
+                goal_tracker_service.record_action(
+                    run_id=run_id,
+                    action_type="file_write",
+                    target=file_rel_path,
+                    payload_str="",
+                    status="blocked" if pre_check.action_category == "blocked" else "skipped_duplicate",
+                    error_message=pre_check.reason
+                )
+                if pre_check.action_category == "budget_exceeded":
+                    break
+                continue
+
             original_content = workspace_service.read_file(repo_path, file_rel_path)
+
+            if tracker:
+                tracker.record_tool_call()
 
             db_service.add_log(
                 run_id=run_id,
@@ -71,14 +157,63 @@ class CoderService:
                 goal_model=goal_model,
                 plan=plan,
                 model_name=model_name,
-                temperature=temperature
+                temperature=temperature,
+                run_id=run_id,
+                related_context=implemented_context
             )
+            implemented_context[file_rel_path] = new_content
+
+            # Repeated Edit & Content Drift Check
+            content_check = drift_controller_service.check_action(
+                run_id=run_id,
+                action_type="file_write",
+                target=file_rel_path,
+                payload_str=new_content,
+                repo_path=repo_path
+            )
+            if not content_check.allowed:
+                db_service.add_log(
+                    run_id=run_id,
+                    stage="coder",
+                    agent_role="Drift Controller",
+                    event_type="warning",
+                    message=f"Duplicate/Unchanged content skipped for '{file_rel_path}': {content_check.reason}",
+                    details={"file": file_rel_path}
+                )
+                goal_tracker_service.record_action(
+                    run_id=run_id,
+                    action_type="file_write",
+                    target=file_rel_path,
+                    payload_str=new_content,
+                    status="skipped_duplicate",
+                    details={"reason": content_check.reason}
+                )
+                continue
 
             # Write file to disk
             workspace_service.write_file(repo_path, file_rel_path, new_content)
 
             # Compute diff & AST syntax check
             diff_res = workspace_service.compute_diff(original_content, new_content, file_rel_path)
+
+            # Post-action result validation
+            val_res = drift_controller_service.validate_result(
+                run_id=run_id,
+                action_type="file_write",
+                target=file_rel_path,
+                success=True,
+                details={"ast_valid": diff_res["ast_valid"], "lines_added": diff_res["lines_added"]}
+            )
+
+            # Record verified action in GoalTracker
+            goal_tracker_service.record_action(
+                run_id=run_id,
+                action_type="file_write",
+                target=file_rel_path,
+                payload_str=new_content,
+                status="completed" if val_res.valid else "failed",
+                details={"lines_added": diff_res["lines_added"], "ast_valid": diff_res["ast_valid"]}
+            )
 
             change = CodeChange(
                 id=f"change_{uuid.uuid4().hex[:8]}",
@@ -126,26 +261,51 @@ class CoderService:
         goal_model: GoalModel,
         plan: ImplementationPlan,
         model_name: Optional[str],
-        temperature: float
+        temperature: float,
+        run_id: Optional[str] = None,
+        related_context: Optional[Dict[str, str]] = None
     ) -> str:
-        # Check if deterministic high-reliability template is available
+        # Check if deterministic high-reliability template is available for known complex presets
         det_code = self._get_deterministic_code(file_rel_path, goal_model, original_content)
         if det_code and not det_code.startswith("# Auto-generated"):
-            return det_code
+            # Only use template if the prompt actually relates to the preset domain
+            lower_goal = goal_model.main_goal.lower()
+            if any(k in lower_goal for k in ["jwt", "auth", "token", "login", "concurrency", "socket", "pool"]):
+                return det_code
 
-        # Otherwise query Ollama
+        # Otherwise query Ollama for genuine code synthesis
         try:
+            # Bound existing content in prompt to avoid token bloat
+            existing_snippet = original_content
+            if existing_snippet and len(existing_snippet) > 1500:
+                existing_snippet = existing_snippet[:1500] + "\n# ... (truncated for context)"
+
+            context_block = ""
+            if related_context:
+                context_block = "\nImplementation files in this workspace:\n"
+                for rpath, rcode in related_context.items():
+                    context_block += f"--- {rpath} ---\n{rcode[:1500]}\n----------------\n"
+
+            test_guidance = ""
+            if "test" in file_rel_path.lower():
+                test_guidance = """
+CRITICAL TEST RULES:
+1. Import and test the EXACT function/class names and signatures defined in the implementation files above (e.g., 'from app.service import ...' or 'from service import ...').
+2. Do NOT invent hypothetical classes or methods that are not defined in the implementation code.
+3. Use pytest syntax with assertion statements (e.g., 'def test_...(): assert ...')."""
+
             user_msg = f"""Task: {goal_model.main_goal}
 File to write: {file_rel_path}
 Action: {action}
 Description: {description}
 Existing Content:
-{original_content or '(None - creating new file)'}
-
+{existing_snippet or '(None - creating new file)'}
+{context_block}
 Constraints:
 - {[hc.text for hc in goal_model.hard_constraints]}
+{test_guidance}
 
-Generate the complete Python code for '{file_rel_path}'."""
+Generate complete, executable, clean Python code for '{file_rel_path}'."""
 
             messages = [
                 {"role": "system", "content": CODER_SYSTEM_PROMPT},
@@ -154,19 +314,25 @@ Generate the complete Python code for '{file_rel_path}'."""
 
             resp = await ollama_service.chat_completion(
                 messages=messages,
-                model=model_name,
+                model=model_name or "qwen2.5-coder:1.5b",
                 temperature=temperature,
-                format_json=False
+                format_json=False,
+                num_ctx=2048,
+                num_predict=512,
+                run_id=run_id,
+                stage="coder"
             )
             raw = resp.get("message", {}).get("content", "")
             if raw:
-                cleaned = raw.strip()
-                if "```python" in cleaned:
-                    cleaned = cleaned.split("```python")[1].split("```")[0].strip()
-                elif "```" in cleaned:
-                    cleaned = cleaned.split("```")[1].split("```")[0].strip()
-                if cleaned and len(cleaned) > 20:
-                    return cleaned
+                cleaned = extract_clean_python_code(raw)
+                
+                # Validate AST syntax before accepting
+                if cleaned and len(cleaned) > 15:
+                    try:
+                        ast.parse(cleaned)
+                        return cleaned
+                    except SyntaxError as syn_err:
+                        logger.warning(f"Ollama returned code with syntax error in {file_rel_path}: {syn_err}")
         except Exception as e:
             logger.warning(f"Ollama code generation fallback for {file_rel_path}: {e}")
 

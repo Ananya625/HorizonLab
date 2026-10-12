@@ -1,20 +1,24 @@
+import sys
 import asyncio
 import json
+from typing import Optional
 from app.services.orchestrator_service import orchestrator_service
 from app.services.db import db_service
 
-async def test_full_pipeline():
+async def test_full_pipeline(repo_path: Optional[str] = None):
     print("==================================================")
     print("STARTING FULL END-TO-END CODING AGENT WORKFLOW TEST")
     print("==================================================")
 
     request_text = "Build a login API with JWT authentication using FastAPI. Implement user registration with password hashing, login endpoint returning JWT bearer token, protected route GET /api/auth/me, invalid credentials rejection (HTTP 401), expired token rejection, and automated pytest suite."
 
-    print(f"\n[1] Task Prompt: '{request_text}'\n")
+    print(f"\n[1] Task Prompt: '{request_text}'")
+    print(f"[2] Repo Input: {repo_path or '(None - Will dynamically create a new isolated workspace folder)'}\n")
 
     record = await orchestrator_service.run_full_pipeline(
         request_text=request_text,
-        model_name="qwen2.5-coder:7b",
+        repo_path=repo_path,
+        model_name="qwen2.5-coder:1.5b",
         temperature=0.2,
         max_recovery_retries=3
     )
@@ -22,6 +26,7 @@ async def test_full_pipeline():
     print("\n--- Pipeline Execution Summary ---")
     print(f"Run ID: {record.run_id}")
     print(f"Task ID: {record.task_id}")
+    print(f"Target Workspace: {record.repo_path}")
     print(f"Current Stage: {record.current_stage}")
     print(f"Status: {record.status}")
     print(f"Goal Model Version: {record.goal_model.goal_model_version if record.goal_model else 'N/A'}")
@@ -67,4 +72,5 @@ async def test_full_pipeline():
     print("\n[SUCCESS] SQLite persistence verified! All data stored & retrieved successfully.")
 
 if __name__ == "__main__":
-    asyncio.run(test_full_pipeline())
+    cli_repo = sys.argv[1] if len(sys.argv) > 1 else None
+    asyncio.run(test_full_pipeline(repo_path=cli_repo))

@@ -42,16 +42,16 @@ export default function TaskInputSection({
       .then((data) => {
         const repos = data.repositories || [];
         setSampleRepos(repos);
-        if (!repoPath && repos.length > 0) {
-          setRepoPath(repos[0].path);
-        }
       })
       .catch((err) => console.warn('Failed to load sample repos:', err));
   }, []);
 
   // Inspect workspace directory whenever repoPath changes
   useEffect(() => {
-    if (!repoPath) return;
+    if (!repoPath) {
+      setRepoInspection(null);
+      return;
+    }
     setInspectingRepo(true);
     inspectWorkspace(repoPath)
       .then((data) => setRepoInspection(data))
@@ -318,32 +318,71 @@ export default function TaskInputSection({
           </div>
 
           {/* Sample Sandboxes Quick Switch */}
-          {sampleRepos.length > 0 && (
-            <div>
-              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Quick Select Sandbox:</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-                {sampleRepos.map((sr) => (
-                  <button
-                    key={sr.id}
-                    onClick={() => setRepoPath(sr.path)}
-                    style={{
-                      background: repoPath === sr.path ? 'rgba(56, 189, 248, 0.15)' : '#0c121d',
-                      border: `1px solid ${repoPath === sr.path ? '#38bdf8' : '#1e293b'}`,
-                      borderRadius: '4px',
-                      padding: '3px 8px',
-                      color: repoPath === sr.path ? '#38bdf8' : '#94a3b8',
-                      fontSize: '0.7rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {sr.name.split('(')[0]}
-                  </button>
-                ))}
+          <div>
+            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Select Target Repository Mode:</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+              <button
+                onClick={() => setRepoPath('')}
+                style={{
+                  background: !repoPath ? 'rgba(56, 189, 248, 0.2)' : '#0c121d',
+                  border: `1px solid ${!repoPath ? '#38bdf8' : '#1e293b'}`,
+                  borderRadius: '4px',
+                  padding: '4px 9px',
+                  color: !repoPath ? '#38bdf8' : '#94a3b8',
+                  fontSize: '0.725rem',
+                  fontWeight: !repoPath ? 600 : 400,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Sparkles size={12} color={!repoPath ? '#38bdf8' : '#64748b'} />
+                <span>+ New Clean Workspace (Isolated)</span>
+              </button>
+
+              {sampleRepos.map((sr) => (
+                <button
+                  key={sr.id}
+                  onClick={() => setRepoPath(sr.path)}
+                  style={{
+                    background: repoPath === sr.path ? 'rgba(56, 189, 248, 0.15)' : '#0c121d',
+                    border: `1px solid ${repoPath === sr.path ? '#38bdf8' : '#1e293b'}`,
+                    borderRadius: '4px',
+                    padding: '4px 9px',
+                    color: repoPath === sr.path ? '#38bdf8' : '#94a3b8',
+                    fontSize: '0.7rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {sr.name.split('(')[0].trim()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* New Clean Workspace Information Card */}
+          {!repoPath && (
+            <div style={{
+              backgroundColor: '#0c121d',
+              border: '1px solid #1e293b',
+              borderRadius: '8px',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>Isolated Mode</span>
+                <span style={{ fontSize: '0.775rem', fontWeight: 600, color: '#f8fafc' }}>Fresh Task Folder</span>
               </div>
+              <p style={{ fontSize: '0.75rem', color: '#94a3b8', lineHeight: '1.4', margin: 0 }}>
+                A brand-new isolated workspace folder (<code>sandbox/workspace_&lt;run_id&gt;</code>) will be created automatically for this task with clean <code>app/</code> and <code>tests/</code> directories. Code and tests will not pollute existing repositories.
+              </p>
             </div>
           )}
 
-          {/* Workspace Telemetry Cards */}
+          {/* Existing Workspace Telemetry Cards */}
           {repoInspection && (
             <div style={{
               backgroundColor: '#0c121d',

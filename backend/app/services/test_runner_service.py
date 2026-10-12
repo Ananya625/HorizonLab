@@ -13,34 +13,96 @@ from ..models.schema import (
 )
 from .db import db_service
 from .workspace_service import workspace_service
+from .telemetry_service import telemetry_manager
+from .drift_controller_service import drift_controller_service
+from .goal_tracker_service import goal_tracker_service
 
 class TestRunnerService:
     def run_tests(
         self,
         run_id: str,
         attempt_number: int = 1,
-        test_file_target: Optional[str] = None
+        test_file_target: Optional[str] = None,
+        target_test_files: Optional[List[str]] = None
     ) -> TestRunResult:
         plan = db_service.get_plan(run_id)
         repo_path = plan.target_repo_path if plan else workspace_service.get_default_repo_path()
 
         # Find test files
         test_files = []
-        if test_file_target and os.path.exists(os.path.join(repo_path, test_file_target)):
-            test_files.append(test_file_target)
+        if target_test_files:
+            for tf in target_test_files:
+                tf_norm = tf.replace("\\", "/")
+                if os.path.exists(os.path.join(repo_path, tf_norm)):
+                    test_files.append(tf_norm)
+        elif test_file_target and os.path.exists(os.path.join(repo_path, test_file_target)):
+            test_files.append(test_file_target.replace("\\", "/"))
+        elif plan and any(pf.action == "test" or "test" in pf.path for pf in plan.planned_files):
+            # Prioritize test files explicitly planned for this task
+            for pf in plan.planned_files:
+                if pf.action == "test" or "test" in pf.path:
+                    pf_norm = pf.path.replace("\\", "/")
+                    if os.path.exists(os.path.join(repo_path, pf_norm)):
+                        test_files.append(pf_norm)
         else:
             tests_dir = os.path.join(repo_path, "tests")
             if os.path.exists(tests_dir):
                 for f in os.listdir(tests_dir):
                     if f.startswith("test_") and f.endswith(".py"):
-                        test_files.append(os.path.join("tests", f))
+                        test_files.append(os.path.join("tests", f).replace("\\", "/"))
 
-        if not test_files:
-            # Fallback to test files defined in plan
-            if plan:
-                for pf in plan.planned_files:
-                    if pf.action == "test" or "test" in pf.path:
-                        test_files.append(pf.path)
+        if not test_files and plan:
+            for pf in plan.planned_files:
+                if pf.action == "test" or "test" in pf.path:
+                    test_files.append(pf.path.replace("\\", "/"))
+
+        # Pre-action Drift & Budget Check
+        cmd_target_str = "pytest " + (" ".join(test_files) if test_files else "tests")
+        pre_check = drift_controller_service.check_action(
+            run_id=run_id,
+            action_type="command_exec",
+            target=cmd_target_str,
+            payload_str=str(attempt_number),
+            repo_path=repo_path
+        )
+        if not pre_check.allowed:
+            db_service.add_log(
+                run_id=run_id,
+                stage="testing",
+                agent_role="Drift Controller",
+                event_type="warning",
+                message=f"Command execution blocked: {pre_check.reason}",
+                details={"cmd": cmd_target_str, "decision": pre_check.model_dump()}
+            )
+            goal_tracker_service.record_action(
+                run_id=run_id,
+                action_type="command_exec",
+                target=cmd_target_str,
+                payload_str=str(attempt_number),
+                status="blocked" if pre_check.action_category == "blocked" else "skipped_duplicate",
+                error_message=pre_check.reason
+            )
+            return TestRunResult(
+                id=f"testrun_{uuid.uuid4().hex[:8]}",
+                run_id=run_id,
+                attempt_number=attempt_number,
+                total_tests=0,
+                passed_tests=0,
+                failed_tests=1,
+                duration_seconds=0.0,
+                stdout=f"EXECUTION BLOCKED by Drift Controller: {pre_check.reason}",
+                stderr="",
+                exit_code=1,
+                status="FAILED",
+                test_items=[TestResultItem(name="drift_control_guard", status="FAILED", error_message=pre_check.reason)],
+                created_at=datetime.now().isoformat()
+            )
+
+        # Telemetry tracking
+        tracker = telemetry_manager.get(run_id)
+        if tracker:
+            tracker.record_agent_invocation("Test Runner Agent")
+            tracker.record_tool_call()
 
         db_service.add_log(
             run_id=run_id,
@@ -57,9 +119,10 @@ class TestRunnerService:
         exit_code = 0
         test_items: List[TestResultItem] = []
 
-        # Execute pytest in subprocess with repo_path in PYTHONPATH
+        # Execute pytest in subprocess with repo_path and repo_path/app in PYTHONPATH
         env = os.environ.copy()
-        env["PYTHONPATH"] = f"{repo_path}{os.pathsep}{env.get('PYTHONPATH', '')}"
+        app_dir = os.path.join(repo_path, "app")
+        env["PYTHONPATH"] = f"{repo_path}{os.pathsep}{app_dir}{os.pathsep}{env.get('PYTHONPATH', '')}"
 
         cmd = [sys.executable, "-m", "pytest", "-v", "--tb=short"] + (test_files if test_files else ["tests"])
 
@@ -70,16 +133,15 @@ class TestRunnerService:
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=25
             )
             stdout_text = process.stdout
             stderr_text = process.stderr
             exit_code = process.returncode
         except subprocess.TimeoutExpired:
-            stdout_text = "ERROR: Test execution timed out after 30 seconds."
+            stdout_text = "ERROR: Test execution timed out after 25 seconds."
             exit_code = 1
         except Exception as e:
-            # Fallback in-process runner or simulation if environment differs
             stdout_text = f"Subprocess invocation notice: {str(e)}\n"
             exit_code = 0
 
@@ -107,6 +169,23 @@ class TestRunnerService:
         )
 
         db_service.save_test_result(result)
+
+        # Validate result with DriftController & update GoalTracker
+        val_res = drift_controller_service.validate_result(
+            run_id=run_id,
+            action_type="test_run",
+            target=cmd_target_str,
+            success=(status == "PASSED"),
+            details={"exit_code": exit_code, "passed_tests": passed, "failed_tests": failed, "total_tests": total, "stdout": stdout_text}
+        )
+        goal_tracker_service.record_action(
+            run_id=run_id,
+            action_type="test_run",
+            target=cmd_target_str,
+            payload_str=str(attempt_number),
+            status="completed" if status == "PASSED" else "failed",
+            details={"passed": passed, "failed": failed, "total": total, "duration_seconds": duration}
+        )
 
         event_type = "success" if status == "PASSED" else "warning"
         db_service.add_log(

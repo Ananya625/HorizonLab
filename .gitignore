@@ -38,6 +38,11 @@ Thumbs.db
 *.swp
 *.swo
 
-# Sandbox temporary outputs
+# Sandbox temporary outputs & local runs
 backend/sandbox/*/.pytest_cache/
 backend/sandbox/*/__pycache__/
+backend/sandbox/workspace_run_*/
+sandbox/
+*.db
+backend/app.db
+backend/*benchmark_results.json

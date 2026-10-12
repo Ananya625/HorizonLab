@@ -3,6 +3,7 @@ import difflib
 import json
 import ast
 from typing import Dict, Any, List, Optional
+from .telemetry_service import telemetry_manager
 
 WORKSPACE_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "sandbox")
 os.makedirs(WORKSPACE_ROOT, exist_ok=True)
@@ -39,7 +40,50 @@ def health():
     def get_default_repo_path(self, preset_id: Optional[str] = None) -> str:
         return os.path.join(self.root_dir, "auth_service_repo")
 
-    def inspect_directory(self, target_path: Optional[str] = None) -> Dict[str, Any]:
+    def create_task_workspace(self, task_id: str, run_id: Optional[str] = None) -> str:
+        """Creates a brand-new clean isolated workspace folder for a new coding task."""
+        clean_id = run_id or task_id or "task_default"
+        folder_name = f"workspace_{clean_id}"
+        workspace_path = os.path.join(self.root_dir, folder_name)
+        os.makedirs(workspace_path, exist_ok=True)
+        os.makedirs(os.path.join(workspace_path, "app"), exist_ok=True)
+        os.makedirs(os.path.join(workspace_path, "tests"), exist_ok=True)
+
+        req_file = os.path.join(workspace_path, "requirements.txt")
+        if not os.path.exists(req_file):
+            with open(req_file, "w", encoding="utf-8") as f:
+                f.write("fastapi>=0.100.0\nuvicorn>=0.23.0\npyjwt>=2.8.0\npasslib[bcrypt]>=1.7.4\npytest>=7.4.0\npytest-asyncio>=0.21.0\nhttpx>=0.24.0\n")
+
+        pytest_ini = os.path.join(workspace_path, "pytest.ini")
+        if not os.path.exists(pytest_ini):
+            with open(pytest_ini, "w", encoding="utf-8") as f:
+                f.write("[pytest]\npythonpath = . app\n")
+
+        main_file = os.path.join(workspace_path, "app", "main.py")
+        if not os.path.exists(main_file):
+            with open(main_file, "w", encoding="utf-8") as f:
+                f.write('''from fastapi import FastAPI
+
+app = FastAPI(title="Task Service API", version="1.0.0")
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+''')
+
+        app_init = os.path.join(workspace_path, "app", "__init__.py")
+        if not os.path.exists(app_init):
+            with open(app_init, "w", encoding="utf-8") as f:
+                f.write("")
+
+        tests_init = os.path.join(workspace_path, "tests", "__init__.py")
+        if not os.path.exists(tests_init):
+            with open(tests_init, "w", encoding="utf-8") as f:
+                f.write("")
+
+        return workspace_path
+
+    def inspect_directory(self, target_path: Optional[str] = None, run_id: Optional[str] = None) -> Dict[str, Any]:
         path = target_path or self.get_default_repo_path()
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
@@ -47,7 +91,6 @@ def health():
         files_list = []
         languages = set()
         total_loc = 0
-        file_tree = []
 
         ignore_dirs = {".git", "__pycache__", "node_modules", ".pytest_cache", ".venv", "venv", ".idea", ".vscode"}
 
@@ -93,6 +136,11 @@ def health():
         has_pytest = os.path.exists(os.path.join(path, "pytest.ini")) or any(f["name"] == "requirements.txt" or "test" in f["name"] for f in files_list)
         has_npm = os.path.exists(os.path.join(path, "package.json"))
 
+        if run_id:
+            tracker = telemetry_manager.get(run_id)
+            if tracker:
+                tracker.record_files_inspected(len(files_list))
+
         return {
             "repo_path": path,
             "exists": True,
@@ -100,6 +148,67 @@ def health():
             "total_lines_of_code": total_loc,
             "detected_languages": list(languages) or ["Python"],
             "test_framework": "pytest" if has_pytest else ("jest/npm" if has_npm else "pytest"),
+            "files": files_list
+        }
+
+    def inspect_targeted(self, target_path: Optional[str] = None, file_list: Optional[List[str]] = None, run_id: Optional[str] = None) -> Dict[str, Any]:
+        """Lightweight targeted inspection for isolated changes: stats only relevant files."""
+        path = target_path or self.get_default_repo_path()
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+
+        files_list = []
+        languages = set()
+        total_loc = 0
+
+        targets = file_list or []
+        for rel_file in targets:
+            rel_norm = rel_file.replace("\\", "/")
+            full_path = os.path.join(path, rel_norm)
+            if os.path.exists(full_path) and os.path.isfile(full_path):
+                size = os.path.getsize(full_path)
+                ext = os.path.splitext(rel_norm)[1].lower()
+                lang = "Python" if ext == ".py" else ("JavaScript" if ext in (".js", ".jsx") else "Unknown")
+                languages.add(lang)
+                loc = 0
+                try:
+                    with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                        lines = f.readlines()
+                        loc = len(lines)
+                        total_loc += loc
+                except Exception:
+                    pass
+                files_list.append({
+                    "path": rel_norm,
+                    "name": os.path.basename(rel_norm),
+                    "language": lang,
+                    "size_bytes": size,
+                    "lines_of_code": loc
+                })
+            else:
+                # Target file to be created
+                files_list.append({
+                    "path": rel_norm,
+                    "name": os.path.basename(rel_norm),
+                    "language": "Python" if rel_norm.endswith(".py") else "Unknown",
+                    "size_bytes": 0,
+                    "lines_of_code": 0
+                })
+
+        has_pytest = os.path.exists(os.path.join(path, "pytest.ini")) or os.path.exists(os.path.join(path, "requirements.txt")) or any("test" in f["name"] for f in files_list)
+
+        if run_id:
+            tracker = telemetry_manager.get(run_id)
+            if tracker:
+                tracker.record_files_inspected(len(files_list))
+
+        return {
+            "repo_path": path,
+            "exists": True,
+            "total_files": len(files_list),
+            "total_lines_of_code": total_loc,
+            "detected_languages": list(languages) or ["Python"],
+            "test_framework": "pytest" if has_pytest else "pytest",
             "files": files_list
         }
 

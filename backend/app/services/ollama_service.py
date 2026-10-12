@@ -2,13 +2,18 @@ import httpx
 import json
 import time
 import re
+import logging
 from typing import Dict, Any, List, Optional, AsyncGenerator
+from .telemetry_service import telemetry_manager
+
+logger = logging.getLogger(__name__)
 
 class OllamaService:
-    def __init__(self, host: str = "http://127.0.0.1:11434", default_model: str = "qwen2.5-coder:7b"):
+    def __init__(self, host: str = "http://127.0.0.1:11434", default_model: str = "qwen2.5-coder:1.5b"):
         self.host = host.rstrip("/")
         self.default_model = default_model
-        self.timeout = 12.0
+        self.default_timeout = 45.0
+        self.keep_alive = "30m"
 
     def update_config(self, host: str, default_model: Optional[str] = None):
         self.host = host.rstrip("/")
@@ -26,12 +31,22 @@ class OllamaService:
                 if resp.status_code == 200:
                     data = resp.json()
                     models = [m.get("name") for m in data.get("models", [])]
+                    # Select best default: 1.5b if available, otherwise 7b, otherwise first
+                    current_model = self.default_model
+                    if current_model not in models:
+                        for candidate in ["qwen2.5-coder:1.5b", "qwen2.5-coder:7b"]:
+                            if candidate in models:
+                                current_model = candidate
+                                break
+                        else:
+                            current_model = models[0] if models else "none"
+
                     return {
                         "connected": True,
                         "host": self.host,
                         "latency_ms": latency_ms,
                         "models": models,
-                        "current_model": self.default_model if self.default_model in models else (models[0] if models else "none"),
+                        "current_model": current_model,
                         "raw_models": data.get("models", []),
                         "message": f"Connected to Ollama ({len(models)} models available)"
                     }
@@ -59,32 +74,79 @@ class OllamaService:
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
         temperature: float = 0.2,
-        format_json: bool = True
+        format_json: bool = True,
+        num_ctx: int = 2048,
+        num_predict: Optional[int] = 512,
+        timeout: Optional[float] = None,
+        run_id: Optional[str] = None,
+        stage: str = "llm"
     ) -> Dict[str, Any]:
-        """Runs non-streaming chat completion."""
+        """Runs non-streaming chat completion with structured telemetry."""
         active_model = model or self.default_model
+        req_timeout = timeout or self.default_timeout
+
+        options: Dict[str, Any] = {
+            "temperature": temperature,
+            "num_ctx": num_ctx
+        }
+        if num_predict:
+            options["num_predict"] = num_predict
+
         payload = {
             "model": active_model,
             "messages": messages,
             "stream": False,
-            "options": {
-                "temperature": temperature
-            }
+            "keep_alive": self.keep_alive,
+            "options": options
         }
         if format_json:
             payload["format"] = "json"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(f"{self.host}/api/chat", json=payload)
-            if resp.status_code != 200:
-                raise RuntimeError(f"Ollama API error {resp.status_code}: {resp.text}")
-            return resp.json()
+        start_time = time.time()
+        error_msg = None
+        data = {}
+
+        try:
+            async with httpx.AsyncClient(timeout=req_timeout) as client:
+                resp = await client.post(f"{self.host}/api/chat", json=payload)
+                if resp.status_code != 200:
+                    raise RuntimeError(f"Ollama API error {resp.status_code}: {resp.text}")
+                data = resp.json()
+        except httpx.TimeoutException:
+            error_msg = f"Ollama timed out after {req_timeout}s"
+            raise TimeoutError(error_msg)
+        except Exception as e:
+            error_msg = str(e) or type(e).__name__
+            raise
+        finally:
+            duration_ms = (time.time() - start_time) * 1000
+            prompt_tokens = data.get("prompt_eval_count", 0)
+            eval_tokens = data.get("eval_count", 0)
+            eval_dur_sec = data.get("eval_duration", 1) / 1e9 if data.get("eval_duration") else (duration_ms / 1000)
+            tok_per_sec = (eval_tokens / eval_dur_sec) if eval_dur_sec > 0 else 0.0
+
+            if run_id:
+                tracker = telemetry_manager.get(run_id)
+                if tracker:
+                    tracker.record_model_call(
+                        model_name=active_model,
+                        duration_ms=duration_ms,
+                        tokens_in=prompt_tokens,
+                        tokens_out=eval_tokens,
+                        error_status=error_msg,
+                        tok_per_sec=tok_per_sec,
+                        stage=stage
+                    )
+
+        return data
 
     async def stream_chat(
         self,
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
-        temperature: float = 0.2
+        temperature: float = 0.2,
+        num_ctx: int = 2048,
+        num_predict: Optional[int] = 512
     ) -> AsyncGenerator[str, None]:
         """Streams response tokens from Ollama chat API."""
         active_model = model or self.default_model
@@ -92,12 +154,15 @@ class OllamaService:
             "model": active_model,
             "messages": messages,
             "stream": True,
+            "keep_alive": self.keep_alive,
             "options": {
-                "temperature": temperature
+                "temperature": temperature,
+                "num_ctx": num_ctx,
+                "num_predict": num_predict or 512
             }
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.default_timeout) as client:
             async with client.stream("POST", f"{self.host}/api/chat", json=payload) as response:
                 if response.status_code != 200:
                     yield f"Error: Ollama status {response.status_code}"

@@ -146,12 +146,15 @@ class RecoveryAttempt(BaseModel):
     attempt_number: int
     failure_reason: str
     diagnosis: str
-    root_cause_analysis: str
+    root_cause_analysis: str = ""
     proposed_fix: str
     files_modified: List[str] = []
     resolved: bool = False
     test_run_id: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    error_summary: Optional[str] = None
+    subsequent_test_run_id: Optional[str] = None
+    test_result_status: Optional[str] = None
 
 # --- Code Review & Verification Models ---
 
@@ -160,7 +163,7 @@ class CriterionVerification(BaseModel):
     criterion_description: str
     verdict: str  # "PASS", "FAIL", "PARTIAL"
     confidence_score: float = 1.0
-    evidence: str
+    evidence: str = ""
     test_evidence_ref: Optional[str] = None
 
 class ConstraintCompliance(BaseModel):
@@ -176,6 +179,16 @@ class VerificationReport(BaseModel):
     overall_verdict: str  # "VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS", "FAILED_VERIFICATION"
     pass_rate_percent: float = 100.0
     goal_drift_score: float = 0.0  # 0.0 = perfect alignment, 100.0 = total drift
+    goal_alignment_score: float = 100.0  # 100.0 = fully aligned, 0.0 = completely misaligned
+    criteria_completion_rate: float = 100.0  # 0.0 - 100.0%
+    test_pass_rate: Optional[float] = 100.0  # 0.0 - 100.0%, None if tests unavailable
+    component_penalties: Dict[str, float] = Field(default_factory=dict)  # goal_misalignment, criteria_gap, execution_failure
+    security_violation_count: int = 0
+    repeated_action_count: int = 0
+    harmless_duplicate_skip_count: int = 0
+    score_status: str = "computed"  # "computed", "partial_evidence", "missing_criteria", "unavailable_tests", "unknown_semantic"
+    score_version: str = "v2.0"
+    evidence_breakdown: Dict[str, Any] = Field(default_factory=dict)
     criteria_evaluations: List[CriterionVerification] = []
     constraint_compliances: List[ConstraintCompliance] = []
     code_quality_score: float = 9.5
@@ -194,10 +207,21 @@ class EvaluationMetrics(BaseModel):
     total_tool_calls: int = 0
     recovery_attempts_count: int = 0
     goal_drift_score: float = 0.0
+    goal_alignment_score: float = 100.0
+    criteria_completion_rate: float = 100.0
+    test_pass_rate: Optional[float] = 100.0
+    component_penalties: Dict[str, float] = Field(default_factory=dict)
+    security_violation_count: int = 0
+    repeated_action_count: int = 0
+    harmless_duplicate_skip_count: int = 0
+    score_status: str = "computed"
+    score_version: str = "v2.0"
+    evidence_breakdown: Dict[str, Any] = Field(default_factory=dict)
     lines_added: int = 0
     lines_removed: int = 0
     tests_passed: int = 0
     tests_total: int = 0
+    telemetry: Optional[Dict[str, Any]] = None
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 class ExecutionLogEntry(BaseModel):
@@ -282,3 +306,8 @@ class RunPipelineRequest(BaseModel):
     model_name: Optional[str] = "qwen2.5-coder:7b"
     temperature: Optional[float] = 0.2
     max_recovery_retries: Optional[int] = 3
+
+class ReviseGoalRequest(BaseModel):
+    run_id: str
+    new_goal: str
+    change_reason: Optional[str] = "User revised task goal"
