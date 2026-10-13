@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -75,12 +75,14 @@ class GoalModel(BaseModel):
 # --- Codebase Analysis & Planner Models ---
 
 class PlannedFile(BaseModel):
+    sub_goal_id: Optional[str] = None
     path: str
     action: str = "modify"  # "create", "modify", "delete", "test"
     description: str
     estimated_loc: int = 50
 
 class PlanStep(BaseModel):
+    sub_goal_ids: List[str] = []
     step_number: int
     title: str
     description: str
@@ -90,7 +92,9 @@ class PlanStep(BaseModel):
     expected_outcome: str
 
 class ImplementationPlan(BaseModel):
+    goal_revision: Optional[str] = None
     run_id: str
+    goal_model_version: Optional[str] = None
     architecture_overview: str
     target_repo_path: str
     tech_stack: Dict[str, str] = {}
@@ -136,9 +140,24 @@ class TestRunResult(BaseModel):
     stdout: str = ""
     stderr: str = ""
     exit_code: int = 0
-    status: str = "PASSED"  # "PASSED", "FAILED"
+    status: str = "UNVERIFIED"
+    evidence_version: str = "legacy"
+    workspace_digest: Optional[str] = None
+    skipped_tests: int = 0
+    execution_error: Optional[str] = None
     test_items: List[TestResultItem] = []
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    @model_validator(mode='after')
+    def validate_evidence_counts(self):
+        if self.evidence_version != 'legacy':
+            if min(self.total_tests, self.passed_tests, self.failed_tests, self.skipped_tests) < 0:
+                raise ValueError('Negative test count')
+            if self.total_tests != self.passed_tests + self.failed_tests + self.skipped_tests:
+                raise ValueError('Test counts do not reconcile')
+            if self.status == 'PASSED' and (self.exit_code != 0 or self.execution_error or self.passed_tests == 0 or self.failed_tests):
+                raise ValueError('Passing tests require successful execution and evidence')
+        return self
 
 class RecoveryAttempt(BaseModel):
     id: str
@@ -150,6 +169,12 @@ class RecoveryAttempt(BaseModel):
     proposed_fix: str
     files_modified: List[str] = []
     resolved: bool = False
+    local_tests_passed: bool = False
+    verified_recovered: Optional[bool] = None
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    termination_reason: Optional[str] = None
     test_run_id: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     error_summary: Optional[str] = None
@@ -162,7 +187,7 @@ class CriterionVerification(BaseModel):
     criterion_id: str
     criterion_description: str
     verdict: str  # "PASS", "FAIL", "PARTIAL"
-    confidence_score: float = 1.0
+    confidence_score: Optional[float] = None
     evidence: str = ""
     test_evidence_ref: Optional[str] = None
 
@@ -170,29 +195,32 @@ class ConstraintCompliance(BaseModel):
     constraint_id: str
     constraint_text: str
     is_hard: bool = True
-    compliant: bool = True
+    compliant: Optional[bool] = None
     notes: str = ""
 
 class VerificationReport(BaseModel):
     id: str
     run_id: str
     overall_verdict: str  # "VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS", "FAILED_VERIFICATION"
-    pass_rate_percent: float = 100.0
-    goal_drift_score: float = 0.0  # 0.0 = perfect alignment, 100.0 = total drift
-    goal_alignment_score: float = 100.0  # 100.0 = fully aligned, 0.0 = completely misaligned
-    criteria_completion_rate: float = 100.0  # 0.0 - 100.0%
-    test_pass_rate: Optional[float] = 100.0  # 0.0 - 100.0%, None if tests unavailable
+    pass_rate_percent: Optional[float] = None
+    goal_drift_score: Optional[float] = None  # 0.0 = perfect alignment, 100.0 = total drift
+    goal_alignment_score: Optional[float] = None  # 100.0 = fully aligned, 0.0 = completely misaligned
+    criteria_completion_rate: Optional[float] = None  # 0.0 - 100.0%
+    test_pass_rate: Optional[float] = None  # 0.0 - 100.0%, None if tests unavailable
     component_penalties: Dict[str, float] = Field(default_factory=dict)  # goal_misalignment, criteria_gap, execution_failure
     security_violation_count: int = 0
     repeated_action_count: int = 0
     harmless_duplicate_skip_count: int = 0
-    score_status: str = "computed"  # "computed", "partial_evidence", "missing_criteria", "unavailable_tests", "unknown_semantic"
+    score_status: str = "partial_evidence"  # "computed", "partial_evidence", "missing_criteria", "unavailable_tests", "unknown_semantic"
     score_version: str = "v2.0"
     evidence_breakdown: Dict[str, Any] = Field(default_factory=dict)
     criteria_evaluations: List[CriterionVerification] = []
     constraint_compliances: List[ConstraintCompliance] = []
-    code_quality_score: float = 9.5
-    security_verdict: str = "SECURE_PASS"
+    code_quality_score: Optional[float] = None
+    security_verdict: str = "UNVERIFIED"
+    verifier_version: str = "legacy"
+    verified_success: Optional[bool] = None
+    goal_model_version: Optional[str] = None
     review_summary: str
     recommendations: List[str] = []
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
@@ -202,19 +230,30 @@ class VerificationReport(BaseModel):
 class EvaluationMetrics(BaseModel):
     run_id: str
     task_id: str
-    success_rate: float = 100.0
-    execution_time_seconds: float = 0.0
-    total_tool_calls: int = 0
+    # Compatibility field: criterion coverage, NOT population task success.
+    success_rate: Optional[float] = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    metric_version: str = "legacy"
+    verified_success: Optional[bool] = None
+    outcome: str = "unverified"
+    termination_reason: Optional[str] = None
+    execution_mode: str = "unknown"
+    evidence_stale: bool = False
+    measurement_scope: str = 'Recorded service-boundary calls; pipeline duration includes verification up to metric computation, excludes final persistence; manual stage duration unavailable'
+    execution_time_seconds: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
+    total_tool_calls: Optional[int] = Field(default=None, ge=0)
+    total_model_calls: Optional[int] = Field(default=None, ge=0)
+    input_tokens: Optional[int] = Field(default=None, ge=0)
+    output_tokens: Optional[int] = Field(default=None, ge=0)
     recovery_attempts_count: int = 0
-    goal_drift_score: float = 0.0
-    goal_alignment_score: float = 100.0
-    criteria_completion_rate: float = 100.0
-    test_pass_rate: Optional[float] = 100.0
+    goal_drift_score: Optional[float] = None
+    goal_alignment_score: Optional[float] = None
+    criteria_completion_rate: Optional[float] = None
+    test_pass_rate: Optional[float] = None
     component_penalties: Dict[str, float] = Field(default_factory=dict)
     security_violation_count: int = 0
     repeated_action_count: int = 0
     harmless_duplicate_skip_count: int = 0
-    score_status: str = "computed"
+    score_status: str = "partial_evidence"
     score_version: str = "v2.0"
     evidence_breakdown: Dict[str, Any] = Field(default_factory=dict)
     lines_added: int = 0
@@ -233,6 +272,10 @@ class ExecutionLogEntry(BaseModel):
     event_type: str  # "info", "tool_call", "command", "file_edit", "test_run", "recovery", "warning", "error", "success"
     message: str
     details: Optional[Dict[str, Any]] = None
+    task_id: Optional[str] = None
+    step: Optional[int] = None
+    agent_id: Optional[str] = None
+    sub_goal_id: Optional[str] = None
 
 class RunRecord(BaseModel):
     run_id: str
@@ -244,6 +287,7 @@ class RunRecord(BaseModel):
     status: str = "initialized"  # "initialized", "in_progress", "completed", "failed"
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     goal_model: Optional[GoalModel] = None
     plan: Optional[ImplementationPlan] = None
     code_changes: List[CodeChange] = []
@@ -258,10 +302,10 @@ class RunRecord(BaseModel):
 class ParseTaskRequest(BaseModel):
     request_text: str
     repo_path: Optional[str] = None
-    model_name: Optional[str] = "qwen2.5-coder:7b"
+    model_name: Optional[str] = None
     run_id: Optional[str] = None
     language: Optional[str] = "auto"
-    temperature: Optional[float] = 0.2
+    temperature: Optional[float] = Field(default=0.2, ge=0, le=2, allow_inf_nan=False)
 
 class PatchGoalModelRequest(BaseModel):
     run_id: str
@@ -283,7 +327,7 @@ class ResolveAmbiguityRequest(BaseModel):
 
 class OllamaConfigRequest(BaseModel):
     host: str = "http://localhost:11434"
-    default_model: Optional[str] = "qwen2.5-coder:7b"
+    default_model: Optional[str] = None
 
 class StartPlanRequest(BaseModel):
     run_id: str
@@ -294,7 +338,7 @@ class ExecuteCodeRequest(BaseModel):
 
 class ExecuteTestsRequest(BaseModel):
     run_id: str
-    max_recovery_retries: Optional[int] = 3
+    max_recovery_retries: Optional[int] = Field(default=3, ge=0, le=20)
 
 class ExecuteVerificationRequest(BaseModel):
     run_id: str
@@ -303,9 +347,9 @@ class RunPipelineRequest(BaseModel):
     run_id: Optional[str] = None
     request_text: str
     repo_path: Optional[str] = None
-    model_name: Optional[str] = "qwen2.5-coder:7b"
-    temperature: Optional[float] = 0.2
-    max_recovery_retries: Optional[int] = 3
+    model_name: Optional[str] = None
+    temperature: Optional[float] = Field(default=0.2, ge=0, le=2, allow_inf_nan=False)
+    max_recovery_retries: Optional[int] = Field(default=3, ge=0, le=20)
 
 class ReviseGoalRequest(BaseModel):
     run_id: str

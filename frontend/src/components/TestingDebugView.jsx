@@ -251,8 +251,8 @@ export default function TestingDebugView({
                     <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>
                       Recovery Attempt #{rec.attempt_number}
                     </span>
-                    <span className={`badge ${rec.resolved ? 'badge-emerald' : 'badge-rose'}`} style={{ fontSize: '0.65rem' }}>
-                      {rec.resolved ? '✓ Resolved 100% Pass' : 'Failure Diagnosed'}
+                    <span className={`badge ${rec.verified_recovered === true ? 'badge-emerald' : 'badge-amber'}`} style={{ fontSize: '0.65rem' }}>
+                      {rec.verified_recovered === true ? 'Verified recovery' : rec.local_tests_passed ? 'Local tests passed · recovery unverified' : 'Recovery not independently verified'}
                     </span>
                   </div>
 

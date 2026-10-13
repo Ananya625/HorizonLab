@@ -68,6 +68,7 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [resolvingId, setResolvingId] = useState(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [pendingFullRunId, setPendingFullRunId] = useState(null);
 
   // Initial load: Fetch Ollama status, Presets, and Runs list
   useEffect(() => {
@@ -117,6 +118,8 @@ export default function App() {
   // Handler: Select and hydrate previous SQLite Run
   const handleSelectRun = async (selectedRunId) => {
     if (!selectedRunId) return;
+    setPendingFullRunId(null);
+    setError(null);
     setLoading(true);
     try {
       const record = await fetchRunDetails(selectedRunId);
@@ -153,13 +156,14 @@ export default function App() {
   // Handler: Stage 2 - Analyze Requirements with Ollama
   const handleAnalyzeTask = async () => {
     if (!taskPrompt.trim()) return;
+    setPendingFullRunId(null);
     setLoading(true);
     setError(null);
     try {
       const parsed = await parseTaskRequirement({
         requestText: taskPrompt,
         repoPath: repoPath,
-        modelName: ollamaStatus?.current_model || 'qwen2.5-coder:7b',
+        modelName: (ollamaStatus?.current_model === 'none' ? undefined : ollamaStatus?.current_model),
         language: selectedLanguage,
         temperature: temperature,
         runId: runId
@@ -218,11 +222,17 @@ export default function App() {
   const handleConfirmGoal = async () => {
     if (!goalModel?.run_id) return;
     setIsConfirming(true);
+    setError(null);
     try {
       const confirmed = await confirmGoalModel(goalModel.run_id);
       setGoalModel(confirmed);
       setActiveTab('confirm');
+      setError(null);
+      if (pendingFullRunId === confirmed.run_id) {
+        await handleRunFullPipeline(confirmed);
+      }
     } catch (err) {
+      setError(err.message || 'Requirement confirmation failed.');
       throw err;
     } finally {
       setIsConfirming(false);
@@ -283,6 +293,8 @@ export default function App() {
     try {
       const verReport = await verifyCode({ runId });
       setVerification(verReport);
+      setCurrentRunRecord(await fetchRunDetails(runId));
+      loadRunsList();
       setActiveTab('verifier');
     } catch (err) {
       alert(`Verification failed: ${err.message}`);
@@ -292,15 +304,24 @@ export default function App() {
   };
 
   // Handler: Full End-to-End Autonomous Pipeline Runner (Stages 1-7)
-  const handleRunFullPipeline = async () => {
+  const handleRunFullPipeline = async (confirmedGoal = null) => {
     if (!taskPrompt.trim()) return;
+    const executionGoal = confirmedGoal?.is_confirmed ? confirmedGoal : goalModel;
+    if (executionGoal?.run_id === runId && !executionGoal.is_confirmed) {
+      setPendingFullRunId(runId);
+      setError(null);
+      setActiveTab((executionGoal.ambiguities || []).some(a => a.severity === 'blocking' && !a.resolved)
+        ? 'clarifications' : 'confirm');
+      return;
+    }
+    setPendingFullRunId(null);
     setIsExecuting(true);
     setError(null);
     try {
       const fullRecord = await runFullPipeline({
         requestText: taskPrompt,
         repoPath: repoPath,
-        modelName: ollamaStatus?.current_model || 'qwen2.5-coder:7b',
+        modelName: (ollamaStatus?.current_model === 'none' ? undefined : ollamaStatus?.current_model),
         temperature: temperature,
         maxRecoveryRetries: maxRecoveryRetries,
         runId: runId
@@ -316,8 +337,8 @@ export default function App() {
       setVerification(fullRecord.verification);
       setLogs(fullRecord.logs || []);
       loadRunsList();
-
-      setActiveTab('evaluations');
+      if (!fullRecord.goal_model?.is_confirmed) setPendingFullRunId(fullRecord.run_id);
+      setActiveTab(fullRecord.goal_model?.is_confirmed ? 'evaluations' : 'goal_model');
     } catch (err) {
       console.error('Full pipeline execution error:', err);
       setError(err.message || 'Pipeline execution failed.');
@@ -328,6 +349,7 @@ export default function App() {
 
   // Handler: Reset to New Task
   const handleReset = () => {
+    setPendingFullRunId(null);
     setGoalModel(null);
     setPlan(null);
     setCodeChanges([]);
@@ -353,7 +375,7 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onReset={handleReset}
         onRunFullPipeline={handleRunFullPipeline}
-        isRunning={isExecuting || loading}
+        isRunning={isExecuting || loading || isConfirming}
         hasRun={!!runId}
         runsList={runsList}
         onSelectRun={handleSelectRun}
@@ -361,9 +383,15 @@ export default function App() {
 
       {/* Main Workspace Container */}
       <main style={{ flex: 1, maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '24px 20px' }}>
+        {error && <div role="alert" className="card-panel" style={{ padding: 16, marginBottom: 16, color: '#fda4af' }}>{error}</div>}
+        {pendingFullRunId === runId && runId && !goalModel?.is_confirmed && !isExecuting && (
+          <div role="status" className="card-panel" style={{ padding: 16, marginBottom: 16 }}>
+            Workflow paused for your review. Resolve any blocking questions and confirm the requirements to continue through stages 3–7.
+          </div>
+        )}
         {/* Loading Telemetry Stepper */}
         {(loading || isExecuting) && (
-          <ParsingProgress modelName={ollamaStatus?.current_model} />
+          <ParsingProgress modelName={ollamaStatus?.current_model} requirements={!goalModel?.is_confirmed} />
         )}
 
         {/* State 1: Coding Workspace & Presets */}
@@ -375,7 +403,7 @@ export default function App() {
             onAnalyze={handleAnalyzeTask}
             onRunFullPipeline={handleRunFullPipeline}
             loading={loading || isExecuting}
-            error={error}
+            error={null}
             ollamaStatus={ollamaStatus}
             selectedLanguage={selectedLanguage}
             setSelectedLanguage={setSelectedLanguage}
@@ -392,6 +420,7 @@ export default function App() {
             goalModel={goalModel}
             onSavePatch={handleSavePatch}
             onNavigateToClarifications={() => setActiveTab('clarifications')}
+            onProceedToConfirmation={() => setActiveTab('confirm')}
             isSaving={isSaving}
           />
         )}
@@ -419,6 +448,7 @@ export default function App() {
           <ConfirmationGate 
             goalModel={goalModel}
             onConfirm={handleConfirmGoal}
+            continueFullWorkflow={pendingFullRunId === runId}
             isConfirming={isConfirming}
             onNavigateToClarifications={() => setActiveTab('clarifications')}
             onProceedToPlanner={handleGeneratePlan}

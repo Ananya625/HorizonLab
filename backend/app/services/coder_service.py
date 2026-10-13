@@ -1,3 +1,4 @@
+from .workflow_service import observed, workflow
 import os
 import json
 import uuid
@@ -24,6 +25,21 @@ def extract_clean_python_code(raw: str) -> str:
     if not raw:
         return ""
     cleaned = raw.strip()
+
+    # Decode envelopes before looking for fences: fences inside JSON strings
+    # contain escaped newlines and must not be treated as raw Python.
+    if cleaned.startswith('{'):
+        try:
+            envelope = json.loads(cleaned)
+        except json.JSONDecodeError:
+            envelope = None
+        if isinstance(envelope, dict):
+            if len(envelope) == 1 and next(iter(envelope)).endswith('.py'):
+                envelope = next(iter(envelope.values()))
+            if isinstance(envelope, dict):
+                envelope = envelope.get('content', envelope.get('code'))
+            if isinstance(envelope, str):
+                cleaned = envelope.strip()
 
     # 1. Markdown code fences
     if "```python" in cleaned:
@@ -70,18 +86,27 @@ Your job is to generate production-ready, clean, PEP-8 compliant Python code for
 Return ONLY the raw Python code for the file. Do NOT wrap in conversational markdown (only return the code or markdown code fence ```python ... ```)."""
 
 class CoderService:
+    @observed('coder', 'stage', reason=None)
     async def execute_plan(
         self,
         run_id: str,
-        model_name: Optional[str] = "qwen2.5-coder:1.5b",
+        model_name: Optional[str] = None,
         temperature: float = 0.2
     ) -> List[CodeChange]:
+        model_name = model_name or ollama_service.default_model
         plan = db_service.get_plan(run_id)
         if not plan:
             raise ValueError(f"Plan for run_id '{run_id}' not found")
         goal_model = db_service.get_goal_model(run_id)
         if not goal_model:
             raise ValueError(f"Goal model for run_id '{run_id}' not found")
+        if not goal_model.is_confirmed:
+            raise ValueError('Confirm the goal before writing code')
+        from .workflow_service import goal_revision
+        if plan.goal_revision is not None and plan.goal_revision != goal_revision(goal_model):
+            raise ValueError('Regenerate the plan for the current confirmed goal content')
+        if plan.goal_model_version != goal_model.goal_model_version:
+            raise ValueError('Regenerate the plan for the current confirmed goal')
 
         repo_path = plan.target_repo_path
         code_changes: List[CodeChange] = []
@@ -100,153 +125,159 @@ class CoderService:
         )
 
         implemented_context: Dict[str, str] = {}
-        for planned_file in plan.planned_files:
-            file_rel_path = planned_file.path
-            action = planned_file.action
-            description = planned_file.description
+        # Tests need the actual implementation interface, even when the planner
+        # lists them first. Keep relative order within each group.
+        for planned_file in sorted(plan.planned_files, key=lambda f: f.action == 'test' or os.path.basename(f.path).startswith('test_')):
+            with workflow.attempt(run_id, planned_file.sub_goal_id):
+                file_rel_path = planned_file.path
+                action = planned_file.action
+                description = planned_file.description
 
-            # Pre-action Drift Check
-            pre_check = drift_controller_service.check_action(
-                run_id=run_id,
-                action_type="file_write",
-                target=file_rel_path,
-                payload_str="",
-                repo_path=repo_path
-            )
-            if not pre_check.allowed:
-                db_service.add_log(
-                    run_id=run_id,
-                    stage="coder",
-                    agent_role="Drift Controller",
-                    event_type="warning",
-                    message=f"File edit blocked: {pre_check.reason}",
-                    details={"file": file_rel_path, "decision": pre_check.model_dump()}
-                )
-                goal_tracker_service.record_action(
+                # Pre-action Drift Check
+                pre_check = drift_controller_service.check_action(
                     run_id=run_id,
                     action_type="file_write",
                     target=file_rel_path,
                     payload_str="",
-                    status="blocked" if pre_check.action_category == "blocked" else "skipped_duplicate",
-                    error_message=pre_check.reason
+                    repo_path=repo_path
                 )
-                if pre_check.action_category == "budget_exceeded":
-                    break
-                continue
+                if not pre_check.allowed:
+                    db_service.add_log(
+                        run_id=run_id,
+                        stage="coder",
+                        agent_role="Drift Controller",
+                        event_type="warning",
+                        message=f"File edit blocked: {pre_check.reason}",
+                        details={"file": file_rel_path, "decision": pre_check.model_dump()}
+                    )
+                    goal_tracker_service.record_action(
+                        run_id=run_id,
+                        action_type="file_write",
+                        target=file_rel_path,
+                        payload_str="",
+                        status="blocked" if pre_check.action_category == "blocked" else "skipped_duplicate",
+                        error_message=pre_check.reason
+                    )
+                    if pre_check.action_category == "budget_exceeded":
+                        break
+                    continue
 
-            original_content = workspace_service.read_file(repo_path, file_rel_path)
+                db_service.add_log(run_id, 'coder', 'Coding Agent', 'tool_call', 'Read workspace file', {'tool':'read_file', 'file':file_rel_path})
+                original_content = workspace_service.read_file(repo_path, file_rel_path)
 
-            if tracker:
-                tracker.record_tool_call()
+                if tracker:
+                    tracker.record_tool_call()
 
-            db_service.add_log(
-                run_id=run_id,
-                stage="coder",
-                agent_role="Coding Agent",
-                event_type="tool_call",
-                message=f"Generating code for '{file_rel_path}' ({action}): {description}",
-                details={"file": file_rel_path, "action": action}
-            )
-
-            # Generate new file content
-            new_content = await self._generate_code_for_file(
-                file_rel_path=file_rel_path,
-                action=action,
-                description=description,
-                original_content=original_content,
-                goal_model=goal_model,
-                plan=plan,
-                model_name=model_name,
-                temperature=temperature,
-                run_id=run_id,
-                related_context=implemented_context
-            )
-            implemented_context[file_rel_path] = new_content
-
-            # Repeated Edit & Content Drift Check
-            content_check = drift_controller_service.check_action(
-                run_id=run_id,
-                action_type="file_write",
-                target=file_rel_path,
-                payload_str=new_content,
-                repo_path=repo_path
-            )
-            if not content_check.allowed:
                 db_service.add_log(
                     run_id=run_id,
                     stage="coder",
-                    agent_role="Drift Controller",
-                    event_type="warning",
-                    message=f"Duplicate/Unchanged content skipped for '{file_rel_path}': {content_check.reason}",
-                    details={"file": file_rel_path}
+                    agent_role="Coding Agent",
+                    event_type="info",
+                    message=f"Generating code for '{file_rel_path}' ({action}): {description}",
+                    details={"file": file_rel_path, "action": action}
                 )
+
+                # Generate new file content
+                new_content = await self._generate_code_for_file(
+                    file_rel_path=file_rel_path,
+                    action=action,
+                    description=description,
+                    original_content=original_content,
+                    goal_model=goal_model,
+                    plan=plan,
+                    model_name=model_name,
+                    temperature=temperature,
+                    run_id=run_id,
+                    related_context=implemented_context
+                )
+                implemented_context[file_rel_path] = new_content
+
+                # Repeated Edit & Content Drift Check
+                content_check = drift_controller_service.check_action(
+                    run_id=run_id,
+                    action_type="file_write",
+                    target=file_rel_path,
+                    payload_str=new_content,
+                    repo_path=repo_path
+                )
+                if not content_check.allowed:
+                    db_service.add_log(
+                        run_id=run_id,
+                        stage="coder",
+                        agent_role="Drift Controller",
+                        event_type="warning",
+                        message=f"Duplicate/Unchanged content skipped for '{file_rel_path}': {content_check.reason}",
+                        details={"file": file_rel_path}
+                    )
+                    goal_tracker_service.record_action(
+                        run_id=run_id,
+                        action_type="file_write",
+                        target=file_rel_path,
+                        payload_str=new_content,
+                        status="skipped_duplicate",
+                        details={"reason": content_check.reason}
+                    )
+                    continue
+
+                # Write file to disk
+                db_service.invalidate_evaluation(run_id, 'Code changed; independent evidence must be refreshed')
+                db_service.add_log(run_id, 'coder', 'Coding Agent', 'tool_call', 'Write workspace file', {'tool':'write_file', 'file':file_rel_path})
+                workspace_service.write_file(repo_path, file_rel_path, new_content)
+
+                # Compute diff & AST syntax check
+                diff_res = workspace_service.compute_diff(original_content, new_content, file_rel_path)
+
+                # Post-action result validation
+                val_res = drift_controller_service.validate_result(
+                    run_id=run_id,
+                    action_type="file_write",
+                    target=file_rel_path,
+                    success=True,
+                    details={"ast_valid": diff_res["ast_valid"], "lines_added": diff_res["lines_added"]}
+                )
+
+                # Record verified action in GoalTracker
                 goal_tracker_service.record_action(
                     run_id=run_id,
                     action_type="file_write",
                     target=file_rel_path,
                     payload_str=new_content,
-                    status="skipped_duplicate",
-                    details={"reason": content_check.reason}
+                    status="completed" if val_res.valid else "failed",
+                    details={"lines_added": diff_res["lines_added"], "ast_valid": diff_res["ast_valid"]}
                 )
-                continue
 
-            # Write file to disk
-            workspace_service.write_file(repo_path, file_rel_path, new_content)
+                change = CodeChange(
+                    id=f"change_{uuid.uuid4().hex[:8]}",
+                    run_id=run_id,
+                    file_path=file_rel_path,
+                    action="created" if original_content is None else "modified",
+                    original_content=original_content,
+                    new_content=new_content,
+                    diff_patch=diff_res["diff_patch"],
+                    lines_added=diff_res["lines_added"],
+                    lines_removed=diff_res["lines_removed"],
+                    ast_valid=diff_res["ast_valid"],
+                    created_at=datetime.now().isoformat()
+                )
 
-            # Compute diff & AST syntax check
-            diff_res = workspace_service.compute_diff(original_content, new_content, file_rel_path)
+                db_service.save_code_change(change)
+                code_changes.append(change)
 
-            # Post-action result validation
-            val_res = drift_controller_service.validate_result(
-                run_id=run_id,
-                action_type="file_write",
-                target=file_rel_path,
-                success=True,
-                details={"ast_valid": diff_res["ast_valid"], "lines_added": diff_res["lines_added"]}
-            )
-
-            # Record verified action in GoalTracker
-            goal_tracker_service.record_action(
-                run_id=run_id,
-                action_type="file_write",
-                target=file_rel_path,
-                payload_str=new_content,
-                status="completed" if val_res.valid else "failed",
-                details={"lines_added": diff_res["lines_added"], "ast_valid": diff_res["ast_valid"]}
-            )
-
-            change = CodeChange(
-                id=f"change_{uuid.uuid4().hex[:8]}",
-                run_id=run_id,
-                file_path=file_rel_path,
-                action="created" if original_content is None else "modified",
-                original_content=original_content,
-                new_content=new_content,
-                diff_patch=diff_res["diff_patch"],
-                lines_added=diff_res["lines_added"],
-                lines_removed=diff_res["lines_removed"],
-                ast_valid=diff_res["ast_valid"],
-                created_at=datetime.now().isoformat()
-            )
-
-            db_service.save_code_change(change)
-            code_changes.append(change)
-
-            db_service.add_log(
-                run_id=run_id,
-                stage="coder",
-                agent_role="Coding Agent",
-                event_type="file_edit",
-                message=f"Saved '{file_rel_path}' (+{change.lines_added}/-{change.lines_removed} lines). AST Valid: {change.ast_valid}.",
-                details={"file_path": file_rel_path, "ast_valid": change.ast_valid, "lines_added": change.lines_added}
-            )
+                db_service.add_log(
+                    run_id=run_id,
+                    stage="coder",
+                    agent_role="Coding Agent",
+                    event_type="file_edit",
+                    message=f"Saved '{file_rel_path}' (+{change.lines_added}/-{change.lines_removed} lines). AST Valid: {change.ast_valid}.",
+                    details={"file_path": file_rel_path, "ast_valid": change.ast_valid, "lines_added": change.lines_added}
+                )
 
         db_service.add_log(
             run_id=run_id,
             stage="coder",
             agent_role="Coding Agent",
             event_type="success",
-            message=f"Coding completed successfully. Created/updated {len(code_changes)} files with verified AST syntax.",
+            message=f"Created/updated {len(code_changes)} files; {sum(c.ast_valid is False for c in code_changes)} failed syntax checks. Task verification is separate.",
             details={"total_changes": len(code_changes)}
         )
 
@@ -267,24 +298,28 @@ class CoderService:
     ) -> str:
         # Check if deterministic high-reliability template is available for known complex presets
         det_code = self._get_deterministic_code(file_rel_path, goal_model, original_content)
-        if det_code and not det_code.startswith("# Auto-generated"):
+        if original_content is None and det_code and not det_code.startswith("# Auto-generated"):
             # Only use template if the prompt actually relates to the preset domain
             lower_goal = goal_model.main_goal.lower()
             if any(k in lower_goal for k in ["jwt", "auth", "token", "login", "concurrency", "socket", "pool"]):
+                db_service.add_log(goal_model.run_id, 'coder', 'Coding Agent', 'generation', 'Template generation', {'file':file_rel_path,'mode':'template'})
                 return det_code
 
         # Otherwise query Ollama for genuine code synthesis
+        raw = ''
+        cleaned = ''
+        response_reason = None
         try:
-            # Bound existing content in prompt to avoid token bloat
+            # Never silently discard part of an existing file when replacing it.
             existing_snippet = original_content
-            if existing_snippet and len(existing_snippet) > 1500:
-                existing_snippet = existing_snippet[:1500] + "\n# ... (truncated for context)"
+            if existing_snippet and len(existing_snippet) > 6000:
+                raise ValueError('Existing file exceeds the supported context; split the edit before replacing this file')
 
             context_block = ""
             if related_context:
                 context_block = "\nImplementation files in this workspace:\n"
                 for rpath, rcode in related_context.items():
-                    context_block += f"--- {rpath} ---\n{rcode[:1500]}\n----------------\n"
+                    context_block += f"--- {rpath} ---\n{rcode}\n----------------\n"
 
             test_guidance = ""
             if "test" in file_rel_path.lower():
@@ -292,12 +327,15 @@ class CoderService:
 CRITICAL TEST RULES:
 1. Import and test the EXACT function/class names and signatures defined in the implementation files above (e.g., 'from app.service import ...' or 'from service import ...').
 2. Do NOT invent hypothetical classes or methods that are not defined in the implementation code.
-3. Use pytest syntax with assertion statements (e.g., 'def test_...(): assert ...')."""
+3. Use pytest syntax with assertion statements (e.g., 'def test_...(): assert ...').
+4. Keep the suite concise: 3–5 focused cases, without prose or copies of the implementation."""
 
             user_msg = f"""Task: {goal_model.main_goal}
 File to write: {file_rel_path}
 Action: {action}
 Description: {description}
+Required behavior: {[sg.description for sg in goal_model.sub_goals]}
+Expected interface: {goal_model.expected_output.schema_summary}
 Existing Content:
 {existing_snippet or '(None - creating new file)'}
 {context_block}
@@ -314,31 +352,65 @@ Generate complete, executable, clean Python code for '{file_rel_path}'."""
 
             resp = await ollama_service.chat_completion(
                 messages=messages,
-                model=model_name or "qwen2.5-coder:1.5b",
+                model=model_name,
                 temperature=temperature,
                 format_json=False,
-                num_ctx=2048,
-                num_predict=512,
+                num_ctx=4096,
+                num_predict=1000,
                 run_id=run_id,
                 stage="coder"
             )
             raw = resp.get("message", {}).get("content", "")
-            if raw:
-                cleaned = extract_clean_python_code(raw)
-                
-                # Validate AST syntax before accepting
-                if cleaned and len(cleaned) > 15:
-                    try:
-                        ast.parse(cleaned)
-                        return cleaned
-                    except SyntaxError as syn_err:
-                        logger.warning(f"Ollama returned code with syntax error in {file_rel_path}: {syn_err}")
+            if not isinstance(raw, str):
+                raw = ''
+                raise ValueError('The model response did not contain textual code')
+            response_reason = resp.get('done_reason')
+            if response_reason == 'length' or resp.get('done') is False:
+                raise ValueError('The model response was incomplete or reached its output limit; no incomplete file was written')
+            cleaned = extract_clean_python_code(raw)
+            if not cleaned:
+                raise ValueError('The model returned no code')
+            # compile catches invalid return/await placement that ast.parse accepts.
+            compile(cleaned, file_rel_path, 'exec')
+            if not ast.parse(cleaned).body:
+                raise ValueError('The model returned comments without executable code')
+            if '# Auto-generated by AgentEval-X Coding Agent' in cleaned and 'def execute_service()' in cleaned:
+                raise ValueError('The model returned a placeholder status function')
+            if os.path.basename(file_rel_path).startswith('test_') and related_context:
+                tree = ast.parse(cleaned)
+                modules = {p.removesuffix('.py').replace('/', '.').replace('\\', '.')
+                           for p in related_context if p.endswith('.py') and not os.path.basename(p).startswith('test_')}
+                imports = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+                imports.update(f'{n.module}.{a.name}' for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) for a in n.names)
+                imports.update(a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names)
+                if modules and not modules.intersection(imports):
+                    raise ValueError('Generated tests must import the implementation they test')
+                symbols = {n.name for code in related_context.values() for n in ast.parse(code).body
+                           if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and not n.name.startswith('test_')}
+                if any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.name in symbols for n in tree.body):
+                    raise ValueError('Generated tests redefine implementation symbols instead of testing them')
+            return cleaned
         except Exception as e:
-            logger.warning(f"Ollama code generation fallback for {file_rel_path}: {e}")
+            if isinstance(e, SyntaxError):
+                diagnosis = f'The returned Python is invalid at line {e.lineno}, column {e.offset}: {e.msg}'
+                guidance = 'Review the rejected output in the run log before retrying explicitly.'
+            elif isinstance(e, ValueError):
+                diagnosis = str(e)
+                guidance = 'Review the model output and requested file scope before retrying explicitly.'
+            else:
+                diagnosis = str(e)
+                guidance = 'Check the selected Ollama model and connection, then retry explicitly.'
+            message = (f"Code generation failed for {file_rel_path}: {diagnosis}. "
+                       f'{guidance} No placeholder was written for this file.')
+            details = {'file': file_rel_path, 'mode': 'failed', 'error_type': type(e).__name__,
+                       'done_reason': response_reason, 'rejected_output': raw[:16000],
+                       'output_excerpt_truncated': len(raw) > 16000}
+            if isinstance(e, SyntaxError):
+                details.update(line=e.lineno, column=e.offset, source_line=(e.text or '')[:500])
+            db_service.add_log(goal_model.run_id, 'coder', 'Coding Agent', 'error', message, details)
+            raise RuntimeError(message) from e
 
-        return det_code
-
-    def _get_deterministic_code(self, file_rel_path: str, goal_model: GoalModel, original_content: Optional[str]) -> str:
+    def _get_deterministic_code(self, file_rel_path: str, goal_model: GoalModel, original_content: Optional[str]) -> Optional[str]:
         norm_path = file_rel_path.replace("\\", "/")
 
         # 1. Login API / JWT Test Suite (Check first!)
@@ -841,19 +913,7 @@ async def test_concurrent_socket_acquisition():
     assert pool.idle_count == len(set(acquired_sockets))
 '''
 
-        # Generic fallback
-        else:
-            return f'''# Auto-generated by AgentEval-X Coding Agent
-# Module: {file_rel_path}
-# Task: {goal_model.main_goal}
-
-def execute_service():
-    """Core domain implementation for {goal_model.main_goal}."""
-    return {{"status": "success", "module": "{file_rel_path}", "task": "{goal_model.main_goal}"}}
-
-def test_service_nominal():
-    result = execute_service()
-    assert result["status"] == "success"
-'''
+        # An unsupported task has no deterministic implementation.
+        return None
 
 coder_service = CoderService()

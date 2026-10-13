@@ -1,3 +1,4 @@
+from .workflow_service import observed, workflow
 import os
 import json
 import logging
@@ -15,7 +16,8 @@ from .db import db_service
 
 logger = logging.getLogger(__name__)
 
-PLANNER_SYSTEM_PROMPT = """You are the Codebase Analyst + Principal Software Architect Agent for an autonomous software engineering system.
+PLANNER_SYSTEM_PROMPT = """When linking planned_files to goals, include sub_goal_id using an existing goal sub-goal ID only when the assignment is explicit. Include sub_goal_ids on plan steps where known; otherwise omit these optional mappings.
+You are the Codebase Analyst + Principal Software Architect Agent for an autonomous software engineering system.
 
 Your job is to inspect the existing codebase structure and the confirmed Goal Model / Requirements, and generate a precise, actionable, step-by-step Implementation Plan.
 
@@ -53,17 +55,21 @@ You must respond ONLY with a valid JSON object matching this schema:
 }
 """
 
+# File sub-goal links are explicit plan data, not inferred by the evaluator.
 class PlannerService:
+    @observed('planner', 'stage', reason=None)
     async def generate_plan(
         self,
         run_id: str,
         repo_path: Optional[str] = None,
-        model_name: Optional[str] = "qwen2.5-coder:7b",
+        model_name: Optional[str] = None,
         temperature: float = 0.2
     ) -> ImplementationPlan:
         goal_model = db_service.get_goal_model(run_id)
         if not goal_model:
             raise ValueError(f"Goal model for run_id '{run_id}' not found")
+        if not goal_model.is_confirmed or any(a.severity == 'blocking' and not a.resolved for a in goal_model.ambiguities):
+            raise ValueError('A confirmed goal without blocking ambiguities is required')
 
         run_record = db_service.get_run_record(run_id)
         target_repo = repo_path or (run_record.repo_path if run_record and run_record.repo_path else workspace_service.get_default_repo_path())
@@ -104,10 +110,10 @@ Generate the detailed Implementation Plan JSON for the Coding Agent."""
         try:
             resp = await ollama_service.chat_completion(
                 messages=messages,
+                run_id=run_id,
                 model=model_name,
                 temperature=temperature,
                 format_json=True,
-                run_id=run_id,
                 stage="planner"
             )
             raw_content = resp.get("message", {}).get("content", "")
@@ -147,14 +153,15 @@ Generate the detailed Implementation Plan JSON for the Coding Agent."""
 
         plan = ImplementationPlan(
             run_id=run_id,
-            architecture_overview=parsed_plan.get("architecture_overview", "Modular architecture with isolated authentication service, secure token issuance, and dedicated test suite."),
+            goal_model_version=goal_model.goal_model_version,
+            architecture_overview=parsed_plan.get("architecture_overview", f"Implementation of {goal_model.main_goal}"),
             target_repo_path=target_repo,
-            tech_stack=parsed_plan.get("tech_stack", {"framework": "FastAPI", "language": "Python 3.11+", "auth": "PyJWT", "crypto": "passlib[bcrypt]", "test_runner": "pytest"}),
-            key_modules=parsed_plan.get("key_modules", ["app.auth", "app.routes.auth", "tests.test_auth"]),
+            tech_stack=parsed_plan.get("tech_stack", {"language": "Python", "test_runner": "pytest"}),
+            key_modules=parsed_plan.get("key_modules", [pf.path for pf in planned_files]),
             planned_files=planned_files,
             steps=steps,
-            testing_strategy=parsed_plan.get("testing_strategy", "Automated pytest suite validating user registration, successful token generation, invalid password rejection (401), expired token rejection, and protected endpoint access."),
-            risk_assessment=parsed_plan.get("risk_assessment", "Potential risks: Hardcoded secrets (mitigated by environment variable fallback), weak password hashing (mitigated by bcrypt work factor 12)."),
+            testing_strategy=parsed_plan.get("testing_strategy", "Run tests that exercise the changed implementation and the confirmed acceptance criteria."),
+            risk_assessment=parsed_plan.get("risk_assessment", "Preserve existing interfaces and tests; generated code still requires independent verification."),
             created_at=datetime.now().isoformat()
         )
 

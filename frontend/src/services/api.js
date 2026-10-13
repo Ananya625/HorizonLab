@@ -23,7 +23,7 @@ async function request(endpoint, options = {}) {
             ? errorJson.detail 
             : JSON.stringify(errorJson.detail);
         }
-      } catch (e) {
+      } catch {
         // Failed to parse JSON error response, use default
       }
       throw new Error(errorDetail);
@@ -74,7 +74,7 @@ export async function parseTaskRequirement({ requestText, repoPath, modelName, l
       repo_path: repoPath,
       model_name: modelName,
       language: language || 'auto',
-      temperature: temperature || 0.2,
+      temperature: temperature ?? 0.2,
       run_id: runId
     }),
   });
@@ -149,7 +149,7 @@ export async function fetchCodeChanges(runId) {
 export async function executeTesting({ runId, maxRecoveryRetries }) {
   return request('/tester/execute', {
     method: 'POST',
-    body: JSON.stringify({ run_id: runId, max_recovery_retries: maxRecoveryRetries || 3 }),
+    body: JSON.stringify({ run_id: runId, max_recovery_retries: maxRecoveryRetries ?? 3 }),
   });
 }
 
@@ -179,8 +179,8 @@ export async function runFullPipeline({ requestText, repoPath, modelName, temper
       request_text: requestText,
       repo_path: repoPath,
       model_name: modelName,
-      temperature: temperature || 0.2,
-      max_recovery_retries: maxRecoveryRetries || 3,
+      temperature: temperature ?? 0.2,
+      max_recovery_retries: maxRecoveryRetries ?? 3,
       run_id: runId,
     }),
   });
@@ -207,3 +207,16 @@ export async function fetchEvaluationDashboard() {
 export async function fetchRunEvaluation(runId) {
   return request(`/evaluations/${runId}`);
 }
+
+export const fetchBenchmarkCapabilities = () => request('/benchmarks/capabilities');
+export const fetchExperiments = () => request('/benchmarks/experiments');
+export const runExperiment = (manifest) => request('/benchmarks/experiments', { method: 'POST', body: JSON.stringify(manifest) });
+export const exportRun = (runId) => request(`/runs/${runId}/export`);
+export const runStudy = (manifest) => request('/benchmarks/studies', { method: 'POST', body: JSON.stringify(manifest) });
+export const resumeExperiment = (experimentId) => request(`/benchmarks/experiments/${experimentId}/resume`, { method: 'POST' });
+
+
+export const fetchWorkflowReport = (runId, signal) => request(`/evaluations/${encodeURIComponent(runId)}/workflow`, { signal });
+export const fetchWorkflowEvents = (runId, after = 0, through, signal) => request(`/evaluations/${encodeURIComponent(runId)}/workflow/events?after=${after}&limit=50${through == null ? '' : `&through=${through}`}`, { signal });
+export const fetchWorkflowEvent = (runId, eventId, signal) => request(`/evaluations/${encodeURIComponent(runId)}/workflow/events/${encodeURIComponent(eventId)}`, { signal });
+export const exportWorkflow = runId => request(`/evaluations/${encodeURIComponent(runId)}/workflow/export`);

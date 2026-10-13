@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import uuid
+from contextlib import nullcontext, contextmanager
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from ..models.schema import (
@@ -19,22 +20,29 @@ from ..models.schema import (
 
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 os.makedirs(DB_DIR, exist_ok=True)
-DB_PATH = os.path.join(DB_DIR, "agent_eval.db")
+DB_PATH = os.environ.get('AGENTEVAL_DB_PATH', os.path.join(DB_DIR, "agent_eval.db"))
 
 class DatabaseService:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+    @contextmanager
+    def _get_connection(self):
+        conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _init_db(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
+            from .workflow_store import initialize
+            initialize(conn)
             # Runs table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS runs (
@@ -207,6 +215,14 @@ class DatabaseService:
                 )
             """)
 
+            columns = {r[1] for r in cursor.execute('PRAGMA table_info(recovery_attempts)')}
+            if 'data_json' not in columns:
+                cursor.execute('ALTER TABLE recovery_attempts ADD COLUMN data_json TEXT')
+            cursor.execute('CREATE TABLE IF NOT EXISTS experiment_runs (experiment_id TEXT PRIMARY KEY, manifest_json TEXT NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL)')
+            cursor.execute('CREATE TABLE IF NOT EXISTS evaluation_history (id INTEGER PRIMARY KEY, run_id TEXT NOT NULL, data_json TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)')
+            cursor.execute('CREATE TABLE IF NOT EXISTS benchmark_checkpoints (run_id TEXT PRIMARY KEY, data_json TEXT NOT NULL, updated_at TEXT NOT NULL)')
+            cursor.execute('CREATE TABLE IF NOT EXISTS benchmark_events (run_id TEXT NOT NULL, event_id TEXT NOT NULL, data_json TEXT NOT NULL, PRIMARY KEY(run_id, event_id))')
+            cursor.execute('CREATE TABLE IF NOT EXISTS benchmark_pilot_budgets (pilot_id TEXT PRIMARY KEY, data_json TEXT NOT NULL)')
             conn.commit()
 
     # --- Run Methods ---
@@ -265,6 +281,7 @@ class DatabaseService:
                 status=row["status"],
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
+                metadata=json.loads(row['metadata_json'] or '{}'),
                 goal_model=goal_model,
                 plan=plan,
                 code_changes=code_changes,
@@ -288,12 +305,22 @@ class DatabaseService:
             return [dict(row) for row in rows]
 
     # --- Goal Model Methods ---
-    def save_goal_model(self, model: GoalModel) -> GoalModel:
+    def save_goal_model(self, model: GoalModel, expected_version=None, expected_revision=None) -> GoalModel:
         now = datetime.now().isoformat()
         model.updated_at = now
         model_json = model.model_dump_json()
         
         with self._get_connection() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            if expected_version is not None:
+                row = conn.execute('SELECT data_json FROM goal_models WHERE run_id=?', (model.run_id,)).fetchone()
+                if not row or json.loads(row[0])['goal_model_version'] != expected_version:
+                    raise ValueError('Goal changed concurrently; reload before editing')
+            if expected_revision is not None:
+                from .workflow_service import goal_revision
+                row = conn.execute('SELECT data_json FROM goal_models WHERE run_id=?', (model.run_id,)).fetchone()
+                if not row or goal_revision(GoalModel.model_validate_json(row[0])) != expected_revision:
+                    raise ValueError('Goal changed concurrently; reload before editing')
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO goal_models (run_id, data_json, created_at, updated_at)
@@ -315,6 +342,13 @@ class DatabaseService:
             """, (now, model.run_id))
             conn.commit()
 
+        from .workflow_service import workflow
+        try:
+            gr, pr = workflow.snapshots(model.run_id)
+            workflow.emit(model.run_id, 'notice', goal_revision=gr, plan_revision=pr,
+                reason='requirements_changed', data={'goal_version':model.goal_model_version, 'reported_status':{g.id:g.status for g in model.sub_goals}})
+        except Exception:
+            pass
         return model
 
     def get_goal_model(self, run_id: str) -> Optional[GoalModel]:
@@ -348,6 +382,10 @@ class DatabaseService:
 
     # --- Plan Methods ---
     def save_plan(self, plan: ImplementationPlan) -> ImplementationPlan:
+        from .workflow_service import goal_revision
+        goal = self.get_goal_model(plan.run_id)
+        if plan.goal_revision is None and goal and plan.goal_model_version == goal.goal_model_version:
+            plan.goal_revision = goal_revision(goal)
         now = datetime.now().isoformat()
         plan_json = plan.model_dump_json()
         with self._get_connection() as conn:
@@ -444,7 +482,7 @@ class DatabaseService:
     def get_test_results(self, run_id: str) -> List[TestRunResult]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT data_json FROM test_results WHERE run_id = ? ORDER BY attempt_number ASC", (run_id,))
+            cursor.execute("SELECT data_json FROM test_results WHERE run_id = ? ORDER BY created_at ASC, rowid ASC", (run_id,))
             rows = cursor.fetchall()
             return [TestRunResult.model_validate_json(r["data_json"]) for r in rows]
 
@@ -515,6 +553,9 @@ class DatabaseService:
                     err_summary, attempt.subsequent_test_run_id, attempt.test_result_status,
                     attempt.created_at
                 ))
+            stored_id = existing['id'] if existing else attempt.id
+            attempt = attempt.model_copy(update={'id':stored_id})
+            cursor.execute('UPDATE recovery_attempts SET data_json=? WHERE id=?', (attempt.model_dump_json(), stored_id))
             conn.commit()
         return attempt
 
@@ -529,6 +570,9 @@ class DatabaseService:
             col_names = set(rows[0].keys()) if rows else set()
             attempts = []
             for r in rows:
+                if r['data_json']:
+                    attempts.append(RecoveryAttempt.model_validate_json(r['data_json']))
+                    continue
                 err_summary = r["error_summary"] if "error_summary" in col_names and r["error_summary"] else r["failure_reason"]
                 sub_test_id = r["subsequent_test_run_id"] if "subsequent_test_run_id" in col_names else None
                 test_status = r["test_result_status"] if "test_result_status" in col_names else None
@@ -563,14 +607,16 @@ class DatabaseService:
             return attempts
 
     # --- Verification Methods ---
-    def save_verification(self, report: VerificationReport) -> VerificationReport:
+    def save_verification(self, report: VerificationReport, connection=None) -> VerificationReport:
         report_json = report.model_dump_json()
-        with self._get_connection() as conn:
+        with (nullcontext(connection) if connection is not None else self._get_connection()) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO verifications (id, run_id, overall_verdict, pass_rate_percent, goal_drift_score, code_quality_score, security_verdict, data_json, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(run_id) DO UPDATE SET
+                    id=excluded.id,
+                    created_at=excluded.created_at,
                     overall_verdict=excluded.overall_verdict,
                     pass_rate_percent=excluded.pass_rate_percent,
                     goal_drift_score=excluded.goal_drift_score,
@@ -583,9 +629,10 @@ class DatabaseService:
                 report_json, report.created_at
             ))
             cursor.execute("""
-                UPDATE runs SET current_stage = 'verifier', status = 'completed', updated_at = ? WHERE run_id = ?
+                UPDATE runs SET current_stage = 'verifier', updated_at = ? WHERE run_id = ?
             """, (datetime.now().isoformat(), report.run_id))
-            conn.commit()
+            if connection is None:
+                conn.commit()
         return report
 
     def get_verification(self, run_id: str) -> Optional[VerificationReport]:
@@ -595,17 +642,29 @@ class DatabaseService:
             row = cursor.fetchone()
             if not row:
                 return None
-            return VerificationReport.model_validate_json(row["data_json"])
+            report = VerificationReport.model_validate_json(row["data_json"])
+            evaluation = conn.execute('SELECT data_json FROM evaluations WHERE run_id=?', (run_id,)).fetchone()
+            evidence = json.loads(evaluation[0]) if evaluation else {}
+            if evidence.get('evidence_stale') or evidence.get('outcome') in ('error', 'budget_exceeded'):
+                report = report.model_copy(update={
+                    'overall_verdict':'UNVERIFIED', 'verified_success':None,
+                    'pass_rate_percent':None, 'goal_drift_score':None,
+                    'code_quality_score':None, 'security_verdict':'UNVERIFIED',
+                    'criteria_evaluations':[c.model_copy(update={'verdict':'UNVERIFIED', 'confidence_score':None, 'evidence':'Previous evidence is stale'}) for c in report.criteria_evaluations],
+                    'constraint_compliances':[c.model_copy(update={'compliant':None, 'notes':'Previous evidence is stale'}) for c in report.constraint_compliances],
+                    'review_summary':'Previous evidence is stale or a later stage failed. Reverify the current state.'})
+            return report
 
     # --- Evaluation Methods ---
-    def save_evaluation(self, eval_metrics: EvaluationMetrics) -> EvaluationMetrics:
+    def save_evaluation(self, eval_metrics: EvaluationMetrics, connection=None) -> EvaluationMetrics:
         eval_json = eval_metrics.model_dump_json()
-        with self._get_connection() as conn:
+        with (nullcontext(connection) if connection is not None else self._get_connection()) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO evaluations (run_id, task_id, success_rate, execution_time_seconds, total_tool_calls, recovery_attempts_count, goal_drift_score, lines_added, lines_removed, tests_passed, tests_total, data_json, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(run_id) DO UPDATE SET
+                    created_at=excluded.created_at,
                     success_rate=excluded.success_rate,
                     execution_time_seconds=excluded.execution_time_seconds,
                     total_tool_calls=excluded.total_tool_calls,
@@ -624,8 +683,82 @@ class DatabaseService:
                 eval_metrics.tests_passed, eval_metrics.tests_total,
                 eval_json, eval_metrics.created_at
             ))
-            conn.commit()
+            if connection is None:
+                conn.commit()
         return eval_metrics
+
+    def update_metadata(self, run_id: str, **updates):
+        with self._get_connection() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute('SELECT metadata_json FROM runs WHERE run_id=?', (run_id,)).fetchone()
+            if not row:
+                raise ValueError('Unknown run')
+            metadata = json.loads(row[0] or '{}')
+            metadata.update(updates)
+            conn.execute('UPDATE runs SET metadata_json=?, updated_at=? WHERE run_id=?',
+                         (json.dumps(metadata), datetime.now().isoformat(), run_id))
+
+    def invalidate_evaluation(self, run_id, reason):
+        previous = self.get_evaluation(run_id)
+        if previous is None or previous.evidence_stale:
+            return
+        with self._get_connection() as conn:
+            conn.execute('INSERT INTO evaluation_history (run_id, data_json, reason, created_at) VALUES (?, ?, ?, ?)',
+                         (run_id, previous.model_dump_json(), reason, datetime.now().isoformat()))
+            revised = previous.model_copy(update={'evidence_stale':True, 'verified_success':None,
+                'outcome':'unverified', 'success_rate':None, 'termination_reason':reason})
+            self.save_evaluation(revised, connection=conn)
+
+    def finalize_run(self, metrics: EvaluationMetrics, report: Optional[VerificationReport] = None):
+        if report and report.run_id != metrics.run_id:
+            raise ValueError('Report/evaluation run mismatch')
+        with self._get_connection() as conn:
+            row = conn.execute('SELECT task_id FROM runs WHERE run_id=?', (metrics.run_id,)).fetchone()
+            if not row or row[0] != metrics.task_id:
+                raise ValueError('Unknown or mismatched task')
+            if report:
+                self.save_verification(report, connection=conn)
+            self.save_evaluation(metrics, connection=conn)
+            status = 'failed' if metrics.outcome in ('failed', 'error', 'budget_exceeded') else 'completed'
+            conn.execute('UPDATE runs SET current_stage=?, status=?, updated_at=? WHERE run_id=?',
+                ('completed', status, datetime.now().isoformat(), metrics.run_id))
+
+    def save_experiment(self, experiment_id, manifest, report, connection=None):
+        with (nullcontext(connection) if connection is not None else self._get_connection()) as conn:
+            conn.execute('INSERT INTO experiment_runs VALUES (?, ?, ?, ?) ON CONFLICT(experiment_id) DO UPDATE SET data_json=excluded.data_json',
+                (experiment_id, json.dumps(manifest), json.dumps(report), datetime.now().isoformat()))
+
+    def get_experiments(self):
+        with self._get_connection() as conn:
+            return [json.loads(r[0]) for r in conn.execute('SELECT data_json FROM experiment_runs ORDER BY created_at DESC')]
+
+    def save_benchmark_checkpoint(self, run_id, state, events=(), connection=None):
+        """Checkpoint and append-only evidence commit together; event IDs are idempotent."""
+        with (nullcontext(connection) if connection is not None else self._get_connection()) as conn:
+            if connection is None:
+                conn.execute('BEGIN IMMEDIATE')
+            for event in events:
+                encoded = json.dumps(event, sort_keys=True, allow_nan=False)
+                old = conn.execute('SELECT data_json FROM benchmark_events WHERE run_id=? AND event_id=?', (run_id, event['event_id'])).fetchone()
+                if old and old[0] != encoded:
+                    raise ValueError('Existing benchmark evidence cannot be rewritten')
+                conn.execute('INSERT OR IGNORE INTO benchmark_events VALUES (?, ?, ?)', (run_id, event['event_id'], encoded))
+                if event['kind'] == 'tool':
+                    details = dict(event['data'], trace_step=event['step'], task_id=event['task_id'], agent_id=event.get('agent_id', 'benchmark-agent'))
+                    conn.execute('INSERT OR IGNORE INTO execution_logs VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        (f"benchlog_{run_id}_{event['event_id']}", run_id, 'benchmark', 'Benchmark Agent', 'tool_call', details['tool'], json.dumps(details), event['timestamp']))
+            if state is not None:
+                conn.execute('INSERT INTO benchmark_checkpoints VALUES (?, ?, ?) ON CONFLICT(run_id) DO UPDATE SET data_json=excluded.data_json, updated_at=excluded.updated_at',
+                    (run_id, json.dumps(state, allow_nan=False), datetime.now().isoformat()))
+
+    def get_benchmark_checkpoint(self, run_id):
+        with self._get_connection() as conn:
+            row = conn.execute('SELECT data_json FROM benchmark_checkpoints WHERE run_id=?', (run_id,)).fetchone()
+            return json.loads(row[0]) if row else None
+
+    def get_benchmark_events(self, run_id):
+        with self._get_connection() as conn:
+            return [json.loads(row[0]) for row in conn.execute('SELECT data_json FROM benchmark_events WHERE run_id=? ORDER BY rowid', (run_id,))]
 
     def get_evaluation(self, run_id: str) -> Optional[EvaluationMetrics]:
         with self._get_connection() as conn:
@@ -658,6 +791,13 @@ class DatabaseService:
         )
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute('BEGIN IMMEDIATE')
+            run = cursor.execute('SELECT task_id FROM runs WHERE run_id=?', (run_id,)).fetchone()
+            if not run:
+                raise ValueError('Cannot log an unknown run')
+            step = cursor.execute('SELECT COUNT(*) FROM execution_logs WHERE run_id=?', (run_id,)).fetchone()[0] + 1
+            log_entry.details = dict(details or {}, trace_step=step, task_id=run['task_id'], agent_id=(details or {}).get('agent_id', agent_role))
+            log_entry.task_id, log_entry.step, log_entry.agent_id = run['task_id'], step, log_entry.details['agent_id']
             cursor.execute("""
                 INSERT INTO execution_logs (id, run_id, stage, agent_role, event_type, message, details_json, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -670,15 +810,15 @@ class DatabaseService:
             conn.commit()
         return log_entry
 
-    def get_execution_logs(self, run_id: str, limit: int = 200) -> List[ExecutionLogEntry]:
+    def get_execution_logs(self, run_id: str, limit: Optional[int] = None, offset: int = 0) -> List[ExecutionLogEntry]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM execution_logs 
                 WHERE run_id = ? 
-                ORDER BY timestamp ASC 
-                LIMIT ?
-            """, (run_id, limit))
+                ORDER BY timestamp ASC, rowid ASC
+                LIMIT ? OFFSET ?
+            """, (run_id, limit if limit is not None else -1, offset))
             rows = cursor.fetchall()
             return [
                 ExecutionLogEntry(
@@ -689,41 +829,41 @@ class DatabaseService:
                     agent_role=r["agent_role"],
                     event_type=r["event_type"],
                     message=r["message"],
-                    details=json.loads(r["details_json"]) if r["details_json"] else None
+                    details=json.loads(r["details_json"]) if r["details_json"] else None,
+                    task_id=json.loads(r['details_json'] or '{}').get('task_id'),
+                    step=json.loads(r['details_json'] or '{}').get('trace_step'),
+                    agent_id=json.loads(r['details_json'] or '{}').get('agent_id'),
+                    sub_goal_id=json.loads(r['details_json'] or '{}').get('sub_goal_id'),
                 )
                 for r in rows
             ]
 
     def get_aggregate_evaluations(self) -> Dict[str, Any]:
         with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 
-                    COUNT(*) as total_runs,
-                    AVG(success_rate) as avg_success_rate,
-                    AVG(execution_time_seconds) as avg_duration,
-                    SUM(total_tool_calls) as total_tool_calls,
-                    SUM(recovery_attempts_count) as total_recoveries,
-                    AVG(goal_drift_score) as avg_drift
-                FROM evaluations
-            """)
-            stats = dict(cursor.fetchone())
-            
-            # Fetch recent 10 evaluations for benchmarking chart
-            cursor.execute("""
-                SELECT r.run_id, r.title, r.task_id, e.success_rate, e.execution_time_seconds, 
-                       e.total_tool_calls, e.recovery_attempts_count, e.goal_drift_score, 
-                       e.lines_added, e.lines_removed, e.tests_passed, e.tests_total, r.created_at
-                FROM evaluations e
-                JOIN runs r ON e.run_id = r.run_id
-                ORDER BY r.created_at DESC
-                LIMIT 15
-            """)
-            recent_evals = [dict(r) for r in cursor.fetchall()]
-
-            return {
-                "aggregate_stats": stats,
-                "recent_evaluations": recent_evals
-            }
+            rows = conn.execute('SELECT r.run_id, r.title, r.status, e.data_json FROM runs r LEFT JOIN evaluations e ON e.run_id=r.run_id ORDER BY r.created_at DESC').fetchall()
+        evaluations = [dict(json.loads(r['data_json']), title=r['title']) for r in rows if r['data_json']]
+        current = [e for e in evaluations if e.get('metric_version') == '2']
+        successes = sum(e.get('verified_success') is True for e in current)
+        durations = [e['execution_time_seconds'] for e in current if e.get('execution_time_seconds') is not None]
+        drift = [e['goal_drift_score'] for e in current if e.get('goal_drift_score') is not None and not e.get('evidence_stale')]
+        calls = [e['total_tool_calls'] for e in current if e.get('total_tool_calls') is not None]
+        modes = []
+        for mode in sorted({e.get('execution_mode', 'unknown') for e in current}):
+            population = [e for e in current if e.get('execution_mode', 'unknown') == mode]
+            verified = sum(e.get('verified_success') is True for e in population)
+            modes.append({'execution_mode':mode, 'sample_count':len(population),
+                          'verified_successes':verified, 'verified_success_rate':verified/len(population)})
+        return {'aggregate_stats': {
+            'total_runs': len(rows), 'evaluated_runs': len(current),
+            'legacy_runs': len(evaluations)-len(current), 'unevaluated_runs': len(rows)-len(evaluations),
+            'verified_successes': successes,
+            'unverified_runs': sum(e.get('verified_success') is None for e in current),
+            'avg_success_rate': successes / len(current) * 100 if current else None,
+            'avg_duration': sum(durations)/len(durations) if durations else None,
+            'total_tool_calls': sum(calls) if calls else None,
+            'avg_drift': sum(drift)/len(drift) if drift else None,
+            'total_recoveries': sum(e.get('recovery_attempts_count', 0) for e in current),
+            'population': 'Current metric-version evaluations; unknown outcomes remain in denominator. Legacy and pending runs reported separately.'
+        }, 'by_execution_mode': modes, 'recent_evaluations': evaluations[:15]}
 
 db_service = DatabaseService()

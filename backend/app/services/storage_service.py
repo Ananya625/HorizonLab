@@ -9,8 +9,7 @@ class StorageService:
         return f"run_{uuid.uuid4().hex[:8]}"
 
     def generate_task_id(self) -> str:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"task_{timestamp}"
+        return f"task_{uuid.uuid4().hex}"
 
     def save_goal_model(self, model: GoalModel) -> GoalModel:
         return db_service.save_goal_model(model)

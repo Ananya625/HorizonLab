@@ -1,0 +1,7 @@
+--- person-a/OllamaSettingsModal.jsx
++++ person-b/OllamaSettingsModal.jsx
+@@ -196,4 +196,4 @@
+       </div>
+     </div>
+   );
+-}+}

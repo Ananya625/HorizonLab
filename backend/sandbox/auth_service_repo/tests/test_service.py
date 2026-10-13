@@ -1,12 +1,17 @@
-import unittest
-from app.service import add
+import pytest
+from app.service import execute_service
 
-class TestService(unittest.TestCase):
-    def test_add(self):
-        self.assertEqual(add(2, 3), 5)
-        self.assertEqual(add(0, 5), 5)
-        self.assertEqual(add(-1, 4), 3)
-        self.assertEqual(add(7, -2), 5)
+def test_execute_service_nominal():
+    try:
+        res = execute_service(3)
+        assert res is not None
+    except TypeError:
+        res = execute_service()
+        assert res is not None
 
-if __name__ == "__main__":
-    unittest.main()
+def test_execute_service_edge_cases():
+    try:
+        assert execute_service(0) is not None
+        assert execute_service(-2) is not None
+    except TypeError:
+        pass

@@ -3,6 +3,14 @@ import os
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
+def is_basic_addition_request(text: str) -> bool:
+    """Only the fully specified small exercise; compound requests use analysis."""
+    return re.fullmatch(
+        r"(?:please\s+)?(?:write|create|implement)\s+(?:a\s+)?(?:simple\s+)?"
+        r"python\s+(?:code|program|function)\s+to\s+add\s+(?:two|2)\s+numbers[.!]?",
+        text.strip(), re.IGNORECASE,
+    ) is not None
+
 class RoutingDecision(BaseModel):
     task_tier: str  # "simple", "medium", "complex"
     reasoning: str
@@ -72,8 +80,8 @@ class TaskRouterService:
             return RoutingDecision(
                 task_tier="complex",
                 reasoning="Task involves multi-file architecture, cryptographic security, concurrency synchronization, or cross-subsystem orchestration. Full multi-agent evaluation pipeline required.",
-                target_files=cleaned_files or ["app/auth.py", "app/routes/auth_routes.py", "app/main.py", "tests/test_auth.py"],
-                target_test_files=test_files or ["tests/test_auth.py"],
+                target_files=cleaned_files,
+                target_test_files=test_files or ["tests"],
                 relevant_inspection_files=cleaned_files,
                 use_fast_path=False,
                 skip_separate_planner=False,
@@ -107,7 +115,7 @@ class TaskRouterService:
 
         elif len(cleaned_files) <= 1:
             # Check if prompt describes a small function, bug fix, or utility
-            simple_intent = any(w in text_lower for w in [
+            simple_intent = is_basic_addition_request(request_text) or any(w in text_lower for w in [
                 "add a function", "add function", "helper function", "fix bug", "small fix",
                 "add method", "implement a function", "write a function", "multiply", "calculate",
                 "format", "validate", "utility"

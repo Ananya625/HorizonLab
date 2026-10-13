@@ -82,44 +82,52 @@ def test_telemetry_tracker_lifecycle():
     assert "stage_test" in report["stage_durations"]
     assert report["total_wall_clock_seconds"] >= 0.0
 
+@pytest.fixture
+def deterministic_model(monkeypatch):
+    from app.services.ollama_service import ollama_service
+
+    async def completion(messages, **kwargs):
+        # Tests exercise the generated implementation, not a duplicate function.
+        code = ('from app.service import add\ndef test_add(): assert add(2, 3) == 5\n'
+                if 'File to write: tests/' in messages[-1]['content'] else 'def add(a, b): return a + b\n')
+        return {"message": {"content": code}}
+
+    monkeypatch.setattr(ollama_service, "chat_completion", completion)
+
+
 @pytest.mark.asyncio
-async def test_fast_path_execution_and_verification():
+async def test_fast_path_execution_and_verification(deterministic_model):
+    from app.services.goal_parser_service import goal_parser_service
     prompt = "Implement a helper function add(a: int, b: int) -> int in app/service.py and test in tests/test_service.py"
+    prepared = await orchestrator_service.run_full_pipeline(request_text=prompt, repo_path=None)
+    assert prepared.goal_model.is_confirmed is False
+    goal_parser_service.patch_goal_model(prepared.run_id, {'ambiguities': []}, 'Fixture defines arithmetic behavior')
+    goal_parser_service.confirm_goal_model(prepared.run_id)
     run_record = await orchestrator_service.run_full_pipeline(
-        request_text=prompt,
-        repo_path=workspace_service.get_default_repo_path()
-    )
-    assert run_record.status == "completed"
+        request_text=prompt, existing_run_id=prepared.run_id, max_recovery_retries=0)
     assert run_record.verification is not None
     assert run_record.evaluation is not None
     assert run_record.evaluation.telemetry is not None
+    assert run_record.evaluation.verified_success is not True
     telemetry = run_record.evaluation.telemetry
     assert telemetry["total_wall_clock_seconds"] > 0
     assert "workspace" in telemetry["stage_durations"]
 
-@pytest.mark.asyncio
-async def test_dynamic_isolated_workspace_creation():
-    prompt = "Implement a simple utility square(n: int) -> int in app/service.py and test in tests/test_service.py"
-    # When repo_path is None or omitted, a brand-new folder must be created
-    run_record = await orchestrator_service.run_full_pipeline(
-        request_text=prompt,
-        repo_path=None
-    )
-    assert run_record.status == "completed"
-    assert "workspace_" in run_record.repo_path
-    assert os.path.exists(run_record.repo_path)
-    assert os.path.exists(os.path.join(run_record.repo_path, "app"))
-    assert os.path.exists(os.path.join(run_record.repo_path, "tests"))
-    assert os.path.exists(os.path.join(run_record.repo_path, "pytest.ini"))
-    assert os.path.exists(os.path.join(run_record.repo_path, "requirements.txt"))
 
 @pytest.mark.asyncio
-async def test_existing_repo_used_when_explicitly_provided():
+async def test_dynamic_isolated_workspace_creation(deterministic_model):
+    prompt = "Implement a simple utility square(n: int) -> int in app/service.py and test in tests/test_service.py"
+    run_record = await orchestrator_service.run_full_pipeline(request_text=prompt, repo_path=None)
+    assert run_record.goal_model.is_confirmed is False
+    assert "workspace_" in run_record.repo_path
+    for path in ("app", "tests", "pytest.ini", "requirements.txt"):
+        assert os.path.exists(os.path.join(run_record.repo_path, path))
+
+
+@pytest.mark.asyncio
+async def test_existing_repo_used_when_explicitly_provided(deterministic_model):
     existing_repo = workspace_service.get_default_repo_path()
     prompt = "Add health route check in app/service.py and tests/test_service.py"
-    run_record = await orchestrator_service.run_full_pipeline(
-        request_text=prompt,
-        repo_path=existing_repo
-    )
-    assert run_record.status == "completed"
+    run_record = await orchestrator_service.run_full_pipeline(request_text=prompt, repo_path=existing_repo)
+    assert run_record.goal_model.is_confirmed is False
     assert os.path.abspath(run_record.repo_path) == os.path.abspath(existing_repo)

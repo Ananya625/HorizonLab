@@ -198,6 +198,17 @@ class GoalTrackerService:
         )
         state.revision_history.append(revision)
         state.current_goal = new_goal_text
+        state.task_status = "pending"
+        state.termination_reason = None
+        state.completion_evidence = {}
+        for criterion in state.acceptance_criteria:
+            criterion.status = "pending"
+            criterion.evidence = None
+            criterion.verified_at = None
+        for subtask in state.ordered_subtasks:
+            subtask.status = "pending"
+            subtask.completed_at = None
+            subtask.evidence = None
 
         self._persist_state(state)
         return state
@@ -318,6 +329,11 @@ class GoalTrackerService:
         if not state:
             raise ValueError(f"Task with run_id '{run_id}' not found")
 
+        if status == 'completed':
+            from .workflow_service import workflow, goal_revision
+            from .db import db_service
+            workflow.emit(run_id, 'completion_claim', goal_revision=goal_revision(db_service.get_goal_model(run_id)),
+                reason='reporting', data={'source':'orchestrator', 'scope':'run'})
         state.task_status = status
         state.termination_reason = reason
         if evidence:

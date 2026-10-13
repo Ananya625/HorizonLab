@@ -246,14 +246,16 @@ class DriftControllerService:
             passed = det.get("passed_tests", 0)
             total = det.get("total_tests", 0)
             
-            if exit_code == 0 and passed > 0 and det.get("failed_tests", 0) == 0:
+            if success and exit_code == 0 and passed > 0 and det.get("failed_tests", 0) == 0:
                 # Mark criteria passed in GoalTracker
-                goal_tracker_service.verify_criterion(
-                    run_id=run_id,
-                    criterion_id="all",
-                    passed=True,
-                    evidence=f"Automated pytest confirmed {passed}/{total} tests passed cleanly."
-                )
+                from .db import db_service
+                # Pipeline goals require the independent verifier; local test success
+                # alone does not establish arbitrary acceptance criteria.
+                if db_service.get_goal_model(run_id) is None:
+                    goal_tracker_service.verify_criterion(
+                        run_id=run_id, criterion_id="all", passed=True,
+                        evidence=f"Automated pytest confirmed {passed}/{total} tests passed cleanly."
+                    )
                 return ResultValidation(
                     valid=True,
                     status="accepted",

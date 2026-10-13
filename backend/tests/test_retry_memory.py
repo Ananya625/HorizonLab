@@ -2,7 +2,7 @@ import os
 import uuid
 import time
 import pytest
-from backend.app.models.schema import (
+from app.models.schema import (
     RecoveryAttempt,
     TestRunResult,
     TestResultItem,
@@ -11,8 +11,8 @@ from backend.app.models.schema import (
     ImplementationPlan,
     PlannedFile
 )
-from backend.app.services.db import DatabaseService, db_service
-from backend.app.services.debugger_service import DebuggerService, debugger_service
+from app.services.db import DatabaseService, db_service
+from app.services.debugger_service import DebuggerService, debugger_service
 
 TestRunResult.__test__ = False
 TestResultItem.__test__ = False
@@ -398,17 +398,19 @@ def test_10_duplicate_outcome_handling():
 # TEST 11: Debugger prompt includes cumulative retry memory e2e
 # ==============================================================================
 @pytest.mark.asyncio
-async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch):
+async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch, tmp_path):
     """End-to-End: Debugger retrieves previous attempts and passes them to Ollama prompt."""
     run_id = f"test_run_e2e_{uuid.uuid4().hex[:8]}"
 
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/test_auth.py").write_text("def test_health(): assert 404 == 200\n")
     # Setup run and goal in DB
     db_service.create_or_update_run(
         run_id=run_id,
         task_id="task_e2e",
         title="Test E2E Recovery Memory",
         prompt="Fix calculation bug",
-        repo_path=os.path.abspath("sandbox/auth_service_repo")
+        repo_path=str(tmp_path)
     )
     goal = GoalModel(
         run_id=run_id,
@@ -423,7 +425,7 @@ async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch):
     plan = ImplementationPlan(
         run_id=run_id,
         architecture_overview="Test arch",
-        target_repo_path=os.path.abspath("sandbox/auth_service_repo"),
+        target_repo_path=str(tmp_path),
         planned_files=[PlannedFile(path="tests/test_auth.py", action="test", description="Auth test")],
         steps=[],
         testing_strategy="pytest",
@@ -457,7 +459,7 @@ async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch):
             }
         }
 
-    from backend.app.services.ollama_service import ollama_service
+    from app.services.ollama_service import ollama_service
     monkeypatch.setattr(ollama_service, "chat_completion", fake_chat_completion)
 
     test_result = TestRunResult(

@@ -1,7 +1,9 @@
+from .workflow_service import observed, workflow
 import ast
 import re
 import uuid
 import logging
+import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from ..models.schema import (
@@ -164,6 +166,7 @@ class DebuggerService:
 
         return None
 
+    @observed('debugger', 'stage', reason=None)
     async def run_testing_and_recovery_loop(
         self,
         run_id: str,
@@ -205,23 +208,10 @@ class DebuggerService:
             # Analyze failure
             diagnosis = self._diagnose_failure(current_test_result)
             
-            # Formulate and apply fix using actual test execution traceback and prior history
-            fixed_files = await self._apply_recovery_fix(
-                run_id=run_id,
-                test_result=current_test_result,
-                diagnosis=diagnosis,
-                model_name=model_name,
-                history=prior_history
-            )
-
-            # Concise proposed fix description
-            proposed_fix_summary = (
-                f"Patched {', '.join(fixed_files)}: {diagnosis['proposed_fix']}" 
-                if fixed_files else diagnosis["proposed_fix"]
-            )
-            initial_error_summary = self._extract_concise_error_summary(
-                current_test_result.stdout, current_test_result.stderr
-            )
+            fixed_files = []
+            started = time.perf_counter()
+            proposed_fix_summary = diagnosis['proposed_fix']
+            initial_error_summary = self._extract_concise_error_summary(current_test_result.stdout, current_test_result.stderr)
 
             # Record recovery attempt
             rec_id = f"rec_{uuid.uuid4().hex[:8]}"
@@ -235,31 +225,40 @@ class DebuggerService:
                 proposed_fix=proposed_fix_summary,
                 files_modified=fixed_files,
                 resolved=False,
+                started_at=datetime.now().isoformat(),
                 test_run_id=current_test_result.id,
                 error_summary=initial_error_summary,
                 created_at=datetime.now().isoformat()
             )
 
-            # Next attempt re-testing
-            attempt_number += 1
-            current_test_result = test_runner_service.run_tests(
-                run_id=run_id,
-                attempt_number=attempt_number,
-                target_test_files=target_test_files
-            )
+            db_service.save_recovery_attempt(recovery)
+            with workflow.attempt(run_id, recovery_id=rec_id, reason="recovery"):
+                try:
+                    recovery.files_modified = await self._apply_recovery_fix(run_id, current_test_result, diagnosis, model_name, history=prior_history)
+                    attempt_number += 1
+                    current_test_result = test_runner_service.run_tests(run_id=run_id, attempt_number=attempt_number, target_test_files=target_test_files)
+                    recovery.local_tests_passed = current_test_result.status == 'PASSED'
+                    recovery.termination_reason = 'local_tests_passed' if recovery.local_tests_passed else 'tests_failed'
+                except Exception:
+                    recovery.termination_reason = 'repair_error'
+                    raise
+                finally:
+                    recovery.ended_at = datetime.now().isoformat()
+                    recovery.duration_seconds = time.perf_counter()-started
+                    db_service.save_recovery_attempt(recovery)
             
             # Record subsequent test result outcome
             recovery.subsequent_test_run_id = current_test_result.id
             recovery.test_result_status = current_test_result.status
 
             if current_test_result.status == "PASSED":
-                recovery.resolved = True
+                recovery.resolved = False  # Only an independent evaluator can establish recovery.
                 db_service.add_log(
                     run_id=run_id,
                     stage="debugger",
                     agent_role="Debugging Agent",
                     event_type="success",
-                    message=f"Recovery Attempt #{recovery.attempt_number} successfully resolved all test failures! Tests now 100% passing.",
+                    message=f"Recovery Attempt #{recovery.attempt_number}: local tests pass; independent recovery verification is pending.",
                     details={"attempt": recovery.attempt_number}
                 )
             else:
@@ -276,7 +275,8 @@ class DebuggerService:
             "final_test_result": current_test_result,
             "recovery_attempts": recovery_attempts,
             "total_attempts": attempt_number,
-            "resolved": current_test_result.status == "PASSED"
+            "resolved": False,
+            "local_tests_passed": current_test_result.status == "PASSED"
         }
 
     def _diagnose_failure(self, test_result: TestRunResult) -> Dict[str, str]:
@@ -299,9 +299,9 @@ class DebuggerService:
         elif "AssertionError" in stdout or "assert" in stdout:
             return {
                 "failure_reason": "Assertion Mismatch in Test Assertion",
-                "diagnosis": "Returned function output or status code deviated from test expectation.",
-                "root_cause": "Assertion check failed against actual returned calculation or status code.",
-                "proposed_fix": "Align test assertion expectations with implementation signatures and expected mathematical/functional outcomes."
+                "diagnosis": "A test assertion disagreed with the observed result.",
+                "root_cause": "Unknown; assertion evidence does not establish a specific root cause.",
+                "proposed_fix": "Inspect the traceback and cumulative retry history; repair the generated test or implementation without claiming independent recovery."
             }
         else:
             return {
@@ -468,6 +468,8 @@ def test_{func}_edge_cases():
 
         if fixed_code and fixed_code != current_content:
             drift_controller_service.reset_file_history(run_id, file_to_fix)
+            db_service.invalidate_evaluation(run_id, 'Recovery changed code; verification must be refreshed')
+            db_service.add_log(run_id, 'debugger', 'Debugging Agent', 'tool_call', 'Write recovery file', {'tool':'write_file','file':file_to_fix})
             workspace_service.write_file(repo_path, file_to_fix, fixed_code)
             diff_res = workspace_service.compute_diff(current_content, fixed_code, file_to_fix)
 

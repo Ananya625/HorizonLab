@@ -1,6 +1,6 @@
 # AgentEval-X: Autonomous Multi-Agent Software Development & Verification Platform
 
-AgentEval-X is an autonomous closed-loop software engineering and verification platform. It takes natural language software development requests, extracts structured requirements, inspects repositories, plans architectural changes, generates production source code, executes automated pytest test suites, applies bounded self-healing recovery fixes, independently audits results against acceptance criteria, and tracks persistent evaluation benchmarks in SQLite.
+AgentEval-X is a software engineering workflow prototype. It extracts requirements, requires goal confirmation, plans changes, generates code, executes pytest, and records evaluation evidence in SQLite. Benchmarking includes deterministic studies across seven categories and a bounded local Ollama pilot adapter. Real memory, drift, prediction, and adaptive-policy modules remain teammate-owned integrations. See [benchmark usage, metric definitions, validation, and team handoff](BENCHMARKING.md).
 
 ---
 
@@ -16,12 +16,12 @@ AgentEval-X is an autonomous closed-loop software engineering and verification p
 ```
 
 1. **Coding Request**: Ingests coding tasks (e.g. *“Build a login API with JWT authentication”*, concurrency bug fix, async DB refactor, AST security patch) and inspects repository workspaces.
-2. **Requirement Analyst**: Extracts structured Goal Models, hierarchical sub-goals, hard/soft constraints, and acceptance criteria using local Ollama (`qwen2.5-coder:7b`) with deterministic fallback. Resolves ambiguities interactively.
+2. **Requirement Analyst**: Extracts structured Goal Models, hierarchical sub-goals, hard/soft constraints, and acceptance criteria using the selected local Ollama model (default `qwen3:1.7b`) with deterministic requirement fallback. Resolves ambiguities interactively.
 3. **Codebase Analyst + Planner**: Scans file trees, ASTs, and dependencies, then generates an architecture overview, planned file targets (`CREATE`, `MODIFY`, `TEST`), sequential execution roadmap, and risk mitigations.
 4. **Coding Agent**: Implements multi-file source changes, computes unified Git-style diffs (`+`/`-`), and performs AST syntax checks.
 5. **Testing + Debugging Agents**: Executes real pytest test suites in the repository, parses test outputs, and runs a bounded self-healing recovery loop if tests fail.
-6. **Independent Code Reviewer / Verifier**: Objectively evaluates code diffs and test evidence against Stage 2 acceptance criteria, calculates Goal Drift Score (0.0% optimal), audits security invariants, and issues an audit verdict (`VERIFIED_PASSED`).
-7. **Verified Results + Evaluation Dashboard**: SQLite persistence storing all runs, tool calls, latencies, recovery counts, pass rates, and comparative benchmark tables.
+6. **Independent Code Reviewer / Verifier**: Checks explicitly supported Python syntax criteria. Unsupported acceptance criteria, security constraints, drift, and quality measurements remain unverified. Controlled fixtures use protected behavioral and side-effect checks.
+7. **Results + Evaluation Dashboard**: Persists measured outcomes, calls, durations, and recovery attempts, and runs controlled simulation comparisons. Legacy scores are labeled unvalidated; unavailable evidence is shown explicitly.
 
 ---
 
@@ -29,7 +29,7 @@ AgentEval-X is an autonomous closed-loop software engineering and verification p
 
 - **Frontend**: React 19, Vite, Lucide Icons, Canvas-Confetti, Custom Glassmorphic Dark Design System
 - **Backend**: FastAPI, Uvicorn, Pydantic v2, HTTPX, SQLite3
-- **Local LLM**: Ollama (`qwen2.5-coder:7b`)
+- **Local LLM**: Ollama (default `qwen3:1.7b`)
 - **Testing & Verification**: PyTest, PyTest-Asyncio, FastTestClient
 
 ---
@@ -39,12 +39,12 @@ AgentEval-X is an autonomous closed-loop software engineering and verification p
 ### 1. Prerequisites
 - Python 3.11+
 - Node.js 18+
-- [Ollama](https://ollama.com/) running locally with `qwen2.5-coder:7b` (optional, intelligent fallback included)
+- [Ollama](https://ollama.com/) running locally with `qwen3:1.7b` or your explicitly selected installed model. Required for general code generation; deterministic fixture benchmarks and supported independent checks can run without an LLM. Generation errors are reported rather than replaced with success stubs.
 
 ### 2. Backend Setup
 ```bash
 cd backend
-python -m venv .venv
+python -m venv .venv # for git bash - source .venv/Scripts/activate
 # On Windows: .venv\Scripts\activate
 # On Unix: source .venv/bin/activate
 pip install -r requirements.txt   # (or pip install fastapi uvicorn pydantic httpx pytest pytest-asyncio pyjwt passlib[bcrypt])
@@ -84,7 +84,7 @@ SicProject/
 │   │   │   └── orchestrator_service.py# End-to-end pipeline orchestrator
 │   │   └── main.py                    # FastAPI application entrypoint
 │   ├── sandbox/                       # Isolated sandbox repository workspaces
-│   └── test_pipeline.py               # E2E pipeline verification test
+│   └── test_pipeline.py               # Manual workflow confirmation smoke check
 ├── frontend/
 │   ├── src/
 │   │   ├── components/

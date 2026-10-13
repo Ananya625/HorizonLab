@@ -1,4 +1,6 @@
+from .workflow_service import observed, workflow
 import os
+import time
 import uuid
 import logging
 from typing import Dict, Any, Optional
@@ -29,67 +31,88 @@ from .task_router_service import task_router_service
 from .telemetry_service import telemetry_manager
 from .goal_tracker_service import goal_tracker_service
 from .drift_controller_service import drift_controller_service
+from .ollama_service import ollama_service
 
 logger = logging.getLogger(__name__)
 
+from ..models.schema import EvaluationMetrics
+
 class OrchestratorService:
-    async def run_full_pipeline(
+    def __init__(self):
+        self.active = set()
+
+    async def run_full_pipeline(self, request_text, repo_path=None, model_name=None,
+                                temperature=0.2, max_recovery_retries=3, existing_run_id=None):
+        run_id = existing_run_id or f'run_{uuid.uuid4().hex}'
+        if run_id in self.active:
+            raise ValueError('This run is already executing')
+        self.active.add(run_id)
+        start = time.perf_counter()
+        try:
+            record = db_service.get_run_record(run_id)
+            if existing_run_id and not record:
+                raise ValueError('Unknown existing run')
+            goal = db_service.get_goal_model(run_id)
+            if goal and request_text.strip() != goal.original_request.strip():
+                raise ValueError('Existing run has a different request; edit its goal or start a new run')
+            if not record:
+                task_id = f'task_{uuid.uuid4().hex}'
+                target = repo_path or workspace_service.create_task_workspace(task_id=task_id, run_id=run_id)
+                sample = next((r['path'] for r in workspace_service.list_sample_repositories() if r['id']==target),None)
+                target = sample or target
+                record = db_service.create_or_update_run(run_id, task_id, request_text[:80], request_text, target)
+            model_name = model_name or record.metadata.get('config', {}).get('model_name') or ollama_service.default_model
+            config = {'model_name': model_name, 'temperature': temperature,
+                'max_recovery_retries': max_recovery_retries}
+            db_service.update_metadata(run_id, config=config, execution_mode='mixed_demo')
+            if not goal:
+                try:
+                    await goal_parser_service.parse_request(request_text, run_id=run_id,
+                        model_name=config['model_name'], temperature=config['temperature'], repo_path=record.repo_path)
+                except Exception as exc:
+                    db_service.finalize_run(EvaluationMetrics(run_id=run_id, task_id=record.task_id,
+                        metric_version='2', outcome='error', verified_success=False,
+                        termination_reason=f'goal_parse:{type(exc).__name__}', execution_time_seconds=time.perf_counter()-start))
+                    raise
+                return db_service.get_run_record(run_id)
+            if not goal.is_confirmed or any(a.severity == 'blocking' and not a.resolved for a in goal.ambiguities):
+                raise ValueError('Confirm the goal and resolve blocking ambiguities before execution')
+            try:
+                return await self._execute_confirmed(request_text, repo_path=record.repo_path,
+                    model_name=model_name, temperature=temperature, max_recovery_retries=max_recovery_retries,
+                    existing_run_id=run_id, execution_started=start)
+            except Exception as exc:
+                db_service.finalize_run(EvaluationMetrics(run_id=run_id, task_id=record.task_id,
+                    metric_version='2', outcome='error', verified_success=False,
+                    termination_reason=type(exc).__name__, execution_time_seconds=time.perf_counter()-start))
+                raise
+        finally:
+            self.active.discard(run_id)
+
+    @observed('pipeline', 'stage', reason=None)
+    async def _execute_confirmed(
         self,
         request_text: str,
         repo_path: Optional[str] = None,
         model_name: Optional[str] = None,
         temperature: float = 0.2,
         max_recovery_retries: int = 3,
-        existing_run_id: Optional[str] = None
+        existing_run_id: Optional[str] = None,
+        execution_started: Optional[float] = None
     ) -> RunRecord:
-        run_id = existing_run_id or f"run_{uuid.uuid4().hex[:8]}"
-        task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
-        # Resolve target repository:
-        # If an existing repo input is given, use that existing repository.
-        # Otherwise, dynamically create a brand-new clean isolated workspace folder for this task.
-        if repo_path and repo_path.strip():
-            candidate = repo_path.strip()
-            sample_match = next((r["path"] for r in workspace_service.list_sample_repositories() if r["id"] == candidate), None)
-            if sample_match:
-                target_repo = sample_match
-            else:
-                target_repo = os.path.abspath(candidate)
-                os.makedirs(target_repo, exist_ok=True)
-        else:
-            target_repo = workspace_service.create_task_workspace(task_id=task_id, run_id=run_id)
-
-        # Step 0: Initialize Shared Telemetry Tracker for this run
+        run_id = existing_run_id
+        record = db_service.get_run_record(run_id)
+        task_id, target_repo = record.task_id, record.repo_path
+        goal_model = db_service.get_goal_model(run_id)
         tracker = telemetry_manager.get_or_create(run_id, task_id)
-
-        # Step 1: Initialize Run Record in SQLite
-        run_record = db_service.create_or_update_run(
-            run_id=run_id,
-            task_id=task_id,
-            title=request_text[:80] + ("..." if len(request_text) > 80 else ""),
-            prompt=request_text,
-            repo_path=target_repo,
-            current_stage="workspace",
-            status="in_progress"
-        )
-
-        db_service.add_log(
-            run_id=run_id,
-            stage="workspace",
-            agent_role="System Orchestrator",
-            event_type="info",
-            message=f"Initialized autonomous coding workflow run '{run_id}' for workspace at '{target_repo}'.",
-            details={"task_id": task_id, "prompt": request_text}
-        )
-
         # Step 2: Lightweight Adaptive Task Router (Executed BEFORE expensive LLM calls)
         t_route_start = tracker.start_span("routing", "task_classification")
         routing = task_router_service.route_task(
-            request_text=request_text,
+            request_text=goal_model.main_goal,
             repo_path=target_repo
         )
         # Allow caller override of model if explicitly provided
-        effective_model = model_name or routing.model_name
+        effective_model = model_name or record.metadata.get('config', {}).get('model_name') or ollama_service.default_model
         tracker.end_span("routing", "task_classification", t_route_start, metadata=routing.model_dump())
 
         db_service.add_log(
@@ -102,13 +125,21 @@ class OrchestratorService:
         )
 
         # Step 2.5: Initialize Deterministic Goal Tracker State
+        previous_tracking = goal_tracker_service.get_state(run_id)
         tracking_state = goal_tracker_service.initialize_task(
             run_id=run_id,
             task_id=task_id,
             original_request=request_text,
             complexity_profile=routing.task_tier,
-            target_files=routing.target_files
+            target_files=routing.target_files,
+            acceptance_criteria=[c.model_dump() for c in goal_model.success_criteria]
         )
+        tracking_state.current_goal = goal_model.main_goal
+        if previous_tracking:
+            tracking_state.revision_history = previous_tracking.revision_history
+            tracking_state.action_history = previous_tracking.action_history
+            tracking_state.failed_attempts_count = previous_tracking.failed_attempts_count
+        goal_tracker_service._persist_state(tracking_state)
 
         # =====================================================================
         # FAST PATH FOR SIMPLE ISOLATED TASKS
@@ -137,61 +168,6 @@ class OrchestratorService:
 
             # Fast Path Step 2: Concise Specification & Implementation Plan
             t_span = tracker.start_span("requirement", "concise_plan_synthesis")
-            goal_model = GoalModel(
-                run_id=run_id,
-                task_id=task_id,
-                original_request=request_text,
-                main_goal=request_text,
-                summary=f"Isolated task: {request_text[:100]}",
-                detected_language="en",
-                normalized_request=request_text,
-                sub_goals=[
-                    SubGoal(
-                        id="SG-1",
-                        title=f"Implement isolated changes in {', '.join(routing.target_files)}",
-                        description=request_text,
-                        order=1,
-                        priority="high",
-                        assigned_agent_role="Coding Agent",
-                        dependencies=[]
-                    )
-                ],
-                success_criteria=[
-                    SuccessCriterion(
-                        id="SC-1",
-                        sub_goal_id="SG-1",
-                        description="Targeted test suite passes with zero regression or assertion failures",
-                        metric="pytest == PASS",
-                        verification_method="automated_test",
-                        expected_output="Passing test execution evidence"
-                    )
-                ],
-                hard_constraints=[
-                    Constraint(
-                        id="HC-1",
-                        text="Maintain isolated scope without breaking existing module interfaces",
-                        category="safety",
-                        is_hard=True
-                    )
-                ],
-                soft_constraints=[
-                    Constraint(
-                        id="SC-1",
-                        text="Follow PEP-8 standards with valid AST syntax",
-                        category="style",
-                        is_hard=False
-                    )
-                ],
-                expected_output=ExpectedOutput(
-                    format="Git Diff & Test Execution Log",
-                    schema_summary="Modified files with AST validation",
-                    delivery_target="Workspace Worktree"
-                ),
-                ambiguities=[],
-                audit_history=[]
-            )
-            db_service.save_goal_model(goal_model)
-
             planned_files = []
             for tf in routing.target_files:
                 tf_norm = tf.replace("\\", "/")
@@ -199,12 +175,14 @@ class OrchestratorService:
                 action = "modify" if exists else "create"
                 desc = f"{'Update' if exists else 'Create'} {tf_norm} according to isolated specification."
                 planned_files.append(
-                    PlannedFile(path=tf_norm, action=action, description=desc, estimated_loc=30)
+                    PlannedFile(path=tf_norm, action=action, description=desc, estimated_loc=30,
+                                sub_goal_id=goal_model.sub_goals[0].id if len(goal_model.sub_goals) == 1 else None)
                 )
 
             plan = ImplementationPlan(
                 id=f"plan_{uuid.uuid4().hex[:8]}",
                 run_id=run_id,
+                goal_model_version=goal_model.goal_model_version,
                 architecture_overview=f"Targeted isolated modification: {request_text[:80]}",
                 target_repo_path=target_repo,
                 tech_stack={"framework": "Python", "language": "Python 3.11+", "test_runner": "pytest"},
@@ -278,7 +256,7 @@ class OrchestratorService:
             verification_report = await verifier_service.verify_run(
                 run_id=run_id,
                 model_name=effective_model,
-                temperature=0.1
+                temperature=0.1, execution_started=execution_started
             )
             tracker.end_span("verifier", "verification", t_span)
 
@@ -313,12 +291,7 @@ class OrchestratorService:
                 details={"model": effective_model}
             )
             t_span = tracker.start_span("requirement", "goal_parsing")
-            goal_model = await goal_parser_service.parse_request(
-                request_text=request_text,
-                model_name=effective_model,
-                run_id=run_id,
-                temperature=temperature
-            )
+            # The already-confirmed goal remains authoritative; never reparse it here.
             tracker.end_span("requirement", "goal_parsing", t_span)
 
             # Step 4: Codebase Analyst + Planner Agent
@@ -348,8 +321,8 @@ class OrchestratorService:
                 stage="coder",
                 agent_role="Coding Agent",
                 event_type="info",
-                message=f"Writing code changes for {len(plan.planned_files)} planned files.",
-                details={"files": [pf.path for pf in plan.planned_files]}
+                message=f"Writing code changes for {len(plan.planned_files) if plan else 0} planned files.",
+                details={"files": [pf.path for pf in plan.planned_files] if plan else []}
             )
             t_span = tracker.start_span("coder", "code_generation")
             code_changes = await coder_service.execute_plan(
@@ -359,7 +332,7 @@ class OrchestratorService:
             )
             tracker.end_span("coder", "code_generation", t_span)
 
-            goal_tracker_service.complete_subtask(run_id, "SUBTASK-2", evidence=f"{len(code_changes)} files modified")
+            goal_tracker_service.complete_subtask(run_id, "SUBTASK-2", evidence=f"{len(code_changes or [])} files modified")
             goal_tracker_service.start_subtask(run_id, "SUBTASK-3")
 
             # Step 6: Testing + Debugging Agent (Bounded Recovery Loop)
@@ -392,7 +365,7 @@ class OrchestratorService:
             verification_report = await verifier_service.verify_run(
                 run_id=run_id,
                 model_name=effective_model,
-                temperature=0.1
+                temperature=0.1, execution_started=execution_started
             )
             tracker.end_span("verifier", "verification", t_span)
 
@@ -404,29 +377,6 @@ class OrchestratorService:
             else:
                 reason = "verification_failed" if verification_report.overall_verdict not in ("VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS") else comp_check.reason
                 goal_tracker_service.terminate_task(run_id, status="failed", reason=reason, evidence={"verdict": verification_report.overall_verdict})
-
-        # Final Status Update from GoalTracker
-        final_state = goal_tracker_service.get_state(run_id)
-        final_status = final_state.task_status if final_state else ("completed" if verification_report.overall_verdict == "VERIFIED_PASSED" else "failed")
-
-        db_service.create_or_update_run(
-            run_id=run_id,
-            task_id=task_id,
-            title=request_text[:80],
-            prompt=request_text,
-            repo_path=target_repo,
-            current_stage="completed",
-            status=final_status
-        )
-
-        db_service.add_log(
-            run_id=run_id,
-            stage="completed",
-            agent_role="System Orchestrator",
-            event_type="success",
-            message=f"Autonomous workflow completed successfully! Verdict: {verification_report.overall_verdict}, Success Rate: {verification_report.pass_rate_percent}%.",
-            details={"verdict": verification_report.overall_verdict, "pass_rate": verification_report.pass_rate_percent}
-        )
 
         return db_service.get_run_record(run_id)
 

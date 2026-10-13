@@ -14,7 +14,8 @@ from ..models.schema import (
     ReviseGoalRequest,
     ImplementationPlan,
     VerificationReport,
-    RunRecord
+    RunRecord,
+    EvaluationMetrics
 )
 from ..services.ollama_service import ollama_service
 from ..services.goal_parser_service import goal_parser_service
@@ -31,6 +32,19 @@ from ..services.drift_controller_service import drift_controller_service
 from ..services.db import db_service
 
 router = APIRouter()
+
+
+def record_stage_failure(run_id, stage, error):
+    """Persist attempted-stage failures without inventing timing or test evidence."""
+    record = db_service.get_run_record(run_id)
+    if record is None:
+        return
+    db_service.invalidate_evaluation(run_id, f'{stage} failed; previous evidence superseded')
+    db_service.add_log(run_id, stage, 'Stage Runner', 'error', type(error).__name__)
+    db_service.finalize_run(EvaluationMetrics(run_id=run_id, task_id=record.task_id,
+        metric_version='2', outcome='error', verified_success=False,
+        execution_mode=record.metadata.get('execution_mode', 'mixed_demo'),
+        termination_reason=f'{stage}:{type(error).__name__}'))
 
 PRESETS = [
     {
@@ -108,14 +122,17 @@ async def parse_task(req: ParseTaskRequest):
     if not req.request_text or not req.request_text.strip():
         raise HTTPException(status_code=400, detail="request_text cannot be empty")
     
-    goal_model = await goal_parser_service.parse_request(
-        request_text=req.request_text,
-        model_name=req.model_name,
-        run_id=req.run_id,
-        language=req.language,
-        temperature=req.temperature or 0.2
-    )
-    return goal_model
+    try:
+        return await goal_parser_service.parse_request(
+            request_text=req.request_text,
+            model_name=req.model_name,
+            run_id=req.run_id,
+            language=req.language,
+            temperature=req.temperature if req.temperature is not None else 0.2,
+            repo_path=req.repo_path
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 @router.post("/goals/patch", response_model=GoalModel)
 async def patch_goal_model(req: PatchGoalModelRequest):
@@ -178,12 +195,21 @@ async def get_goal_history(run_id: str):
 @router.post("/planner/generate", response_model=ImplementationPlan)
 async def generate_plan(req: StartPlanRequest):
     try:
+        record = db_service.get_run_record(req.run_id)
+        if not record:
+            raise ValueError('Unknown run')
+        config = record.metadata.get('config', {})
         plan = await planner_service.generate_plan(
             run_id=req.run_id,
-            repo_path=req.repo_path
+            repo_path=req.repo_path or record.repo_path,
+            model_name=config.get('model_name'),
+            temperature=config.get('temperature', 0.2)
         )
         return plan
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        record_stage_failure(req.run_id, 'planner', e)
         raise HTTPException(status_code=500, detail=f"Planning failed: {str(e)}")
 
 @router.get("/planner/{run_id}", response_model=ImplementationPlan)
@@ -198,9 +224,17 @@ async def get_plan(run_id: str):
 @router.post("/coder/execute")
 async def execute_coding(req: ExecuteCodeRequest):
     try:
-        changes = await coder_service.execute_plan(run_id=req.run_id)
+        record = db_service.get_run_record(req.run_id)
+        if not record:
+            raise ValueError('Unknown run')
+        config = record.metadata.get('config', {})
+        changes = await coder_service.execute_plan(run_id=req.run_id,
+            model_name=config.get('model_name'), temperature=config.get('temperature', 0.2))
         return {"run_id": req.run_id, "changes_count": len(changes), "changes": changes}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        record_stage_failure(req.run_id, 'coder', e)
         raise HTTPException(status_code=500, detail=f"Coding agent execution failed: {str(e)}")
 
 @router.get("/coder/{run_id}/changes")
@@ -213,12 +247,19 @@ async def get_code_changes(run_id: str):
 @router.post("/tester/execute")
 async def execute_testing(req: ExecuteTestsRequest):
     try:
+        record = db_service.get_run_record(req.run_id)
+        if not record:
+            raise ValueError('Unknown run')
         result = await debugger_service.run_testing_and_recovery_loop(
             run_id=req.run_id,
-            max_recovery_retries=req.max_recovery_retries or 3
+            model_name=record.metadata.get('config', {}).get('model_name'),
+            max_recovery_retries=req.max_recovery_retries if req.max_recovery_retries is not None else 3
         )
         return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        record_stage_failure(req.run_id, 'testing', e)
         raise HTTPException(status_code=500, detail=f"Testing and debugging loop failed: {str(e)}")
 
 @router.get("/tester/{run_id}/results")
@@ -234,7 +275,10 @@ async def verify_code(req: ExecuteVerificationRequest):
     try:
         report = await verifier_service.verify_run(run_id=req.run_id)
         return report
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        record_stage_failure(req.run_id, 'verifier', e)
         raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
 
 @router.get("/verifier/{run_id}", response_model=VerificationReport)
@@ -253,11 +297,13 @@ async def run_pipeline(req: RunPipelineRequest):
             request_text=req.request_text,
             repo_path=req.repo_path,
             model_name=req.model_name,
-            temperature=req.temperature or 0.2,
-            max_recovery_retries=req.max_recovery_retries or 3,
+            temperature=req.temperature if req.temperature is not None else 0.2,
+            max_recovery_retries=req.max_recovery_retries if req.max_recovery_retries is not None else 3,
             existing_run_id=req.run_id
         )
         return record
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Autonomous pipeline execution failed: {str(e)}")
 
@@ -275,8 +321,8 @@ async def get_run_details(run_id: str):
     return record
 
 @router.get("/runs/{run_id}/logs")
-async def get_run_logs(run_id: str, limit: int = Query(200)):
-    logs = db_service.get_execution_logs(run_id, limit=limit)
+async def get_run_logs(run_id: str, limit: int = Query(200, ge=1, le=1000), offset: int = Query(0, ge=0)):
+    logs = db_service.get_execution_logs(run_id, limit=limit, offset=offset)
     return {"run_id": run_id, "logs": logs}
 
 @router.get("/evaluations/dashboard")
@@ -295,6 +341,14 @@ async def get_run_evaluation(run_id: str):
 @router.post("/goals/revise")
 async def revise_goal(req: ReviseGoalRequest):
     try:
+        if req.run_id in orchestrator_service.active:
+            raise ValueError('Cannot revise a goal while its run is executing')
+        if not req.new_goal.strip():
+            raise ValueError('Revised goal must not be empty')
+        if not goal_tracker_service.get_state(req.run_id):
+            raise ValueError('No tracking state for this run')
+        goal_parser_service.patch_goal_model(req.run_id, {'main_goal': req.new_goal.strip()},
+            req.change_reason or 'User explicit goal revision')
         state = goal_tracker_service.revise_goal(
             run_id=req.run_id,
             new_goal_text=req.new_goal,
@@ -311,3 +365,147 @@ async def get_goal_tracking(run_id: str):
         raise HTTPException(status_code=404, detail=f"Tracking state for run {run_id} not found")
     return state
 
+
+@router.get('/runs/{run_id}/export')
+def export_run(run_id: str):
+    record = db_service.get_run_record(run_id)
+    if not record:
+        raise HTTPException(404, 'Unknown run')
+    return record
+
+
+from ..models.benchmark import ExperimentManifest
+from ..services.benchmark_service import benchmark_service
+from ..models.benchmark_study import StudyManifest, EvidenceBatch
+from ..services.benchmark_study_service import study_service
+from ..services.benchmark_study_analysis import study_analytics, validate_evidence
+from ..services.benchmark_lock import experiment_lock
+
+
+@router.get('/benchmarks/capabilities')
+def benchmark_capabilities():
+    return benchmark_service.capabilities()
+
+
+@router.get('/benchmarks/experiments')
+def benchmark_experiments():
+    return {'experiments': db_service.get_experiments()}
+
+
+@router.post('/benchmarks/experiments')
+def run_benchmark(manifest: ExperimentManifest):
+    try:
+        return benchmark_service.run(manifest)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.get('/benchmarks/experiments/{experiment_id}')
+def benchmark_report(experiment_id: str):
+    report = next((e for e in db_service.get_experiments() if e['experiment_id'] == experiment_id), None)
+    if report is None:
+        raise HTTPException(404, 'Unknown experiment')
+    return report
+
+
+@router.post('/benchmarks/experiments/{experiment_id}/resume')
+def resume_benchmark(experiment_id: str):
+    report = benchmark_report(experiment_id)
+    try:
+        if report['manifest'].get('manifest_version') == '2':
+            return study_service.run(StudyManifest.model_validate(report['manifest']), experiment_id)
+        return benchmark_service.run(ExperimentManifest.model_validate(report['manifest']), experiment_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@router.post('/benchmarks/studies')
+def run_study(manifest: StudyManifest):
+    try:
+        return study_service.run(manifest)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.post('/benchmarks/experiments/{experiment_id}/evidence')
+def append_benchmark_evidence(experiment_id: str, batch: EvidenceBatch):
+    """Local evaluator/operator endpoint. It cannot change the independently verified outcome."""
+    try:
+        with experiment_lock(db_service.db_path):
+            report = benchmark_report(experiment_id)
+            if report['manifest'].get('manifest_version') != '2' or report['status'] not in ('completed','halted'):
+                raise ValueError('Evidence ingestion requires a finished version-two study')
+            rows = {r['run_id']:r for r in report['trials']}
+            for event in batch.events:
+                row = rows.get(event.run_id)
+                if row is None or event.task_id != row['task_id'] or event.step > row['tool_calls']:
+                    raise ValueError('Evidence is outside the recorded run/task/step')
+                validate_evidence(event)
+                if event.kind=='prediction' and event.source not in ('fixture','team_module'):
+                    raise ValueError('Prediction source must identify its producer')
+            # Validate the complete batch and all conflicts before any mutation.
+            pending = {}
+            for event in batch.events:
+                value = event.model_dump()
+                key = (event.run_id,event.event_id)
+                prior = pending.get(key) or next((e for e in rows[event.run_id]['events'] if e['event_id']==event.event_id),None)
+                if prior is not None and prior != value:
+                    raise ValueError('Existing evidence cannot be rewritten')
+                pending[key] = value
+            additions_by_run = {}
+            for run_id,row in rows.items():
+                additions = [v for (r,e),v in pending.items() if r==run_id and not any(old['event_id']==e for old in row['events'])]
+                additions_by_run[run_id] = additions
+                row['events'].extend(additions)
+            report['analytics'] = study_analytics(report['trials'])
+            with db_service._get_connection() as conn:
+                conn.execute('BEGIN IMMEDIATE')
+                for run_id, additions in additions_by_run.items():
+                    db_service.save_benchmark_checkpoint(run_id,None,additions,connection=conn)
+                db_service.save_experiment(experiment_id,report['manifest'],report,connection=conn)
+            return report
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.get('/benchmarks/capabilities/history')
+def benchmark_capability_history():
+    from ..services.benchmark_study_analysis import capability_history
+    trials = [r for report in db_service.get_experiments() if report['manifest'].get('manifest_version')=='2' for r in report['trials']]
+    return {'history':capability_history(trials)}
+
+
+# Observational workflow analysis. Existing evaluation and run export contracts are unchanged.
+from ..services.workflow_reports import workflow_report
+from ..services import workflow_store
+
+
+@router.get('/evaluations/{run_id}/workflow')
+def get_workflow_analysis(run_id: str):
+    report, _ = workflow_report(db_service, run_id)
+    report.pop('timeline')  # Timeline evidence is paginated separately.
+    return report
+
+
+@router.get('/evaluations/{run_id}/workflow/events')
+def get_workflow_events(run_id: str, after: int = Query(0, ge=0),
+                        limit: int = Query(50, ge=1, le=200), through: Optional[int] = Query(None, ge=0)):
+    if not db_service.get_run_record(run_id):
+        raise HTTPException(404, 'Unknown run')
+    return workflow_store.read(db_service, run_id, after, limit, through)
+
+
+@router.get('/evaluations/{run_id}/workflow/events/{event_id}')
+def get_workflow_event(run_id: str, event_id: str):
+    with db_service._get_connection() as conn:
+        row = conn.execute('SELECT sequence,data_json FROM workflow_events WHERE run_id=? AND event_id=?', (run_id,event_id)).fetchone()
+    if not row:
+        raise HTTPException(404, 'Unknown evidence for this run')
+    import json
+    return dict(json.loads(row['data_json']), sequence=row['sequence'])
+
+
+@router.get('/evaluations/{run_id}/workflow/export')
+def export_workflow_analysis(run_id: str):
+    report, events = workflow_report(db_service, run_id)
+    return {'report':report, 'events':events}

@@ -28,6 +28,7 @@ export default function GoalModelView({
   goalModel, 
   onSavePatch, 
   onNavigateToClarifications,
+  onProceedToConfirmation,
   isSaving
 }) {
   const [activeSubTab, setActiveSubTab] = useState('sub_goals'); // 'sub_goals' | 'criteria' | 'constraints' | 'output' | 'raw_json'
@@ -193,6 +194,13 @@ export default function GoalModelView({
             </div>
           </div>
 
+          {onProceedToConfirmation && (
+            <button className="btn btn-primary" disabled={isSaving}
+              onClick={unresolvedBlockingCount > 0 ? onNavigateToClarifications : onProceedToConfirmation}>
+              {unresolvedBlockingCount > 0 ? 'Resolve questions to continue' : 'Review and confirm requirements'}
+              <ChevronRight size={14} />
+            </button>
+          )}
           {/* Ambiguity Alert button */}
           {goalModel?.ambiguities && goalModel.ambiguities.length > 0 && (
             <button 

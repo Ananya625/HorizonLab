@@ -198,9 +198,16 @@ export default function ExecutionControlRoom({
                   <span style={{ color: tagColor, flexShrink: 0, fontWeight: 600 }}>
                     [{log.event_type}]
                   </span>
-                  <span style={{ color: '#cbd5e1', wordBreak: 'break-word' }}>
+                  <div style={{ color: '#cbd5e1', wordBreak: 'break-word', minWidth: 0 }}>
                     {log.message}
-                  </span>
+                    {typeof log.details?.rejected_output === 'string' && log.details.rejected_output && (
+                      <details style={{ marginTop: 6 }}>
+                        <summary>Show rejected model output (not written to the file)</summary>
+                        {log.details.output_excerpt_truncated && <p>Only the first 16,000 characters were retained.</p>}
+                        <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{log.details.rejected_output}</pre>
+                      </details>
+                    )}
+                  </div>
                 </div>
               );
             })

@@ -11,6 +11,7 @@ env.bak/
 venv.bak/
 .venv/
 .pytest_cache/
+.test-tmp/
 *.sqlite3
 
 # Node / Frontend
@@ -46,3 +47,7 @@ sandbox/
 *.db
 backend/app.db
 backend/*benchmark_results.json
+backend/app/data/benchmark_workspaces/
+output/benchmarks/
+output/result-backups-*/
+*.benchmark.lock

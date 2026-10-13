@@ -8,6 +8,8 @@ from ..models.goal_model import (
 )
 from .ollama_service import ollama_service
 from .storage_service import storage_service
+from .db import db_service
+from .task_router_service import is_basic_addition_request
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,7 @@ CRITICAL RULES FOR CODING AGENTS:
 1. Always partition sub-goals into logical engineering phases (e.g. 1. Analysis/Reproduction, 2. Core Implementation/Refactoring, 3. Regression Testing & Static Verification).
 2. Hard constraints must protect against code regression, unauthorized file deletion, security leaks (CWE), and broken public interfaces.
 3. Every sub-goal must have at least one measurable success criterion verifiable via automated test runner, diff check, or static analysis.
-4. Ambiguities: If target runtime version, minimum test coverage threshold, or backward compatibility policies are unspecified, generate 1-3 clarification questions with 'blocking' or 'non_blocking' severity.
+4. Ask clarification questions only when missing information changes required behavior or prevents safe implementation. Do not invent minimum coverage thresholds or block a simple task over unspecified preferences. Return an empty ambiguities list when the request is clear.
 5. Return RAW JSON ONLY. No conversational commentary.
 """
 
@@ -85,14 +87,25 @@ class GoalParserService:
     async def parse_request(
         self,
         request_text: str,
-        model_name: Optional[str] = "qwen2.5-coder:7b",
+        model_name: Optional[str] = None,
         run_id: Optional[str] = None,
         language: Optional[str] = "auto",
-        temperature: float = 0.2
+        temperature: float = 0.2,
+        repo_path: Optional[str] = None
     ) -> GoalModel:
+        model_name = model_name or ollama_service.default_model
         if not run_id:
             run_id = storage_service.generate_run_id()
-        task_id = storage_service.generate_task_id()
+        from .db import db_service
+        from .workspace_service import workspace_service
+        existing = db_service.get_run_record(run_id)
+        if existing and existing.goal_model:
+            raise ValueError('Edit the existing goal instead of reparsing it')
+        task_id = existing.task_id if existing else storage_service.generate_task_id()
+        target_repo = existing.repo_path if existing else repo_path or workspace_service.get_default_repo_path()
+        db_service.create_or_update_run(run_id, task_id, request_text[:80], request_text, target_repo, current_stage='requirement', status='in_progress')
+        if not existing or not existing.metadata.get('config'):
+            db_service.update_metadata(run_id, config={'model_name': model_name, 'temperature': temperature, 'max_recovery_retries': 3})
 
         user_message = f"""Software Engineering Task for Coding Agent:
 \"\"\"{request_text}\"\"\"
@@ -104,19 +117,20 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
             {"role": "user", "content": user_message}
         ]
 
-        parsed_data = None
-        used_fallback = False
+        parsed_data = self._basic_addition_goal(request_text) if is_basic_addition_request(request_text) else None
+        used_fallback = parsed_data is not None
 
         # Attempt to call Ollama
         try:
             resp = await ollama_service.chat_completion(
                 messages=messages,
+                run_id=run_id,
                 model=model_name,
                 temperature=temperature,
                 format_json=True,
-                run_id=run_id,
-                stage="requirement"
-            )
+                stage="requirement",
+                timeout=15.0,
+            ) if parsed_data is None else {}
             raw_content = resp.get("message", {}).get("content", "")
             if raw_content:
                 parsed_data = ollama_service.extract_json_object(raw_content)
@@ -125,6 +139,7 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
             used_fallback = True
 
         if not parsed_data:
+            used_fallback = True
             parsed_data = self._generate_heuristic_goal_model(request_text)
 
         # Build GoalModel object
@@ -195,7 +210,7 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
             task_id=task_id,
             title=request_text[:80],
             prompt=request_text,
-            repo_path=workspace_service.get_default_repo_path(),
+            repo_path=target_repo,
             current_stage="requirement",
             status="in_progress"
         )
@@ -212,6 +227,27 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
         )
         return goal_model
 
+    @staticmethod
+    def _basic_addition_goal(text):
+        return {
+            'main_goal': text.strip(),
+            'summary': 'Implement a Python addition function and tests that import it. Confirm the proposed interface before execution.',
+            'sub_goals': [{'id': 'SG-1', 'title': 'Add two numbers',
+                           'description': 'Provide add(a, b) returning a + b for numeric inputs, without extra dependencies.',
+                           'order': 1, 'priority': 'high', 'dependencies': []}],
+            'success_criteria': [
+                {'id': 'SC-1', 'sub_goal_id': 'SG-1', 'description': 'Python files compile',
+                 'metric': 'python_syntax_workspace', 'verification_method': 'ast_check', 'expected_output': ''},
+                {'id': 'SC-2', 'sub_goal_id': 'SG-1', 'description': 'Addition handles positive, negative, zero and decimal inputs',
+                 'metric': 'python_addition_v1', 'verification_method': 'automated_test',
+                 'expected_output': 'app/service.py'},
+            ],
+            'hard_constraints': [], 'soft_constraints': [], 'ambiguities': [],
+            'expected_output': {'format': 'Python function and pytest tests',
+                                'schema_summary': 'add(a, b) returns the sum; tests import this function',
+                                'delivery_target': 'Repository Worktree'},
+        }
+
     def patch_goal_model(
         self,
         run_id: str,
@@ -222,6 +258,9 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
         if not model:
             raise ValueError(f"Run ID {run_id} not found")
 
+        from .workflow_service import goal_revision
+        expected_revision = goal_revision(model)
+        expected_version = model.goal_model_version
         modified_fields = []
         for key, value in patch_data.items():
             if value is not None and hasattr(model, key):
@@ -236,6 +275,9 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
             new_version = f"{model.goal_model_version}.1"
 
         model.goal_model_version = new_version
+        model.is_confirmed = False
+        model.confirmed_at = None
+        model = GoalModel.model_validate(model.model_dump())
         now = datetime.now().isoformat()
         model.updated_at = now
 
@@ -249,7 +291,8 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
             )
         )
 
-        storage_service.save_goal_model(model)
+        db_service.save_goal_model(model, expected_version=expected_version, expected_revision=expected_revision)
+        db_service.invalidate_evaluation(run_id, 'Goal changed; independent evidence must be refreshed')
         return model
 
     def resolve_ambiguity(
@@ -706,9 +749,9 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
                     "id": "SC-1",
                     "sub_goal_id": "SG-1",
                     "description": "Baseline codebase passes initial static syntax and import checks",
-                    "metric": "Syntax errors == 0",
+                    "metric": "python_syntax_workspace",
                     "verification_method": "ast_check",
-                    "expected_output": "Initial syntax verification report"
+                    "expected_output": ""
                 },
                 {
                     "id": "SC-2",
@@ -761,24 +804,7 @@ Analyze this coding request and generate the complete structured AgentEval-X Goa
                 "schema_summary": "Unified patch diff, modified file list, test results, and execution metrics",
                 "delivery_target": "Repository Worktree"
             },
-            "ambiguities": [
-                {
-                    "id": "AMB-1",
-                    "question": "What is the minimum required test coverage percentage for the newly created or modified functions?",
-                    "context": "Coverage requirement guides the depth of test cases authored.",
-                    "severity": "blocking",
-                    "suggested_options": ["Minimum 80% coverage", "Minimum 90% coverage", "100% branch coverage"],
-                    "default_assumption": "Minimum 85% test coverage"
-                },
-                {
-                    "id": "AMB-2",
-                    "question": "Which Python version should be targeted for syntax and standard library compatibility?",
-                    "context": "Affects usage of modern typing features (e.g. match statements, Self type).",
-                    "severity": "non_blocking",
-                    "suggested_options": ["Python 3.10+", "Python 3.11+", "Python 3.12+"],
-                    "default_assumption": "Python 3.11+"
-                }
-            ]
+            "ambiguities": []
         }
 
 goal_parser_service = GoalParserService()
