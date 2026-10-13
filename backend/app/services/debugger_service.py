@@ -172,7 +172,7 @@ class DebuggerService:
         self,
         run_id: str,
         max_recovery_retries: int = 3,
-        model_name: Optional[str] = "qwen2.5-coder:7b",
+        model_name: Optional[str] = None,
         target_test_files: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Executes test suite and performs bounded self-healing recovery if failures occur."""
@@ -395,7 +395,7 @@ Generate the complete, corrected Python code for '{file_to_fix}' so that:
         try:
             resp = await ollama_service.chat_completion(
                 messages=messages,
-                model=model_name or "qwen2.5-coder:1.5b",
+                model=model_name or ollama_service.default_model,
                 temperature=0.1,
                 num_predict=512,
                 run_id=run_id,
@@ -426,7 +426,7 @@ Generate the complete, corrected Python code for '{file_to_fix}' so that:
                         try:
                             refine_resp = await ollama_service.chat_completion(
                                 messages=refine_msgs,
-                                model=model_name or "qwen2.5-coder:1.5b",
+                                model=model_name or ollama_service.default_model,
                                 temperature=0.3,
                                 num_predict=512,
                                 run_id=run_id,

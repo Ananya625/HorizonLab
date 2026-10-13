@@ -30,7 +30,7 @@ def test_task_router_complex_jwt_auth():
     assert decision.task_tier == "complex"
     assert decision.use_fast_path is False
     assert decision.security_sensitive is True
-    assert decision.model_name == "qwen2.5-coder:7b"
+    assert decision.model_name == "qwen3:1.7b"
 
 def test_task_router_concurrency_sensitive():
     prompt = "Fix race condition and unclosed sockets in connection pool using asyncio.Lock in src/pool.py and tests/test_pool.py"

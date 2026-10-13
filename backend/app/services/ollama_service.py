@@ -52,15 +52,7 @@ class OllamaService:
                 if resp.status_code == 200:
                     data = resp.json()
                     models = [m.get("name") for m in data.get("models", [])]
-                    # Select best default: 1.5b if available, otherwise 7b, otherwise first
-                    current_model = self.default_model
-                    if current_model not in models:
-                        for candidate in ["qwen2.5-coder:1.5b", "qwen2.5-coder:7b"]:
-                            if candidate in models:
-                                current_model = candidate
-                                break
-                        else:
-                            current_model = models[0] if models else "none"
+                    current_model = self.default_model if self.default_model in models else (models[0] if models else "none")
 
                     return {
                         "connected": True,

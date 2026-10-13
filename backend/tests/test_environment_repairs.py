@@ -3,6 +3,22 @@ from app.services.test_runner_service import test_runner_service
 import pytest
 
 
+@pytest.mark.parametrize('word', ['block', 'trace', 'author', 'hashtag'])
+def test_router_does_not_match_keyword_substrings(word):
+    from app.services.task_router_service import task_router_service
+    result = task_router_service.route_task(f'Implement a helper function for {word}', '')
+    assert not result.security_sensitive
+    assert not result.concurrency_sensitive
+    assert result.task_tier == 'simple'
+
+
+def test_router_uses_configured_default(monkeypatch):
+    from app.services.task_router_service import task_router_service
+    from app.services.ollama_service import ollama_service
+    monkeypatch.setattr(ollama_service, 'default_model', 'configured')
+    assert task_router_service.route_task('JWT authentication', '').model_name == 'configured'
+
+
 @pytest.mark.asyncio
 async def test_async_recovery_runner_keeps_event_loop_responsive(monkeypatch):
     import asyncio
