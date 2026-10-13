@@ -11,6 +11,20 @@ from app.services.task_router_service import task_router_service, is_basic_addit
 PROMPT = 'write a python code to add two numbers'
 
 
+@pytest.mark.parametrize('source', [
+    "def execute_service( ): return {'status':'success'}",
+    "def renamed(): return dict_placeholder",  # replaced below with an actual metadata dictionary
+    'def add(a, b): pass',
+    'def add(a, b): ...',
+])
+def test_structural_placeholder_guard(source):
+    from app.services.coder_service import reject_placeholder_code
+    source = source.replace('dict_placeholder', "{'task': 'add', 'status': 'ok'}")
+    with pytest.raises(ValueError, match='placeholder'):
+        reject_placeholder_code(source)
+    reject_placeholder_code('def add(a, b): return a + b')
+
+
 @pytest.mark.parametrize('wrap', [lambda s: {'content':s}, lambda s: {'tests/test_service.py':{'code':s}}])
 def test_json_fenced_python_is_decoded_before_extraction(wrap):
     from app.services.coder_service import extract_clean_python_code
