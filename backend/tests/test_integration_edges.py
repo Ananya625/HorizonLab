@@ -72,7 +72,9 @@ def test_trace_export_complete(database, run):
     client = TestClient(app)
     assert len(client.get('/api/runs/r1/export').json()['logs']) == 210
     page = client.get('/api/runs/r1/logs?limit=10&offset=200').json()['logs']
-    assert len(page)==10 and page[0]['step']==201
+    assert len(page)==10 and page[0]['step']==1
+    latest = client.get('/api/runs/r1/logs?limit=10').json()['logs']
+    assert len(latest) == 10 and latest[0]['step'] == 201
 
 
 def test_stale_verdict_masked_on_direct_api(database, run):

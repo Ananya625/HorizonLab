@@ -6,10 +6,12 @@ import pytest
 @pytest.mark.parametrize('mode', ['module', 'script'])
 def test_entrypoint_resolves_package_and_binds_loopback(monkeypatch, mode):
     import runpy
+    import sys
     import uvicorn
     calls = []
     monkeypatch.setattr(uvicorn, 'run', lambda *args, **kwargs: calls.append((args, kwargs)))
     if mode == 'module':
+        monkeypatch.delitem(sys.modules, 'app.main', raising=False)
         runpy.run_module('app.main', run_name='__main__')
     else:
         runpy.run_path(str(Path(__file__).parents[1] / 'app/main.py'), run_name='__main__')
