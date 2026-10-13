@@ -1,24 +1,16 @@
 import asyncio
-from .workflow_service import observed, workflow
+from .workflow_service import observed
 import os
 import time
 import uuid
 import logging
-from typing import Dict, Any, Optional
+from typing import Optional
 from datetime import datetime
 from ..models.schema import (
     RunRecord,
-    RunPipelineRequest,
     ImplementationPlan,
     PlannedFile,
     PlanStep
-)
-from ..models.goal_model import (
-    GoalModel,
-    SubGoal,
-    SuccessCriterion,
-    Constraint,
-    ExpectedOutput
 )
 from .db import db_service
 from .workspace_service import workspace_service
@@ -347,7 +339,7 @@ class OrchestratorService:
                 details={"max_retries": max_recovery_retries}
             )
             t_span = tracker.start_span("testing", "recovery_loop")
-            test_recovery_result = await debugger_service.run_testing_and_recovery_loop(
+            await debugger_service.run_testing_and_recovery_loop(
                 run_id=run_id,
                 max_recovery_retries=max_recovery_retries,
                 model_name=effective_model

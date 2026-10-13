@@ -20,8 +20,6 @@ _bootstrap = tempfile.TemporaryDirectory(prefix='agenteval-test-db-')
 os.environ['AGENTEVAL_DB_PATH'] = str(Path(_bootstrap.name) / 'bootstrap.sqlite3')
 
 from app.services.db import DatabaseService
-from app.services import verifier_service, test_runner_service, orchestrator_service
-from app.api import routes
 
 
 @pytest.fixture

@@ -1,8 +1,6 @@
-import json
 import logging
-import re
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from ..models.goal_model import (
     GoalModel, SubGoal, SuccessCriterion, Constraint, ExpectedOutput, Ambiguity, AuditEntry
 )

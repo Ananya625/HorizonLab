@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from app.auth import (
     USERS_DB,
     hash_password,

@@ -1,12 +1,11 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.models.workflow import WorkflowEvent
-from app.models.schema import GoalModel, SubGoal, SuccessCriterion, PlannedFile, ImplementationPlan
+from app.models.schema import GoalModel, SubGoal, SuccessCriterion, ImplementationPlan
 from app.services import workflow_store
 from app.services.workflow_service import workflow, goal_revision, observed
 from app.services.workflow_analysis import analyze

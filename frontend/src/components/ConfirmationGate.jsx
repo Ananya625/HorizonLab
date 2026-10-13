@@ -8,10 +8,7 @@ import {
   Copy, 
   Check, 
   ArrowRight, 
-  AlertTriangle,
-  Bot,
-  Zap,
-  Sparkles
+  AlertTriangle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -47,7 +44,7 @@ export default function ConfirmationGate({
           spread: 70,
           origin: { y: 0.6 }
         });
-      } catch (e) {
+      } catch {
         // Confetti fallback
       }
     } catch (err) {

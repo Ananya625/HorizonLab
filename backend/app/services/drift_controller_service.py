@@ -5,9 +5,9 @@ import hashlib
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from .goal_tracker_service import goal_tracker_service, TaskTrackingState
+from .goal_tracker_service import goal_tracker_service
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class DriftControllerService:
                 )
 
             # Check if file is completely alien to declared subtasks or request
-            goal_lower = state.current_goal.lower()
+            state.current_goal.lower()
             target_base = os.path.basename(target_norm).lower()
             # If target filename looks like system binaries or alien scripts
             if any(k in target_base for k in ["exploit", "hack", "bitcoin", "miner", "trojan", "passwords.txt"]):

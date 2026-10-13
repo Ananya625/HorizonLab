@@ -1,23 +1,15 @@
 import React, { useState } from 'react';
 import { 
   FileCode2, 
-  CheckCircle2, 
   ArrowRight, 
   Copy, 
-  Check, 
-  FileText, 
-  Layers, 
-  ShieldCheck, 
-  GitCommit, 
-  Plus, 
-  Minus 
+  Check 
 } from 'lucide-react';
 
 export default function CodingAgentView({
   codeChanges = [],
   onExecuteTesting,
-  isTesting,
-  onNavigateToStage
+  isTesting
 }) {
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [viewMode, setViewMode] = useState('diff'); // 'diff' or 'full'

@@ -3,7 +3,7 @@ import math
 import statistics
 from collections import Counter, defaultdict
 from datetime import datetime
-from .benchmark_analysis import classification, memory_metrics, prediction_metrics, wilson
+from .benchmark_analysis import classification, memory_metrics, prediction_metrics
 
 
 def validate_evidence(event):

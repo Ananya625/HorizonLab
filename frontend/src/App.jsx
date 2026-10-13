@@ -23,13 +23,10 @@ import {
   resolveAmbiguityQuestion, 
   confirmGoalModel,
   generatePlan,
-  fetchPlan,
   executeCoding,
-  fetchCodeChanges,
   executeTesting,
   fetchTestResults,
   verifyCode,
-  fetchVerification,
   runFullPipeline,
   fetchRunsList,
   fetchRunDetails,
@@ -267,7 +264,7 @@ export default function App() {
     if (!runId) return;
     setIsExecuting(true);
     try {
-      const res = await executeTesting({ runId, maxRecoveryRetries });
+      await executeTesting({ runId, maxRecoveryRetries });
       const testRes = await fetchTestResults(runId);
       setTestResults(testRes.test_runs || []);
       setRecoveryAttempts(testRes.recovery_attempts || []);

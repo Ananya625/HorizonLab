@@ -1,7 +1,6 @@
-from .workflow_service import observed, workflow
+from .workflow_service import observed
 import os
 import difflib
-import json
 import ast
 import hashlib
 from pathlib import Path, PureWindowsPath
@@ -146,7 +145,7 @@ def health():
 
         for root, dirs, files in os.walk(path):
             dirs[:] = [d for d in dirs if d not in ignore_dirs and not Path(root, d).is_symlink()]
-            rel_dir = os.path.relpath(root, path)
+            os.path.relpath(root, path)
             
             for file in files:
                 if file.endswith((".pyc", ".lock", ".png", ".jpg", ".ico")):

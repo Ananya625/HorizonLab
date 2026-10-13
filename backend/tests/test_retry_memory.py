@@ -1,6 +1,4 @@
-import os
 import uuid
-import time
 import pytest
 from app.models.schema import (
     RecoveryAttempt,

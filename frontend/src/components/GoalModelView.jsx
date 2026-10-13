@@ -12,14 +12,9 @@ import {
   ArrowDown, 
   Save, 
   Code, 
-  Eye, 
   HelpCircle,
-  Clock,
-  Sparkles,
   ChevronRight,
-  Shield,
-  Zap,
-  Info
+  Shield
 } from 'lucide-react';
 import EditSubGoalModal from './EditSubGoalModal';
 import { EditCriterionModal, EditConstraintModal } from './EditConstraintModal';

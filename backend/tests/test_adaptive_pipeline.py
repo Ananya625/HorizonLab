@@ -1,18 +1,14 @@
 import os
 import sys
 import pytest
-import asyncio
 
 # Ensure backend root is on sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.services.task_router_service import task_router_service
 from app.services.workspace_service import workspace_service
-from app.services.test_runner_service import test_runner_service
-from app.services.telemetry_service import telemetry_manager, TelemetryTracker
-from app.services.verifier_service import verifier_service
+from app.services.telemetry_service import telemetry_manager
 from app.services.orchestrator_service import orchestrator_service
-from app.services.db import db_service
 
 def test_task_router_simple_isolated_function():
     prompt = "Implement a helper function multiply(a: float, b: float) -> float in app/service.py and test in tests/test_service.py"

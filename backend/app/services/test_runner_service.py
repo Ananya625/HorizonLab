@@ -1,4 +1,4 @@
-from .workflow_service import observed, workflow
+from .workflow_service import observed
 """Real pytest execution. Console text alone is never evidence of success."""
 import os
 import sys
@@ -118,9 +118,6 @@ class TestRunnerService:
             details={'passed':passed,'failed':failed,'total':len(items),'duration_seconds':result.duration_seconds})
         return result
 
-    def _parse_pytest_output(self, output: str, exit_code: int):
-        # Compatibility helper: unsupported console output provides no test evidence.
-        return [], 0, 0, 0
 
 
 test_runner_service = TestRunnerService()

@@ -1,12 +1,10 @@
 from .workflow_service import observed, workflow
 """Evidence-based verification; unsupported natural-language checks stay unverified."""
 from typing import List, Optional, Any, Dict
-import ast
 import uuid
 import time
 from ..models.schema import VerificationReport, CriterionVerification, ConstraintCompliance, EvaluationMetrics
 from .db import db_service
-from .ollama_service import ollama_service
 from .telemetry_service import telemetry_manager
 from .drift_controller_service import drift_controller_service
 from .goal_tracker_service import goal_tracker_service

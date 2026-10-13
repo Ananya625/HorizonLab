@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, RefreshCw, CheckCircle2, AlertTriangle, Server, Cpu, Sliders } from 'lucide-react';
+import { X, RefreshCw, CheckCircle2, AlertTriangle, Server, Sliders } from 'lucide-react';
 import { configureOllama } from '../services/api';
 
 export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, onStatusUpdated, temperature, setTemperature }) {

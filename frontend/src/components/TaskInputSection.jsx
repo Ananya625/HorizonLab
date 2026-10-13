@@ -5,13 +5,7 @@ import {
   Sparkles, 
   ArrowRight, 
   Code2, 
-  ShieldAlert, 
-  RefreshCw, 
-  Sliders, 
-  FileText, 
-  Cpu, 
-  CheckCircle,
-  FolderOpen
+  CheckCircle
 } from 'lucide-react';
 import { inspectWorkspace, fetchSampleRepos } from '../services/api';
 

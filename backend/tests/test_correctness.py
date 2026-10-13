@@ -1,5 +1,3 @@
-import asyncio
-import json
 import subprocess
 from pathlib import Path
 import pytest
@@ -42,8 +40,10 @@ def test_unchanged_diff():
     assert result['lines_added'] == result['lines_removed'] == 0
 
 
-def test_no_invented_tests():
-    assert test_runner_service._parse_pytest_output('', 0) == ([], 0, 0, 0)
+def test_empty_junit_contains_no_invented_tests(tmp_path):
+    report = tmp_path / 'empty.xml'
+    report.write_text('<testsuite/>')
+    assert test_runner_service.parse_junit(report) == []
 
 
 def test_junit_mixed_parameterized(tmp_path):

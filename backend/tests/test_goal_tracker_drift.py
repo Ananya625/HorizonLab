@@ -2,27 +2,19 @@ import os
 import sys
 import time
 import pytest
-import asyncio
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Ensure backend root is on sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.services.goal_tracker_service import (
-    goal_tracker_service,
-    TaskTrackingState,
-    GoalSubtask,
-    GoalCriterion,
-    ActionRecord
+    goal_tracker_service
 )
 from app.services.drift_controller_service import (
-    drift_controller_service,
-    DriftDecision,
-    ResultValidation
+    drift_controller_service
 )
 from app.services.test_runner_service import test_runner_service
 from app.services.workspace_service import workspace_service
-from app.services.orchestrator_service import orchestrator_service
 from app.services.db import db_service
 
 
@@ -352,7 +344,7 @@ def test_06_task_exceeds_execution_budget():
     run_id = f"test_run_budget_{int(time.time()*1000)}"
     task_id = f"task_budget_{int(time.time()*1000)}"
 
-    state = goal_tracker_service.initialize_task(
+    goal_tracker_service.initialize_task(
         run_id=run_id,
         task_id=task_id,
         original_request="Simple task with strict budget",
@@ -439,7 +431,7 @@ def test_08_explicit_user_requested_goal_change():
     task_id = f"task_revise_{int(time.time()*1000)}"
     original = "Implement basic username and password authentication in app/auth.py"
 
-    state = goal_tracker_service.initialize_task(
+    goal_tracker_service.initialize_task(
         run_id=run_id,
         task_id=task_id,
         original_request=original,
@@ -483,7 +475,7 @@ def test_09_two_concurrent_tasks_isolated_state():
     run_id_b = f"test_run_conc_B_{int(time.time()*1000)}"
 
     # Task A: Simple addition
-    state_a = goal_tracker_service.initialize_task(
+    goal_tracker_service.initialize_task(
         run_id=run_id_a,
         task_id="task_A",
         original_request="Task A: Addition helper",
@@ -491,7 +483,7 @@ def test_09_two_concurrent_tasks_isolated_state():
     )
 
     # Task B: Complex encryption
-    state_b = goal_tracker_service.initialize_task(
+    goal_tracker_service.initialize_task(
         run_id=run_id_b,
         task_id="task_B",
         original_request="Task B: AES-GCM encryption",
@@ -535,7 +527,7 @@ def test_10_tool_timeout_and_recovery():
     task_id = f"task_timeout_{int(time.time()*1000)}"
 
     # 10a. Deadline expiration in DriftController
-    state = goal_tracker_service.initialize_task(
+    goal_tracker_service.initialize_task(
         run_id=run_id,
         task_id=task_id,
         original_request="Task with expired deadline",

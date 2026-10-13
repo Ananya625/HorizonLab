@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
 import { 
-  HelpCircle, 
   AlertTriangle, 
   CheckCircle2, 
   ShieldCheck, 
   ArrowRight, 
-  MessageSquare, 
-  CornerDownRight, 
-  SlidersHorizontal,
-  Clock,
   Send
 } from 'lucide-react';
 
@@ -21,7 +16,7 @@ export default function ClarificationCenter({
   const ambiguities = goalModel?.ambiguities || [];
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [customAnswers, setCustomAnswers] = useState({});
-  const [constraintType, setConstraintType] = useState('hard');
+  const [constraintType] = useState('hard');
 
   const blockingCount = ambiguities.filter((a) => a.severity === 'blocking').length;
   const resolvedBlockingCount = ambiguities.filter((a) => a.severity === 'blocking' && a.resolved).length;

@@ -1,8 +1,7 @@
-from .workflow_service import observed, workflow
+from .workflow_service import observed
 import os
-import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime
 from ..models.schema import (
     ImplementationPlan,

@@ -1,19 +1,15 @@
 import React from 'react';
 import { 
   Cpu, 
-  Terminal, 
   Settings, 
   RotateCcw, 
-  Play, 
-  CheckCircle2, 
   ShieldCheck, 
   FileCode2, 
   Layers, 
   Sparkles, 
   BarChart3, 
   FlaskConical, 
-  Database,
-  ArrowRight
+  Database
 } from 'lucide-react';
 
 const STAGES = [
@@ -192,7 +188,7 @@ export default function Header({
         backgroundColor: '#0a0d14'
       }}>
         <nav style={{ display: 'flex', gap: '4px', minWidth: 'max-content' }}>
-          {STAGES.map((stage, idx) => {
+          {STAGES.map((stage) => {
             const Icon = stage.icon;
             const isActive = activeTab === stage.id;
             return (

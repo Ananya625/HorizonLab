@@ -1,4 +1,3 @@
-import copy
 from pathlib import Path
 import pytest
 from pydantic import ValidationError
@@ -6,8 +5,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.benchmark import ExperimentManifest
 from app.services.benchmark_service import benchmark_service, SoftwareEnvironment
-from app.services.benchmark_analysis import summarize, classification, prediction_metrics
-from app.services.benchmark_tasks import TASKS
+from app.services.benchmark_analysis import summarize, prediction_metrics
 
 
 def small_manifest(**updates):

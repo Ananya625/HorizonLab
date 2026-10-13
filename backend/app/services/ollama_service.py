@@ -1,4 +1,4 @@
-from .workflow_service import observed, workflow
+from .workflow_service import observed
 import httpx
 import json
 import time

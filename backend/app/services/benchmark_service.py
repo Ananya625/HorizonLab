@@ -5,7 +5,6 @@ Evaluator answers and state are held outside the gateway's public observations.
 """
 import copy
 import hashlib
-import json
 import random
 import threading
 import time

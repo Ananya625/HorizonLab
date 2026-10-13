@@ -1,21 +1,17 @@
 import React from 'react';
 import { 
   Cpu, 
-  Layers, 
   FileCode2, 
-  CheckCircle2, 
   ArrowRight, 
   AlertTriangle, 
   FlaskConical, 
-  Workflow, 
-  ShieldCheck 
+  Workflow 
 } from 'lucide-react';
 
 export default function PlannerView({
   plan,
   onExecuteCoding,
-  isExecutingCode,
-  onNavigateToStage
+  isExecutingCode
 }) {
   if (!plan) {
     return (

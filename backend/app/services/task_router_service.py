@@ -1,6 +1,5 @@
 import re
-import os
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
 from pydantic import BaseModel
 from .ollama_service import ollama_service
 

@@ -4,14 +4,7 @@ import {
   ChevronUp, 
   ChevronDown, 
   Search, 
-  Filter, 
-  Trash2, 
-  Cpu, 
-  FileCode2, 
-  FlaskConical, 
-  ShieldCheck,
-  Layers,
-  Activity
+  Filter
 } from 'lucide-react';
 
 export default function ExecutionControlRoom({

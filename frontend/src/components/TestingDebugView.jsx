@@ -3,22 +3,17 @@ import {
   FlaskConical, 
   CheckCircle2, 
   XCircle, 
-  AlertTriangle, 
   Terminal, 
   ArrowRight, 
   RefreshCw, 
-  ShieldCheck, 
-  Clock, 
-  FileCode2,
-  Check
+  ShieldCheck
 } from 'lucide-react';
 
 export default function TestingDebugView({
   testResults = [],
   recoveryAttempts = [],
   onExecuteVerification,
-  isVerifying,
-  onNavigateToStage
+  isVerifying
 }) {
   const [selectedAttemptIndex, setSelectedAttemptIndex] = useState(
     testResults.length > 0 ? testResults.length - 1 : 0
