@@ -18,7 +18,7 @@ from .ollama_service import ollama_service
 from .telemetry_service import telemetry_manager
 from .drift_controller_service import drift_controller_service
 from .goal_tracker_service import goal_tracker_service
-from .coder_service import extract_clean_python_code
+from .coder_service import extract_clean_python_code, validate_generated_tests
 
 logger = logging.getLogger(__name__)
 
@@ -359,8 +359,11 @@ class DebuggerService:
                 pass
 
         # Decide which file to fix:
-        file_to_fix = test_file
-        current_content = test_content
+        if not impl_files:
+            raise ValueError('Recovery requires a planned implementation file; tests are immutable')
+        file_to_fix = impl_file
+        current_content = impl_content
+        validate_generated_tests(test_file, test_content, {impl_file: impl_content})
 
         prompt = f"""Task: {goal_model.main_goal if goal_model else 'Fix test failure'}
 The automated test runner failed with this error:
@@ -373,12 +376,12 @@ Exported symbols in '{impl_file}':
 Functions: {exported_funcs}
 Classes: {exported_classes}
 
-Current failing test file '{file_to_fix}':
-{current_content[:self.max_code_chars]}
+Existing tests '{test_file}' (immutable):
+{test_content[:self.max_code_chars]}
 
 Generate the complete, corrected Python code for '{file_to_fix}' so that:
-1. It imports the EXACT exported symbols: {exported_funcs + exported_classes} from '{impl_file}' (or 'from service import ...')
-2. It uses standard pytest tests ('def test_...(): assert ...')
+1. Repair the implementation while preserving its public interface.
+2. Do not edit, redefine, weaken or bypass tests; do not add test functions to implementation files.
 3. It directly addresses the test failure evidence above and does NOT repeat previously failed approaches.
 4. It passes cleanly. Return ONLY valid Python code."""
 
@@ -415,7 +418,7 @@ Generate the complete, corrected Python code for '{file_to_fix}' so that:
                                 "role": "user",
                                 "content": (
                                     f"CRITICAL: {repeated_reason}\n"
-                                    f"Do NOT return identical or unchanged code. You must implement a materially different test assertion or fix based on the evidence."
+                                    f"Do NOT return identical or unchanged code. You must implement a materially different implementation fix based on the evidence."
                                 )
                             }
                         ]
@@ -443,28 +446,12 @@ Generate the complete, corrected Python code for '{file_to_fix}' so that:
         except Exception as e:
             logger.warning(f"Debugger LLM chat error: {e}")
 
-        # Deterministic AST repair fallback if LLM fix not valid or repeated, and symbols exist
-        is_repeated = self._detect_repeated_approach(fixed_code or "", current_content, prior_history, file_to_fix, past_code_changes)
-        if (not fixed_code or is_repeated) and exported_funcs:
-            func = exported_funcs[0]
-            fixed_code = f"""import pytest
-from app.service import {func}
-
-def test_{func}_nominal():
-    try:
-        res = {func}(3)
-        assert res is not None
-    except TypeError:
-        res = {func}()
-        assert res is not None
-
-def test_{func}_edge_cases():
-    try:
-        assert {func}(0) is not None
-        assert {func}(-2) is not None
-    except TypeError:
-        pass
-"""
+        if not fixed_code or self._detect_repeated_approach(fixed_code, current_content, prior_history, file_to_fix, past_code_changes):
+            raise RuntimeError('Recovery failed: no valid, non-repeated implementation repair')
+        compile(fixed_code, file_to_fix, 'exec')
+        if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith('test_')
+               for node in ast.walk(ast.parse(fixed_code))):
+            raise ValueError('Recovery must repair implementation, not redefine tests')
 
         if fixed_code and fixed_code != current_content:
             drift_controller_service.reset_file_history(run_id, file_to_fix)

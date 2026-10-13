@@ -398,12 +398,15 @@ def test_10_duplicate_outcome_handling():
 # TEST 11: Debugger prompt includes cumulative retry memory e2e
 # ==============================================================================
 @pytest.mark.asyncio
-async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch, tmp_path):
+@pytest.mark.parametrize('valid_repair', [True, False])
+async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch, tmp_path, valid_repair):
     """End-to-End: Debugger retrieves previous attempts and passes them to Ollama prompt."""
     run_id = f"test_run_e2e_{uuid.uuid4().hex[:8]}"
 
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests/test_auth.py").write_text("def test_health(): assert 404 == 200\n")
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app/service.py").write_text("def health(): return 404\n")
+    (tmp_path / "tests/test_auth.py").write_text("from app.service import health\ndef test_health(): assert health() == 200\n")
     # Setup run and goal in DB
     db_service.create_or_update_run(
         run_id=run_id,
@@ -426,7 +429,7 @@ async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch, tmp_p
         run_id=run_id,
         architecture_overview="Test arch",
         target_repo_path=str(tmp_path),
-        planned_files=[PlannedFile(path="tests/test_auth.py", action="test", description="Auth test")],
+        planned_files=[PlannedFile(path="app/service.py", action="modify", description="Health implementation"), PlannedFile(path="tests/test_auth.py", action="test", description="Auth test")],
         steps=[],
         testing_strategy="pytest",
         risk_assessment="low"
@@ -455,7 +458,7 @@ async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch, tmp_p
         captured_messages.extend(messages)
         return {
             "message": {
-                "content": "import pytest\ndef test_health(): assert 200 == 200\n"
+                "content": "def health(): return 200\n" if valid_repair else ""
             }
         }
 
@@ -472,12 +475,14 @@ async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch, tmp_p
     )
 
     # Execute _apply_recovery_fix for Attempt #2
-    await debugger_service._apply_recovery_fix(
-        run_id=run_id,
-        test_result=test_result,
-        diagnosis={"failure_reason": "Assertion Mismatch", "diagnosis": "Assertion failed", "root_cause": "", "proposed_fix": "Fix assertion"},
-        model_name="qwen2.5-coder:1.5b"
-    )
+    from contextlib import nullcontext
+    with nullcontext() if valid_repair else pytest.raises(RuntimeError, match='no valid'):
+        await debugger_service._apply_recovery_fix(
+            run_id=run_id,
+            test_result=test_result,
+            diagnosis={"failure_reason": "Assertion Mismatch", "diagnosis": "Assertion failed", "root_cause": "", "proposed_fix": "Fix assertion"},
+            model_name="qwen2.5-coder:1.5b"
+        )
 
     # Verify that captured prompt sent to Ollama contains Attempt #1 history
     assert len(captured_messages) > 0
@@ -488,3 +493,6 @@ async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch, tmp_p
     assert "Tried asserting status == 404" in user_prompt
     assert "Outcome: FAILED" in user_prompt
     assert "FAILED STRATEGY: Do NOT repeat this patch" in user_prompt
+
+    assert (tmp_path / 'app/service.py').read_text().strip() == ('def health(): return 200' if valid_repair else 'def health(): return 404')
+    assert (tmp_path / 'tests/test_auth.py').read_text() == 'from app.service import health\ndef test_health(): assert health() == 200\n'
