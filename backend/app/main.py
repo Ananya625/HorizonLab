@@ -1,5 +1,10 @@
 import uvicorn
 import os
+import sys
+from pathlib import Path
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = 'app'
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router

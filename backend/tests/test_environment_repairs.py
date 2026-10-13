@@ -3,6 +3,20 @@ from app.services.test_runner_service import test_runner_service
 import pytest
 
 
+@pytest.mark.parametrize('mode', ['module', 'script'])
+def test_entrypoint_resolves_package_and_binds_loopback(monkeypatch, mode):
+    import runpy
+    import uvicorn
+    calls = []
+    monkeypatch.setattr(uvicorn, 'run', lambda *args, **kwargs: calls.append((args, kwargs)))
+    if mode == 'module':
+        runpy.run_module('app.main', run_name='__main__')
+    else:
+        runpy.run_path(str(Path(__file__).parents[1] / 'app/main.py'), run_name='__main__')
+    assert calls[0][0] == ('app.main:app',)
+    assert calls[0][1]['host'] == '127.0.0.1'
+
+
 @pytest.mark.parametrize('word', ['block', 'trace', 'author', 'hashtag'])
 def test_router_does_not_match_keyword_substrings(word):
     from app.services.task_router_service import task_router_service
