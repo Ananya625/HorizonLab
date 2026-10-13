@@ -3,6 +3,12 @@ import pytest
 from app.services.workspace_service import workspace_service
 
 
+@pytest.mark.parametrize('path', ['../../../README.md', '..\\outside.py', '/absolute.py', 'C:\\outside.py'])
+def test_targeted_inspection_rejects_traversal(path):
+    with pytest.raises(ValueError):
+        workspace_service.inspect_targeted(workspace_service.get_default_repo_path(), [path])
+
+
 def test_inspection_missing_directory_is_read_only(tmp_path):
     target = tmp_path / 'missing'
     with pytest.raises(ValueError, match='does not exist'):

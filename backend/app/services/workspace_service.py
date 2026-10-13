@@ -202,9 +202,9 @@ def health():
     @observed('inspect_targeted', 'tool', reason=None)
     def inspect_targeted(self, target_path: Optional[str] = None, file_list: Optional[List[str]] = None, run_id: Optional[str] = None) -> Dict[str, Any]:
         """Lightweight targeted inspection for isolated changes: stats only relevant files."""
-        path = target_path or self.get_default_repo_path()
-        if not os.path.exists(path):
-            os.makedirs(path, exist_ok=True)
+        path = self.validate_repo(target_path or self.get_default_repo_path())
+        if not os.path.isdir(path):
+            raise ValueError('Workspace does not exist or is not a directory')
 
         files_list = []
         languages = set()
@@ -213,7 +213,7 @@ def health():
         targets = file_list or []
         for rel_file in targets:
             rel_norm = rel_file.replace("\\", "/")
-            full_path = os.path.join(path, rel_norm)
+            full_path = self.resolve_path(path, rel_norm)
             if os.path.exists(full_path) and os.path.isfile(full_path):
                 size = os.path.getsize(full_path)
                 ext = os.path.splitext(rel_norm)[1].lower()
