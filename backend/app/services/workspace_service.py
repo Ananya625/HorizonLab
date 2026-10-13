@@ -12,6 +12,15 @@ WORKSPACE_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os
 os.makedirs(WORKSPACE_ROOT, exist_ok=True)
 
 class WorkspaceService:
+    def validate_repo(self, repo_path: str) -> str:
+        """Resolve repositories against operator-controlled roots, never client input."""
+        root = Path(repo_path).resolve()
+        allowed = [Path(self.root_dir).resolve()]
+        allowed.extend(Path(p).resolve() for p in os.environ.get('AGENTEVAL_ALLOWED_REPO_ROOTS', '').split(os.pathsep) if p)
+        if not any(root == base or root.is_relative_to(base) for base in allowed):
+            raise ValueError('Repository is outside the allowed workspace roots')
+        return str(root)
+
     @staticmethod
     def resolve_path(repo_path: str, relative_file_path: str) -> Path:
         root = Path(repo_path).resolve()

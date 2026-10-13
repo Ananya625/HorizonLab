@@ -20,6 +20,14 @@ from .goal_tracker_service import goal_tracker_service
 
 class TestRunnerService:
     @staticmethod
+    def subprocess_env(repo):
+        env = {key: value for key, value in os.environ.items()
+               if key.upper() in {'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR', 'LANG', 'LC_ALL'}}
+        env['PYTHONPATH'] = os.pathsep.join([str(Path(repo).resolve()), str(Path(repo).resolve() / 'app')])
+        env['PYTEST_DISABLE_PLUGIN_AUTOLOAD'] = '1'
+        return env
+
+    @staticmethod
     def parse_junit(path):
         root = ET.parse(path).getroot()
         if root.tag not in ('testsuite', 'testsuites'):
@@ -46,6 +54,7 @@ class TestRunnerService:
             raise ValueError('Unknown run')
         plan = db_service.get_plan(run_id)
         repo = plan.target_repo_path if plan else record.repo_path
+        repo = workspace_service.validate_repo(repo)
         if test_file_target:
             workspace_service.resolve_path(repo, test_file_target)
         targets = target_test_files or [test_file_target or 'tests']
@@ -69,10 +78,7 @@ class TestRunnerService:
         before = workspace_service.digest(repo)
         start = time.perf_counter()
         stdout, stderr, execution_error, exit_code, items = '', '', None, -1, []
-        env = os.environ.copy()
-        env['PYTHONPATH'] = os.pathsep.join([str(Path(repo).resolve()),str(Path(repo).resolve()/'app')])
-        env['PYTEST_DISABLE_PLUGIN_AUTOLOAD'] = '1'
-        env.pop('PYTEST_ADDOPTS', None)
+        env = self.subprocess_env(repo)
         with tempfile.TemporaryDirectory(prefix='agenteval-results-') as directory:
             report = str(Path(directory) / 'results.xml')
             command = [sys.executable, '-m', 'pytest', '-v', '--tb=short', '-p', 'pytest_asyncio.plugin', f'--junitxml={report}', '--', *targets]

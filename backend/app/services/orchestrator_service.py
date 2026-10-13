@@ -58,6 +58,7 @@ class OrchestratorService:
             if not record:
                 task_id = f'task_{uuid.uuid4().hex}'
                 target = repo_path or workspace_service.create_task_workspace(task_id=task_id, run_id=run_id)
+                target = workspace_service.validate_repo(target)
                 sample = next((r['path'] for r in workspace_service.list_sample_repositories() if r['id']==target),None)
                 target = sample or target
                 record = db_service.create_or_update_run(run_id, task_id, request_text[:80], request_text, target)

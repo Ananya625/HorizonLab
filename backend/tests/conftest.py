@@ -45,6 +45,7 @@ def run(database, tmp_path):
 def isolated_workspace_and_network(tmp_path, monkeypatch):
     import httpx
     from app.services.workspace_service import workspace_service
+    monkeypatch.setenv('AGENTEVAL_ALLOWED_REPO_ROOTS', str(tmp_path))
     monkeypatch.setattr(workspace_service, 'root_dir', str(tmp_path / 'sandbox'))
     workspace_service.ensure_default_sandboxes()
 
