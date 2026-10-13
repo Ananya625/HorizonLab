@@ -207,7 +207,7 @@ async def generate_plan(req: StartPlanRequest):
         config = record.metadata.get('config', {})
         plan = await planner_service.generate_plan(
             run_id=req.run_id,
-            repo_path=req.repo_path or record.repo_path,
+            repo_path=record.repo_path,
             model_name=config.get('model_name'),
             temperature=config.get('temperature', 0.2)
         )

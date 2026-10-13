@@ -3,6 +3,19 @@ import pytest
 from app.services.workspace_service import workspace_service
 
 
+@pytest.mark.asyncio
+async def test_planner_uses_stored_repo(run, monkeypatch):
+    from app.api.routes import generate_plan, planner_service
+    from app.models.schema import StartPlanRequest
+    captured = {}
+    async def generate(**kwargs):
+        captured.update(kwargs)
+        return 'plan'
+    monkeypatch.setattr(planner_service, 'generate_plan', generate)
+    assert await generate_plan(StartPlanRequest(run_id=run.run_id, repo_path='attacker')) == 'plan'
+    assert captured['repo_path'] == run.repo_path
+
+
 def test_digest_does_not_use_write_filename_validation(tmp_path, monkeypatch):
     (tmp_path / 'normal.py').write_text('value = 1')
     def forbidden(*args):
