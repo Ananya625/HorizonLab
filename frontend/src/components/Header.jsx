@@ -28,16 +28,13 @@ const STAGES = [
 
 export default function Header({
   runId,
-  currentStage,
   activeTab,
   setActiveTab,
   ollamaStatus,
   onOpenSettings,
   onReset,
   onRunFullPipeline,
-  onStepNext,
   isRunning,
-  hasRun,
   runsList = [],
   onSelectRun
 }) {

@@ -13,7 +13,6 @@ import {
   Layers,
   Activity
 } from 'lucide-react';
-import { fetchRunLogs } from '../services/api';
 
 export default function ExecutionControlRoom({
   runId,
@@ -30,7 +29,7 @@ export default function ExecutionControlRoom({
     if (autoScroll && logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [logs, isOpen]);
+  }, [logs, isOpen, autoScroll]);
 
   const filteredLogs = logs.filter((log) => {
     if (filterRole !== 'ALL' && !log.agent_role?.toLowerCase().includes(filterRole.toLowerCase())) {
@@ -59,6 +58,11 @@ export default function ExecutionControlRoom({
       zIndex: 40,
       transition: 'all 0.25s ease'
     }}>
+      <div style={{display:'flex', gap:12, padding:'6px 20px'}}>
+        <span>Latest {logs.length} events</span>
+        <button type="button" onClick={onRefreshLogs} disabled={!runId}>Refresh logs</button>
+        <label><input type="checkbox" checked={autoScroll} onChange={event => setAutoScroll(event.target.checked)} /> Auto-scroll</label>
+      </div>
       {/* Control Room Bar Header */}
       <div style={{
         padding: '8px 20px',

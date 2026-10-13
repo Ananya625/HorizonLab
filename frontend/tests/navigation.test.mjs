@@ -14,7 +14,7 @@ async function appHarness(t, { failConfirm = false, failResume = false, blocking
     if (!(index in cells)) cells[index] = initial;
     return [cells[index], value => { cells[index] = typeof value === 'function' ? value(cells[index]) : value; }];
   }};
-  const bundle = await rolldown({input:'./src/App.jsx', external:['react','react/jsx-runtime','lucide-react']});
+  const bundle = await rolldown({transform:{define:{'import.meta.env':'{}'}},input:'./src/App.jsx', external:['react','react/jsx-runtime','lucide-react']});
   const {output} = await bundle.generate({format:'cjs', exports:'named'});
   await bundle.close();
   const module = {exports:{}};

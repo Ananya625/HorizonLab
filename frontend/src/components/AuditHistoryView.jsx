@@ -1,25 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { History, GitCommit, Clock, User, Cpu, FileDiff, CheckCircle2, ChevronRight } from 'lucide-react';
+import { History, GitCommit, User, Cpu, FileDiff } from 'lucide-react';
 import { fetchRunHistory } from '../services/api';
 
 export default function AuditHistoryView({ runId, currentModel }) {
   const [historyList, setHistoryList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedSnapshot, setSelectedSnapshot] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setHistoryList([]);
+    setSelectedSnapshot(null);
+    setError(null);
     if (runId) {
       setLoading(true);
       fetchRunHistory(runId)
-        .then((data) => {
+        .then(data => {
+          if (cancelled) return;
           setHistoryList(data.versions || []);
-          if (data.versions && data.versions.length > 0) {
-            setSelectedSnapshot(data.versions[data.versions.length - 1]);
-          }
+          setSelectedSnapshot(data.versions?.at(-1) || null);
         })
-        .catch((err) => console.error('Failed to load history:', err))
-        .finally(() => setLoading(false));
+        .catch(err => { if (!cancelled) setError(err.message); })
+        .finally(() => { if (!cancelled) setLoading(false); });
     }
+    return () => { cancelled = true; };
   }, [runId, currentModel?.goal_model_version]);
 
   const auditEntries = currentModel?.audit_history || [];
@@ -55,6 +60,16 @@ export default function AuditHistoryView({ runId, currentModel }) {
         </p>
       </div>
 
+      <section className="card-panel" style={{padding:20}} aria-label="Goal version snapshots">
+        {loading && <p>Loading goal history...</p>}
+        {error && <p role="alert">{error}</p>}
+        {!loading && !error && historyList.length === 0 && <p>No saved versions.</p>}
+        {historyList.map((snapshot, index) => <button key={index} type="button"
+          aria-pressed={selectedSnapshot === snapshot} onClick={() => setSelectedSnapshot(snapshot)}>
+          v{snapshot.version}: {snapshot.change_summary}
+        </button>)}
+        {selectedSnapshot && <pre style={{whiteSpace:'pre-wrap'}}>{JSON.stringify(selectedSnapshot.model, null, 2)}</pre>}
+      </section>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         {/* Timeline Log */}
         <div className="card-panel" style={{ padding: '20px', backgroundColor: '#0e1522' }}>

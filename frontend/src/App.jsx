@@ -361,7 +361,6 @@ export default function App() {
       {/* Top Telemetry Header */}
       <Header 
         runId={runId}
-        currentStage={currentRunRecord?.current_stage || 'workspace'}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         ollamaStatus={ollamaStatus}
@@ -369,7 +368,6 @@ export default function App() {
         onReset={handleReset}
         onRunFullPipeline={handleRunFullPipeline}
         isRunning={isExecuting || loading || isConfirming}
-        hasRun={!!runId}
         runsList={runsList}
         onSelectRun={handleSelectRun}
       />
@@ -397,7 +395,6 @@ export default function App() {
             onRunFullPipeline={handleRunFullPipeline}
             loading={loading || isExecuting}
             error={null}
-            ollamaStatus={ollamaStatus}
             selectedLanguage={selectedLanguage}
             setSelectedLanguage={setSelectedLanguage}
             repoPath={repoPath}
@@ -454,7 +451,6 @@ export default function App() {
             plan={plan}
             onExecuteCoding={handleExecuteCoding}
             isExecutingCode={isExecuting}
-            onNavigateToStage={setActiveTab}
           />
         )}
 
@@ -464,7 +460,6 @@ export default function App() {
             codeChanges={codeChanges}
             onExecuteTesting={handleExecuteTesting}
             isTesting={isExecuting}
-            onNavigateToStage={setActiveTab}
           />
         )}
 
@@ -475,7 +470,6 @@ export default function App() {
             recoveryAttempts={recoveryAttempts}
             onExecuteVerification={handleVerifyCode}
             isVerifying={isExecuting}
-            onNavigateToStage={setActiveTab}
           />
         )}
 
@@ -492,7 +486,6 @@ export default function App() {
           <EvaluationDashboard 
             currentRunRecord={currentRunRecord}
             onSelectRun={handleSelectRun}
-            onReset={handleReset}
           />
         )}
       </main>

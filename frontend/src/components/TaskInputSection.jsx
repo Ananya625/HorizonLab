@@ -23,7 +23,6 @@ export default function TaskInputSection({
   onRunFullPipeline,
   loading,
   error,
-  ollamaStatus,
   selectedLanguage,
   setSelectedLanguage,
   repoPath,

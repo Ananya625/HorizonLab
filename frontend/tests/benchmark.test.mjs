@@ -22,7 +22,7 @@ test('zero settings survive serialization in every request', async () => {
 });
 
 async function loadComponent(input) {
-  const bundle = await rolldown({input, external:['react','react-dom','react/jsx-runtime','lucide-react']});
+  const bundle = await rolldown({transform:{define:{'import.meta.env':'{}'}},input, external:['react','react-dom','react/jsx-runtime','lucide-react']});
   try {
     const { output } = await bundle.generate({format:'cjs', exports:'named'});
     const module = {exports:{}};

@@ -77,7 +77,7 @@ test('workflow endpoint encodes IDs and preserves zero snapshot', async () => {
 });
 
 test('workflow UI renders zeros, unknowns, stale verification and evidence controls', async () => {
-  const bundle = await rolldown({ input: './src/components/WorkflowAnalysis.jsx', external: ['react', 'react/jsx-runtime'] });
+  const bundle = await rolldown({transform:{define:{'import.meta.env':'{}'}}, input: './src/components/WorkflowAnalysis.jsx', external: ['react', 'react/jsx-runtime'] });
   try {
     const { output } = await bundle.generate({ format: 'cjs', exports: 'named' }); const module = { exports: {} };
     new Function('require', 'module', 'exports', output[0].code)(createRequire(import.meta.url), module, module.exports);
