@@ -1,7 +1,10 @@
+from .workflow_service import observed, workflow
 import os
 import difflib
 import json
 import ast
+import hashlib
+from pathlib import Path, PureWindowsPath
 from typing import Dict, Any, List, Optional
 from .telemetry_service import telemetry_manager
 
@@ -9,6 +12,36 @@ WORKSPACE_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os
 os.makedirs(WORKSPACE_ROOT, exist_ok=True)
 
 class WorkspaceService:
+    @staticmethod
+    def resolve_path(repo_path: str, relative_file_path: str) -> Path:
+        root = Path(repo_path).resolve()
+        portable = relative_file_path.replace('\\', '/')
+        if not portable or PureWindowsPath(portable).drive or portable.startswith('/'):
+            raise ValueError('Expected a workspace-relative path')
+        parts = portable.split('/')
+        reserved = {'con', 'prn', 'aux', 'nul', *(f'com{i}' for i in range(1, 10)), *(f'lpt{i}' for i in range(1, 10))}
+        if any(p.casefold() in ('..', '.git', '.evaluator') or ':' in p or p.endswith((' ', '.')) or p.split('.')[0].casefold() in reserved for p in parts):
+            raise ValueError('Path is outside the permitted workspace files')
+        target = (root / portable).resolve()
+        if target == root or not target.is_relative_to(root):
+            raise ValueError('Path escapes the workspace')
+        return target
+
+    def digest(self, repo_path: str) -> str:
+        """Fingerprint observable source state; generated reports/caches are excluded."""
+        root = Path(repo_path).resolve()
+        if not root.is_dir():
+            raise ValueError('Workspace does not exist')
+        digest = hashlib.sha256()
+        for path in sorted(root.rglob('*')):
+            relative = path.relative_to(root)
+            if any(p.casefold() in {'.git', '.evaluator', '.pytest_cache', '__pycache__', '.venv', 'node_modules'} for p in relative.parts):
+                continue
+            if path.is_file():
+                checked = self.resolve_path(str(root), relative.as_posix())
+                digest.update(relative.as_posix().encode())
+                digest.update(checked.read_bytes())
+        return digest.hexdigest()
     def __init__(self, root_dir: str = WORKSPACE_ROOT):
         self.root_dir = root_dir
         self.ensure_default_sandboxes()
@@ -83,6 +116,7 @@ def health():
 
         return workspace_path
 
+    @observed('inspect_directory', 'tool', reason=None)
     def inspect_directory(self, target_path: Optional[str] = None, run_id: Optional[str] = None) -> Dict[str, Any]:
         path = target_path or self.get_default_repo_path()
         if not os.path.exists(path):
@@ -151,6 +185,7 @@ def health():
             "files": files_list
         }
 
+    @observed('inspect_targeted', 'tool', reason=None)
     def inspect_targeted(self, target_path: Optional[str] = None, file_list: Optional[List[str]] = None, run_id: Optional[str] = None) -> Dict[str, Any]:
         """Lightweight targeted inspection for isolated changes: stats only relevant files."""
         path = target_path or self.get_default_repo_path()
@@ -212,18 +247,20 @@ def health():
             "files": files_list
         }
 
+    @observed('file_read', 'tool', reason=None)
     def read_file(self, repo_path: str, relative_file_path: str) -> Optional[str]:
-        full_path = os.path.join(repo_path, relative_file_path)
+        full_path = self.resolve_path(repo_path, relative_file_path)
         if not os.path.exists(full_path):
             return None
         try:
             with open(full_path, "r", encoding="utf-8") as f:
                 return f.read()
-        except Exception:
-            return None
+        except OSError as exc:
+            raise ValueError(f'Cannot read workspace file: {relative_file_path}') from exc
 
+    @observed('file_write', 'tool', reason=None)
     def write_file(self, repo_path: str, relative_file_path: str, content: str) -> bool:
-        full_path = os.path.join(repo_path, relative_file_path)
+        full_path = self.resolve_path(repo_path, relative_file_path)
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -255,8 +292,8 @@ def health():
                 ast_valid = False
 
         return {
-            "diff_patch": diff_text if diff_text else f"--- a/{filename}\n+++ b/{filename}\n@@ -0,0 +1,{len(new_lines)} @@\n" + "\n".join([f"+{l.rstrip()}" for l in new_lines]),
-            "lines_added": lines_added or len(new_lines),
+            "diff_patch": diff_text,
+            "lines_added": lines_added,
             "lines_removed": lines_removed,
             "ast_valid": ast_valid
         }

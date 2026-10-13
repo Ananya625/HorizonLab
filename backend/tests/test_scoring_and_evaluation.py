@@ -622,28 +622,20 @@ async def test_verifier_service_and_db_persistence_e2e():
     # Execute verify_run
     report = await verifier_service.verify_run(run_id=run_id)
 
-    assert report.goal_drift_score == 0.0
-    assert report.goal_alignment_score == 100.0
-    assert report.criteria_completion_rate == 100.0
-    assert report.test_pass_rate == 100.0
-    assert report.score_status == "computed"
+    # Legacy passing counts cannot independently verify arbitrary requirements.
+    assert report.goal_drift_score is None
+    assert report.goal_alignment_score is None
+    assert report.verified_success is None
+    assert report.overall_verdict == "UNVERIFIED"
+    assert report.criteria_completion_rate == 0.0
+    assert report.score_status == "partial_evidence"
     assert report.score_version == "v2.0"
-    assert report.component_penalties["goal_misalignment_penalty"] == 0.0
-    assert report.component_penalties["criteria_gap_penalty"] == 0.0
-    assert report.component_penalties["execution_failure_penalty"] == 0.0
+    assert "diagnostic_scores" in report.evidence_breakdown
 
-    # Test SQLite retrieval
     saved_report = db_service.get_verification(run_id)
-    assert saved_report is not None
-    assert saved_report.goal_drift_score == 0.0
-    assert saved_report.goal_alignment_score == 100.0
-    assert saved_report.score_status == "computed"
-
+    assert saved_report.model_dump() == report.model_dump()
     saved_eval = db_service.get_evaluation(run_id)
-    assert saved_eval is not None
-    assert saved_eval.goal_drift_score == 0.0
-    assert saved_eval.goal_alignment_score == 100.0
-    assert saved_eval.criteria_completion_rate == 100.0
-    assert saved_eval.test_pass_rate == 100.0
-    assert saved_eval.score_status == "computed"
-    assert saved_eval.component_penalties["goal_misalignment_penalty"] == 0.0
+    assert saved_eval.goal_drift_score is None
+    assert saved_eval.verified_success is None
+    assert saved_eval.score_status == "partial_evidence"
+    assert saved_eval.evidence_breakdown == report.evidence_breakdown

@@ -1,15 +1,17 @@
+from .workflow_service import observed, workflow
 import httpx
 import json
 import time
 import re
 import logging
+import uuid
 from typing import Dict, Any, List, Optional, AsyncGenerator
 from .telemetry_service import telemetry_manager
 
 logger = logging.getLogger(__name__)
 
 class OllamaService:
-    def __init__(self, host: str = "http://127.0.0.1:11434", default_model: str = "qwen2.5-coder:1.5b"):
+    def __init__(self, host: str = "http://127.0.0.1:11434", default_model: str = "qwen3:1.7b"):
         self.host = host.rstrip("/")
         self.default_model = default_model
         self.default_timeout = 45.0
@@ -69,6 +71,7 @@ class OllamaService:
                 "message": f"Cannot reach Ollama at {self.host}: {str(e)}"
             }
 
+    @observed('ollama.chat', 'model', reason=None)
     async def chat_completion(
         self,
         messages: List[Dict[str, str]],
@@ -101,7 +104,15 @@ class OllamaService:
         }
         if format_json:
             payload["format"] = "json"
+        if active_model.startswith('qwen3:'):
+            # Keep the bounded response budget for the requested code/JSON.
+            # The approved local pilot already uses the same non-thinking mode.
+            payload['think'] = False
 
+        from .db import db_service
+        operation_id = uuid.uuid4().hex
+        if run_id:
+            db_service.add_log(run_id, 'model', 'Model Client', 'model_call', 'Model request', {'operation_id':operation_id, 'model':active_model, 'temperature':temperature})
         start_time = time.time()
         error_msg = None
         data = {}
@@ -126,6 +137,7 @@ class OllamaService:
             tok_per_sec = (eval_tokens / eval_dur_sec) if eval_dur_sec > 0 else 0.0
 
             if run_id:
+                db_service.add_log(run_id, 'model', 'Model Client', 'model_result', 'Model request failed' if error_msg else 'Model response', {'operation_id':operation_id,'input_tokens':data.get('prompt_eval_count'),'output_tokens':data.get('eval_count'),'status':'error' if error_msg else 'completed','duration_seconds':duration_ms/1000})
                 tracker = telemetry_manager.get(run_id)
                 if tracker:
                     tracker.record_model_call(

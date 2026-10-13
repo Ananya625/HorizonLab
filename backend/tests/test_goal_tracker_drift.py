@@ -183,6 +183,7 @@ def test_03_unrelated_proposed_action_blocked():
         complexity_profile="simple"
     )
 
+    db_service.create_or_update_run(run_id, task_id, 'Drift test', 'Drift test', repo_path)
     # 3a. Path Traversal escaping sandbox
     traversal_target = os.path.abspath(os.path.join(repo_path, "../../etc/passwd"))
     decision = drift_controller_service.check_action(
@@ -561,12 +562,13 @@ def test_10_tool_timeout_and_recovery():
         complexity_profile="medium"
     )
 
+    db_service.create_or_update_run(run_id_sub, 'task_sub', 'Timeout test', 'Timeout test', workspace_service.get_default_repo_path())
     # Mock subprocess.run to raise subprocess.TimeoutExpired
     with patch("subprocess.run", side_effect=__import__("subprocess").TimeoutExpired(cmd="pytest", timeout=25)):
         res = test_runner_service.run_tests(run_id=run_id_sub, attempt_number=1, test_file_target="tests/test_mock.py")
-        assert res.exit_code == 1
-        assert res.status == "FAILED"
-        assert "timed out after 25 seconds" in res.stdout
+        assert res.exit_code == 124
+        assert res.status == "ERROR"
+        assert "exceeded" in res.execution_error.lower()
 
         # Result validation detects failure and signals bounded recovery
         val = drift_controller_service.validate_result(

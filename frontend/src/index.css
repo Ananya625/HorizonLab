@@ -305,3 +305,16 @@ body::before {
   border-radius: 2px;
   animation: wavePulse 1s infinite ease-in-out;
 }
+
+/* Evaluation: readable overview with expandable evidence. */
+.evaluation-dashboard p, .verification-review p { line-height: 1.6; margin: 10px 0; }
+.evaluation-dashboard summary, .verification-review summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+.evaluation-workflow details { border-top: 1px solid var(--border-subtle); padding: 8px 0; overflow-x: auto; }
+.evaluation-workflow dl > div { background: var(--bg-secondary); padding: 14px; border-radius: 8px; }
+.evaluation-workflow dt { color: var(--text-secondary); font-size: 0.8rem; }
+.evaluation-workflow dd { font-size: 1.1rem; }
+.evaluation-workflow table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+.evaluation-workflow th, .evaluation-workflow td { padding: 10px; border-bottom: 1px solid var(--border-subtle); }
+.evaluation-workflow button { border: 1px solid var(--border-subtle); background: var(--bg-secondary); color: var(--text-primary); padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.evaluation-workflow button:disabled { opacity: 0.5; cursor: default; }
+.evaluation-workflow button:focus-visible, .evaluation-dashboard summary:focus-visible, .verification-review summary:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }

@@ -1,0 +1,22 @@
+{
+  "manifest_version": "2",
+  "execution_mode": "local_ollama",
+  "adapter_id": "ollama-v1",
+  "adapter_version": "1",
+  "model": "qwen3:1.7b",
+  "pilot_id": "qwen3-1-7b-remaining-2026-10-13",
+  "task_ids": ["sum_fix"],
+  "conditions": ["baseline"],
+  "repetitions": 1,
+  "task_lengths": [5],
+  "scenario": "normal",
+  "fault": {"kind": "none"},
+  "max_trials": 1,
+  "max_model_calls": 13,
+  "max_total_generated_tokens": 4000,
+  "max_output_tokens": 1000,
+  "max_steps": 5,
+  "max_retries": 0,
+  "timeout_seconds": 300,
+  "model_timeout_seconds": 120
+}

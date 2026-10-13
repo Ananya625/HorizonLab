@@ -1,250 +1,116 @@
+from .workflow_service import observed, workflow
+"""Real pytest execution. Console text alone is never evidence of success."""
 import os
 import sys
 import uuid
 import time
+import math
 import subprocess
-import re
-from typing import Dict, Any, List, Optional
-from datetime import datetime
-from ..models.schema import (
-    TestRunResult,
-    TestResultItem,
-    RecoveryAttempt
-)
+import tempfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import Optional
+from ..models.schema import TestRunResult, TestResultItem
 from .db import db_service
 from .workspace_service import workspace_service
 from .telemetry_service import telemetry_manager
 from .drift_controller_service import drift_controller_service
 from .goal_tracker_service import goal_tracker_service
 
+
 class TestRunnerService:
-    def run_tests(
-        self,
-        run_id: str,
-        attempt_number: int = 1,
-        test_file_target: Optional[str] = None,
-        target_test_files: Optional[List[str]] = None
-    ) -> TestRunResult:
+    @staticmethod
+    def parse_junit(path):
+        root = ET.parse(path).getroot()
+        if root.tag not in ('testsuite', 'testsuites'):
+            raise ValueError('Invalid pytest report root')
+        items = []
+        for case in root.iter('testcase'):
+            failure, error, skipped = case.find('failure'), case.find('error'), case.find('skipped')
+            status = 'ERROR' if error is not None else 'FAILED' if failure is not None else 'SKIPPED' if skipped is not None else 'PASSED'
+            detail = error if error is not None else failure if failure is not None else skipped
+            duration = float(case.get('time', '0')) * 1000
+            if duration < 0 or not math.isfinite(duration):
+                raise ValueError('Invalid test duration')
+            items.append(TestResultItem(name=f"{case.get('classname', '')}::{case.get('name', '')}",
+                status=status, duration_ms=duration,
+                error_message=detail.get('message') if detail is not None else None,
+                stack_trace=detail.text if detail is not None else None))
+        return items
+
+    @observed('pytest', 'tool', reason='validation')
+    def run_tests(self, run_id: str, attempt_number: int = 1,
+                  test_file_target: Optional[str] = None, target_test_files: Optional[list[str]] = None) -> TestRunResult:
+        record = db_service.get_run_record(run_id)
+        if not record:
+            raise ValueError('Unknown run')
         plan = db_service.get_plan(run_id)
-        repo_path = plan.target_repo_path if plan else workspace_service.get_default_repo_path()
-
-        # Find test files
-        test_files = []
-        if target_test_files:
-            for tf in target_test_files:
-                tf_norm = tf.replace("\\", "/")
-                if os.path.exists(os.path.join(repo_path, tf_norm)):
-                    test_files.append(tf_norm)
-        elif test_file_target and os.path.exists(os.path.join(repo_path, test_file_target)):
-            test_files.append(test_file_target.replace("\\", "/"))
-        elif plan and any(pf.action == "test" or "test" in pf.path for pf in plan.planned_files):
-            # Prioritize test files explicitly planned for this task
-            for pf in plan.planned_files:
-                if pf.action == "test" or "test" in pf.path:
-                    pf_norm = pf.path.replace("\\", "/")
-                    if os.path.exists(os.path.join(repo_path, pf_norm)):
-                        test_files.append(pf_norm)
-        else:
-            tests_dir = os.path.join(repo_path, "tests")
-            if os.path.exists(tests_dir):
-                for f in os.listdir(tests_dir):
-                    if f.startswith("test_") and f.endswith(".py"):
-                        test_files.append(os.path.join("tests", f).replace("\\", "/"))
-
-        if not test_files and plan:
-            for pf in plan.planned_files:
-                if pf.action == "test" or "test" in pf.path:
-                    test_files.append(pf.path.replace("\\", "/"))
-
-        # Pre-action Drift & Budget Check
-        cmd_target_str = "pytest " + (" ".join(test_files) if test_files else "tests")
-        pre_check = drift_controller_service.check_action(
-            run_id=run_id,
-            action_type="command_exec",
-            target=cmd_target_str,
-            payload_str=str(attempt_number),
-            repo_path=repo_path
-        )
-        if not pre_check.allowed:
-            db_service.add_log(
-                run_id=run_id,
-                stage="testing",
-                agent_role="Drift Controller",
-                event_type="warning",
-                message=f"Command execution blocked: {pre_check.reason}",
-                details={"cmd": cmd_target_str, "decision": pre_check.model_dump()}
-            )
-            goal_tracker_service.record_action(
-                run_id=run_id,
-                action_type="command_exec",
-                target=cmd_target_str,
-                payload_str=str(attempt_number),
-                status="blocked" if pre_check.action_category == "blocked" else "skipped_duplicate",
-                error_message=pre_check.reason
-            )
-            return TestRunResult(
-                id=f"testrun_{uuid.uuid4().hex[:8]}",
-                run_id=run_id,
-                attempt_number=attempt_number,
-                total_tests=0,
-                passed_tests=0,
-                failed_tests=1,
-                duration_seconds=0.0,
-                stdout=f"EXECUTION BLOCKED by Drift Controller: {pre_check.reason}",
-                stderr="",
-                exit_code=1,
-                status="FAILED",
-                test_items=[TestResultItem(name="drift_control_guard", status="FAILED", error_message=pre_check.reason)],
-                created_at=datetime.now().isoformat()
-            )
-
-        # Telemetry tracking
+        repo = plan.target_repo_path if plan else record.repo_path
+        if test_file_target:
+            workspace_service.resolve_path(repo, test_file_target)
+        targets = target_test_files or [test_file_target or 'tests']
+        for item in targets:
+            workspace_service.resolve_path(repo, item)
+        target = ' '.join(targets)
+        cmd_target_str = 'pytest '+target
+        decision = drift_controller_service.check_action(run_id=run_id, action_type='command_exec',
+            target=cmd_target_str, payload_str=str(attempt_number), repo_path=repo)
+        if not decision.allowed:
+            result = TestRunResult(id=f'testrun_{uuid.uuid4().hex}',run_id=run_id,attempt_number=attempt_number,
+                exit_code=1,status='ERROR',execution_error=decision.reason,evidence_version='junit-v1')
+            db_service.save_test_result(result)
+            goal_tracker_service.record_action(run_id=run_id,action_type='command_exec',target=cmd_target_str,
+                payload_str=str(attempt_number),status='blocked',error_message=decision.reason)
+            return result
         tracker = telemetry_manager.get(run_id)
         if tracker:
-            tracker.record_agent_invocation("Test Runner Agent")
+            tracker.record_agent_invocation('Test Runner Agent')
             tracker.record_tool_call()
-
-        db_service.add_log(
-            run_id=run_id,
-            stage="testing",
-            agent_role="Test Runner Agent",
-            event_type="command",
-            message=f"Executing pytest suite in '{repo_path}' on target files: {test_files} (Attempt #{attempt_number}).",
-            details={"repo_path": repo_path, "test_files": test_files, "attempt": attempt_number}
-        )
-
-        start_time = time.time()
-        stdout_text = ""
-        stderr_text = ""
-        exit_code = 0
-        test_items: List[TestResultItem] = []
-
-        # Execute pytest in subprocess with repo_path and repo_path/app in PYTHONPATH
+        before = workspace_service.digest(repo)
+        start = time.perf_counter()
+        stdout, stderr, execution_error, exit_code, items = '', '', None, -1, []
         env = os.environ.copy()
-        app_dir = os.path.join(repo_path, "app")
-        env["PYTHONPATH"] = f"{repo_path}{os.pathsep}{app_dir}{os.pathsep}{env.get('PYTHONPATH', '')}"
-
-        cmd = [sys.executable, "-m", "pytest", "-v", "--tb=short"] + (test_files if test_files else ["tests"])
-
-        try:
-            process = subprocess.run(
-                cmd,
-                cwd=repo_path,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=25
-            )
-            stdout_text = process.stdout
-            stderr_text = process.stderr
-            exit_code = process.returncode
-        except subprocess.TimeoutExpired:
-            stdout_text = "ERROR: Test execution timed out after 25 seconds."
-            exit_code = 1
-        except Exception as e:
-            stdout_text = f"Subprocess invocation notice: {str(e)}\n"
-            exit_code = 0
-
-        duration = round(time.time() - start_time, 2)
-
-        # Parse test items from pytest verbose output
-        parsed_items, total, passed, failed = self._parse_pytest_output(stdout_text, exit_code)
-
-        status = "PASSED" if (exit_code == 0 and failed == 0 and total > 0) else "FAILED"
-
-        result = TestRunResult(
-            id=f"testrun_{uuid.uuid4().hex[:8]}",
-            run_id=run_id,
-            attempt_number=attempt_number,
-            total_tests=total,
-            passed_tests=passed,
-            failed_tests=failed,
-            duration_seconds=duration,
-            stdout=stdout_text,
-            stderr=stderr_text,
-            exit_code=exit_code,
-            status=status,
-            test_items=parsed_items,
-            created_at=datetime.now().isoformat()
-        )
-
+        env['PYTHONPATH'] = os.pathsep.join([str(Path(repo).resolve()),str(Path(repo).resolve()/'app')])
+        env['PYTEST_DISABLE_PLUGIN_AUTOLOAD'] = '1'
+        env.pop('PYTEST_ADDOPTS', None)
+        with tempfile.TemporaryDirectory(prefix='agenteval-results-') as directory:
+            report = str(Path(directory) / 'results.xml')
+            command = [sys.executable, '-m', 'pytest', '-v', '--tb=short', '-p', 'pytest_asyncio.plugin', f'--junitxml={report}', '--', *targets]
+            db_service.add_log(run_id, 'testing', 'Test Runner', 'tool_call', 'Executing pytest', {'operation_id': uuid.uuid4().hex, 'tool': 'pytest', 'target': target})
+            try:
+                process = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, timeout=30)
+                stdout, stderr, exit_code = process.stdout, process.stderr, process.returncode
+                items = self.parse_junit(report)
+            except subprocess.TimeoutExpired as exc:
+                exit_code, execution_error = 124, 'Test execution exceeded 30 seconds'
+                stdout = (exc.stdout or b'').decode(errors='replace') if isinstance(exc.stdout, bytes) else (exc.stdout or '')
+                stderr = (exc.stderr or b'').decode(errors='replace') if isinstance(exc.stderr, bytes) else (exc.stderr or '')
+            except (OSError, ValueError, ET.ParseError) as exc:
+                execution_error = f'{type(exc).__name__}: {exc}'
+        passed = sum(i.status == 'PASSED' for i in items)
+        failed = sum(i.status in ('FAILED', 'ERROR') for i in items)
+        skipped = sum(i.status == 'SKIPPED' for i in items)
+        if before != workspace_service.digest(repo):
+            execution_error = 'Workspace changed during test execution; evidence is not stable'
+        status = 'ERROR' if execution_error else 'PASSED' if exit_code == 0 and passed > 0 and failed == 0 else 'FAILED'
+        result = TestRunResult(id=f'testrun_{uuid.uuid4().hex}', run_id=run_id,
+            attempt_number=attempt_number, total_tests=len(items), passed_tests=passed,
+            failed_tests=failed, skipped_tests=skipped, duration_seconds=time.perf_counter()-start,
+            stdout=stdout, stderr=stderr, exit_code=exit_code, status=status,
+            test_items=items, execution_error=execution_error,
+            evidence_version='junit-v1', workspace_digest=before)
         db_service.save_test_result(result)
-
-        # Validate result with DriftController & update GoalTracker
-        val_res = drift_controller_service.validate_result(
-            run_id=run_id,
-            action_type="test_run",
-            target=cmd_target_str,
-            success=(status == "PASSED"),
-            details={"exit_code": exit_code, "passed_tests": passed, "failed_tests": failed, "total_tests": total, "stdout": stdout_text}
-        )
-        goal_tracker_service.record_action(
-            run_id=run_id,
-            action_type="test_run",
-            target=cmd_target_str,
-            payload_str=str(attempt_number),
-            status="completed" if status == "PASSED" else "failed",
-            details={"passed": passed, "failed": failed, "total": total, "duration_seconds": duration}
-        )
-
-        event_type = "success" if status == "PASSED" else "warning"
-        db_service.add_log(
-            run_id=run_id,
-            stage="testing",
-            agent_role="Test Runner Agent",
-            event_type=event_type,
-            message=f"Test Suite Result: {status} ({passed}/{total} passed in {duration}s, exit code: {exit_code}).",
-            details={"passed": passed, "total": total, "failed": failed, "status": status}
-        )
-
+        db_service.add_log(run_id, 'testing', 'Test Runner', 'test_run', f'Pytest: {status}', {'result_id': result.id, 'duration_seconds': result.duration_seconds})
+        drift_controller_service.validate_result(run_id=run_id,action_type='test_run',target=cmd_target_str,
+            success=status=='PASSED',details={'exit_code':exit_code,'passed_tests':passed,'failed_tests':failed,'total_tests':len(items),'stdout':stdout})
+        goal_tracker_service.record_action(run_id=run_id,action_type='test_run',target=cmd_target_str,
+            payload_str=str(attempt_number),status='completed' if status=='PASSED' else 'failed',
+            details={'passed':passed,'failed':failed,'total':len(items),'duration_seconds':result.duration_seconds})
         return result
 
     def _parse_pytest_output(self, output: str, exit_code: int):
-        items: List[TestResultItem] = []
-        total = 0
-        passed = 0
-        failed = 0
+        # Compatibility helper: unsupported console output provides no test evidence.
+        return [], 0, 0, 0
 
-        # Look for pytest lines e.g. tests/test_auth.py::test_login_success PASSED
-        pattern = re.compile(r"([\w/\.\-]+::[\w]+)\s+(PASSED|FAILED|SKIPPED|ERROR)")
-        matches = pattern.findall(output)
-
-        for match in matches:
-            test_name, outcome = match
-            total += 1
-            if outcome == "PASSED":
-                passed += 1
-            elif outcome in ("FAILED", "ERROR"):
-                failed += 1
-            
-            items.append(
-                TestResultItem(
-                    name=test_name,
-                    status=outcome,
-                    duration_ms=45.0,
-                    error_message=None if outcome == "PASSED" else "Assertion failed during test execution"
-                )
-            )
-
-        if not items:
-            # Fallback parsing summary line e.g. "8 passed in 0.45s"
-            if "passed" in output.lower():
-                m = re.search(r"(\d+)\s+passed", output, re.IGNORECASE)
-                passed_count = int(m.group(1)) if m else 6
-                total = passed_count
-                passed = passed_count
-                failed = 0
-                for i in range(passed_count):
-                    items.append(TestResultItem(name=f"test_suite_checkpoint_{i+1}", status="PASSED", duration_ms=30.0))
-            elif exit_code == 0:
-                total = 6
-                passed = 6
-                items = [TestResultItem(name=f"test_auth_check_{i+1}", status="PASSED", duration_ms=25.0) for i in range(6)]
-            else:
-                total = 1
-                failed = 1
-                items = [TestResultItem(name="test_execution_failure", status="FAILED", duration_ms=50.0, error_message=output)]
-
-        return items, total, passed, failed
 
 test_runner_service = TestRunnerService()

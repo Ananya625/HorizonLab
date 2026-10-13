@@ -7,7 +7,7 @@ from app.services.db import db_service
 
 async def test_full_pipeline(repo_path: Optional[str] = None):
     print("==================================================")
-    print("STARTING FULL END-TO-END CODING AGENT WORKFLOW TEST")
+    print("STARTING CODING WORKFLOW CONFIRMATION SMOKE CHECK")
     print("==================================================")
 
     request_text = "Build a login API with JWT authentication using FastAPI. Implement user registration with password hashing, login endpoint returning JWT bearer token, protected route GET /api/auth/me, invalid credentials rejection (HTTP 401), expired token rejection, and automated pytest suite."
@@ -29,6 +29,8 @@ async def test_full_pipeline(repo_path: Optional[str] = None):
     print(f"Target Workspace: {record.repo_path}")
     print(f"Current Stage: {record.current_stage}")
     print(f"Status: {record.status}")
+    if record.goal_model and not record.goal_model.is_confirmed:
+        print("Awaiting human goal review and confirmation. Coding and benchmarking have not run.")
     print(f"Goal Model Version: {record.goal_model.goal_model_version if record.goal_model else 'N/A'}")
     print(f"Sub-Goals: {len(record.goal_model.sub_goals) if record.goal_model else 0}")
     print(f"Criteria: {len(record.goal_model.success_criteria) if record.goal_model else 0}")

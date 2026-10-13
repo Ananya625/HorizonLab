@@ -20,7 +20,8 @@ export default function ConfirmationGate({
   onConfirm, 
   isConfirming, 
   onNavigateToClarifications,
-  onProceedToPlanner
+  onProceedToPlanner,
+  continueFullWorkflow = false
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -228,7 +229,7 @@ export default function ConfirmationGate({
                 style={{ width: '100%', padding: '12px', fontSize: '0.95rem', fontWeight: 600 }}
               >
                 <Lock size={16} />
-                <span>{isConfirming ? 'Locking Goal Model...' : 'Lock & Confirm Goal Model'}</span>
+                <span>{isConfirming ? 'Confirming...' : continueFullWorkflow ? 'Confirm & continue workflow (3–7)' : 'Lock & Confirm Goal Model'}</span>
               </button>
             ) : (
               <button

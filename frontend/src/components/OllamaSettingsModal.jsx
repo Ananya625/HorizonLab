@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { X, RefreshCw, CheckCircle2, AlertTriangle, Server, Cpu, Sliders } from 'lucide-react';
-import { configureOllama, fetchOllamaStatus } from '../services/api';
+import { configureOllama } from '../services/api';
 
 export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, onStatusUpdated, temperature, setTemperature }) {
   const [host, setHost] = useState(currentStatus?.host || 'http://127.0.0.1:11434');
-  const [selectedModel, setSelectedModel] = useState(currentStatus?.current_model || 'qwen2.5-coder:7b');
+  // Status arrives after mount; use its selection until the user edits this form.
+  const [modelOverride, setSelectedModel] = useState(null);
+  const selectedModel = modelOverride || currentStatus?.current_model || 'qwen3:1.7b';
   const [testing, setTesting] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
@@ -14,7 +16,7 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
     setTesting(true);
     setFeedback(null);
     try {
-      const res = await configureOllama(host, selectedModel);
+      const res = await configureOllama({ host, default_model: selectedModel });
       onStatusUpdated(res.status);
       setFeedback({
         type: res.status.connected ? 'success' : 'warning',
@@ -131,7 +133,7 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
                 <option key={m} value={m}>{m}</option>
               ))
             ) : (
-              <option value="qwen2.5-coder:7b">qwen2.5-coder:7b (Default)</option>
+              <option value={selectedModel}>{selectedModel} (installation not confirmed)</option>
             )}
           </select>
         </div>
