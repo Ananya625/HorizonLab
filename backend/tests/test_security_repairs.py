@@ -3,6 +3,16 @@ import pytest
 from app.services.workspace_service import workspace_service
 
 
+def test_digest_does_not_use_write_filename_validation(tmp_path, monkeypatch):
+    (tmp_path / 'normal.py').write_text('value = 1')
+    def forbidden(*args):
+        pytest.fail('Digest must not apply Windows write-name restrictions')
+    monkeypatch.setattr(workspace_service, 'resolve_path', forbidden)
+    before = workspace_service.digest(str(tmp_path))
+    (tmp_path / 'normal.py').write_text('value = 2')
+    assert workspace_service.digest(str(tmp_path)) != before
+
+
 @pytest.mark.parametrize('path', ['../../../README.md', '..\\outside.py', '/absolute.py', 'C:\\outside.py'])
 def test_targeted_inspection_rejects_traversal(path):
     with pytest.raises(ValueError):

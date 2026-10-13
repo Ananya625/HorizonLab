@@ -47,9 +47,12 @@ class WorkspaceService:
             if any(p.casefold() in {'.git', '.evaluator', '.pytest_cache', '__pycache__', '.venv', 'node_modules'} for p in relative.parts):
                 continue
             if path.is_file():
-                checked = self.resolve_path(str(root), relative.as_posix())
+                # Read existing names portably, without imposing write-name rules.
+                # Symlinks are never followed into other repositories.
+                if path.is_symlink() or not path.resolve().is_relative_to(root):
+                    continue
                 digest.update(relative.as_posix().encode())
-                digest.update(checked.read_bytes())
+                digest.update(path.read_bytes())
         return digest.hexdigest()
     def __init__(self, root_dir: str = WORKSPACE_ROOT):
         self.root_dir = root_dir
