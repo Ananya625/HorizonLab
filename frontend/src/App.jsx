@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
+import { startLogPolling } from './services/logPolling';
 import OllamaSettingsModal from './components/OllamaSettingsModal';
 import TaskInputSection from './components/TaskInputSection';
 import ParsingProgress from './components/ParsingProgress';
@@ -59,6 +60,7 @@ export default function App() {
   const [verification, setVerification] = useState(null);
   const [currentRunRecord, setCurrentRunRecord] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [logRefresh, setLogRefresh] = useState(0);
 
   // UI Status
   const [loading, setLoading] = useState(false);
@@ -92,19 +94,10 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Poll logs for active run
-  useEffect(() => {
-    if (!runId) return;
-    const fetchLogs = () => {
-      fetchRunLogs(runId)
-        .then((data) => setLogs(data.logs || []))
-        .catch(() => {});
-    };
-
-    fetchLogs();
-    const logInterval = setInterval(fetchLogs, 3000);
-    return () => clearInterval(logInterval);
-  }, [runId]);
+  // Fetch once when idle; serialize active polls and discard disposed run responses.
+  useEffect(() => startLogPolling({
+    runId, active: isExecuting || loading, fetchLogs: fetchRunLogs, onLogs: setLogs,
+  }), [runId, isExecuting, loading, logRefresh]);
 
   const loadRunsList = async () => {
     try {
@@ -147,7 +140,7 @@ export default function App() {
         setActiveTab('goal_model');
       }
     } catch (err) {
-      alert(`Failed to load run ${selectedRunId}: ${err.message}`);
+      setError(`Failed to load run ${selectedRunId}: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -193,7 +186,7 @@ export default function App() {
       const updated = await patchGoalModel(patchPayload);
       setGoalModel(updated);
     } catch (err) {
-      alert(`Save failed: ${err.message}`);
+      setError(`Save failed: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -212,7 +205,7 @@ export default function App() {
       });
       setGoalModel(updated);
     } catch (err) {
-      alert(`Resolution failed: ${err.message}`);
+      setError(`Resolution failed: ${err.message}`);
     } finally {
       setResolvingId(null);
     }
@@ -248,7 +241,7 @@ export default function App() {
       setPlan(generatedPlan);
       setActiveTab('planner');
     } catch (err) {
-      alert(`Planning failed: ${err.message}`);
+      setError(`Planning failed: ${err.message}`);
     } finally {
       setIsExecuting(false);
     }
@@ -263,7 +256,7 @@ export default function App() {
       setCodeChanges(res.changes || []);
       setActiveTab('coder');
     } catch (err) {
-      alert(`Coding execution failed: ${err.message}`);
+      setError(`Coding execution failed: ${err.message}`);
     } finally {
       setIsExecuting(false);
     }
@@ -280,7 +273,7 @@ export default function App() {
       setRecoveryAttempts(testRes.recovery_attempts || []);
       setActiveTab('testing');
     } catch (err) {
-      alert(`Testing and recovery failed: ${err.message}`);
+      setError(`Testing and recovery failed: ${err.message}`);
     } finally {
       setIsExecuting(false);
     }
@@ -297,7 +290,7 @@ export default function App() {
       loadRunsList();
       setActiveTab('verifier');
     } catch (err) {
-      alert(`Verification failed: ${err.message}`);
+      setError(`Verification failed: ${err.message}`);
     } finally {
       setIsExecuting(false);
     }
@@ -508,7 +501,7 @@ export default function App() {
       <ExecutionControlRoom 
         runId={runId}
         logs={logs}
-        onRefreshLogs={() => runId && fetchRunLogs(runId).then((d) => setLogs(d.logs || []))}
+        onRefreshLogs={() => setLogRefresh(value => value + 1)}
       />
 
       {/* Ollama Settings Modal */}
