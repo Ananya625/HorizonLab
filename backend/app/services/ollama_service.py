@@ -5,20 +5,39 @@ import time
 import re
 import logging
 import uuid
+import os
+import ipaddress
+from urllib.parse import urlsplit
 from typing import Dict, Any, List, Optional, AsyncGenerator
 from .telemetry_service import telemetry_manager
 
 logger = logging.getLogger(__name__)
 
 class OllamaService:
+    @staticmethod
+    def validate_host(host: str) -> str:
+        parsed = urlsplit(host)
+        name = (parsed.hostname or '').lower()
+        allowed = {h.strip().lower() for h in os.environ.get('AGENTEVAL_OLLAMA_HOSTS', '').split(',') if h.strip()}
+        try:
+            loopback = ipaddress.ip_address(name).is_loopback
+        except ValueError:
+            loopback = name == 'localhost'
+        if (parsed.scheme not in {'http', 'https'} or not name or parsed.username or parsed.password
+                or parsed.path not in {'', '/'} or parsed.query or parsed.fragment
+                or not (loopback or name in allowed)):
+            raise ValueError('Ollama URL must use loopback or an explicitly allowed host')
+        parsed.port  # Validate malformed/out-of-range ports before storing configuration.
+        return host.rstrip('/')
+
     def __init__(self, host: str = "http://127.0.0.1:11434", default_model: str = "qwen3:1.7b"):
-        self.host = host.rstrip("/")
+        self.host = self.validate_host(host)
         self.default_model = default_model
         self.default_timeout = 45.0
         self.keep_alive = "30m"
 
     def update_config(self, host: str, default_model: Optional[str] = None):
-        self.host = host.rstrip("/")
+        self.host = self.validate_host(host)
         if default_model:
             self.default_model = default_model
 

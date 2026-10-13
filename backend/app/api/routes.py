@@ -96,7 +96,10 @@ async def get_ollama_status():
 
 @router.post("/ollama/configure")
 async def configure_ollama(req: OllamaConfigRequest):
-    ollama_service.update_config(host=req.host, default_model=req.default_model)
+    try:
+        ollama_service.update_config(host=req.host, default_model=req.default_model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     status = await ollama_service.check_connection()
     return {"message": "Ollama configuration updated", "status": status}
 

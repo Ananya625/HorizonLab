@@ -3,6 +3,23 @@ import pytest
 from app.services.workspace_service import workspace_service
 
 
+@pytest.mark.parametrize('host', ['http://example.com', 'file:///tmp/model', 'http://localhost@evil.test', 'http://localhost/api', 'http://127.0.0.1:99999', 'http://169.254.169.254'])
+def test_ollama_rejects_unapproved_hosts(host):
+    from app.services.ollama_service import OllamaService
+    service = OllamaService()
+    with pytest.raises(ValueError):
+        service.update_config(host, 'changed')
+    assert service.host == 'http://127.0.0.1:11434'
+    assert service.default_model == 'qwen3:1.7b'
+
+
+def test_ollama_explicit_hosts_and_loopback(monkeypatch):
+    from app.services.ollama_service import OllamaService
+    monkeypatch.setenv('AGENTEVAL_OLLAMA_HOSTS', 'models.internal')
+    for host in ('http://localhost:11434', 'http://[::1]:11434', 'https://models.internal'):
+        assert OllamaService(host).host == host
+
+
 def test_child_environment_does_not_inherit_secrets(tmp_path, monkeypatch):
     from app.services.test_runner_service import test_runner_service
     for key in ('AWS_SECRET_ACCESS_KEY', 'JWT_SECRET_KEY', 'PYTEST_ADDOPTS', 'AGENTEVAL_DB_PATH'):
