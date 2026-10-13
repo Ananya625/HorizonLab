@@ -127,9 +127,9 @@ def health():
 
     @observed('inspect_directory', 'tool', reason=None)
     def inspect_directory(self, target_path: Optional[str] = None, run_id: Optional[str] = None) -> Dict[str, Any]:
-        path = target_path or self.get_default_repo_path()
-        if not os.path.exists(path):
-            os.makedirs(path, exist_ok=True)
+        path = self.validate_repo(target_path or self.get_default_repo_path())
+        if not os.path.isdir(path):
+            raise ValueError('Workspace does not exist or is not a directory')
 
         files_list = []
         languages = set()
@@ -138,15 +138,20 @@ def health():
         ignore_dirs = {".git", "__pycache__", "node_modules", ".pytest_cache", ".venv", "venv", ".idea", ".vscode"}
 
         for root, dirs, files in os.walk(path):
-            dirs[:] = [d for d in dirs if d not in ignore_dirs]
+            dirs[:] = [d for d in dirs if d not in ignore_dirs and not Path(root, d).is_symlink()]
             rel_dir = os.path.relpath(root, path)
             
             for file in files:
                 if file.endswith((".pyc", ".lock", ".png", ".jpg", ".ico")):
                     continue
                 full_path = os.path.join(root, file)
+                if Path(full_path).is_symlink():
+                    continue
                 rel_path = os.path.relpath(full_path, path).replace("\\", "/")
-                size = os.path.getsize(full_path)
+                try:
+                    size = os.path.getsize(full_path)
+                except OSError:
+                    continue
                 
                 ext = os.path.splitext(file)[1].lower()
                 lang = "Unknown"

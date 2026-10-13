@@ -116,7 +116,10 @@ async def get_sample_repos():
 @router.get("/workspace/inspect")
 async def inspect_workspace(path: Optional[str] = Query(None)):
     target_path = path or workspace_service.get_default_repo_path()
-    return workspace_service.inspect_directory(target_path)
+    try:
+        return workspace_service.inspect_directory(target_path)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 # --- Stage 2: Requirement Analysis & Goal Model ---
 

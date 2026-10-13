@@ -3,6 +3,26 @@ import pytest
 from app.services.workspace_service import workspace_service
 
 
+def test_inspection_missing_directory_is_read_only(tmp_path):
+    target = tmp_path / 'missing'
+    with pytest.raises(ValueError, match='does not exist'):
+        workspace_service.inspect_directory(str(target))
+    assert not target.exists()
+
+
+def test_inspection_skips_symlinks(tmp_path):
+    repo = tmp_path / 'repo'
+    repo.mkdir()
+    (repo / 'ok.py').write_text('value = 1')
+    try:
+        (repo / 'broken.py').symlink_to(tmp_path / 'missing.py')
+        (repo / 'outside.py').symlink_to(Path(__file__))
+    except OSError:
+        pytest.skip('Symlink creation unavailable')
+    result = workspace_service.inspect_directory(str(repo))
+    assert [f['path'] for f in result['files']] == ['ok.py']
+
+
 @pytest.mark.parametrize('host', ['http://example.com', 'file:///tmp/model', 'http://localhost@evil.test', 'http://localhost/api', 'http://127.0.0.1:99999', 'http://169.254.169.254'])
 def test_ollama_rejects_unapproved_hosts(host):
     from app.services.ollama_service import OllamaService
