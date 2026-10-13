@@ -4,6 +4,7 @@ import json
 import uuid
 import logging
 import ast
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from ..models.schema import (
@@ -326,14 +327,12 @@ class CoderService:
         run_id: Optional[str] = None,
         related_context: Optional[Dict[str, str]] = None
     ) -> str:
-        # Check if deterministic high-reliability template is available for known complex presets
-        det_code = self._get_deterministic_code(file_rel_path, goal_model, original_content)
-        if original_content is None and det_code and not det_code.startswith("# Auto-generated"):
-            # Only use template if the prompt actually relates to the preset domain
-            lower_goal = goal_model.main_goal.lower()
-            if any(k in lower_goal for k in ["jwt", "auth", "token", "login", "concurrency", "socket", "pool"]):
-                db_service.add_log(goal_model.run_id, 'coder', 'Coding Agent', 'generation', 'Template generation', {'file':file_rel_path,'mode':'template'})
-                return det_code
+        template = self.template_kind(file_rel_path, goal_model.main_goal)
+        det_code = self._get_deterministic_code(file_rel_path, goal_model, original_content) if template else None
+        if original_content is None and det_code:
+            db_service.add_log(goal_model.run_id, 'coder', 'Coding Agent', 'generation',
+                               f'Demo template: {template}', {'file': file_rel_path, 'mode': 'template'})
+            return det_code
 
         # Otherwise query Ollama for genuine code synthesis
         raw = ''
@@ -426,6 +425,20 @@ Generate complete, executable, clean Python code for '{file_rel_path}'."""
                 details.update(line=e.lineno, column=e.offset, source_line=(e.text or '')[:500])
             db_service.add_log(goal_model.run_id, 'coder', 'Coding Agent', 'error', message, details)
             raise RuntimeError(message) from e
+
+    @staticmethod
+    def template_kind(path, goal):
+        path = path.replace('\\', '/')
+        words = set(re.findall(r'\b[a-z0-9_]+\b', goal.lower()))
+        if {'jwt', 'fastapi', 'login'} <= words and path in {
+            'app/auth.py', 'app/routes/auth_routes.py', 'app/main.py', 'tests/test_auth.py'
+        }:
+            return 'FastAPI JWT login'
+        if re.search(r'\b(?:connectionpool|connection pool)\b', goal, re.I) and re.search(r'\b(?:race|concurrency)\b', goal, re.I) and path in {
+            'src/core/connection_pool.py', 'tests/test_pool_concurrency.py'
+        }:
+            return 'ConnectionPool concurrency'
+        return None
 
     def _get_deterministic_code(self, file_rel_path: str, goal_model: GoalModel, original_content: Optional[str]) -> Optional[str]:
         norm_path = file_rel_path.replace("\\", "/")
@@ -914,11 +927,15 @@ async def test_concurrent_socket_acquisition():
     """Test 50 concurrent worker coroutines acquire and release sockets without race condition."""
     pool = ConnectionPool(max_connections=50)
     acquired_sockets = []
+    all_acquired = asyncio.Event()
 
     async def worker():
         sock = await pool.acquire()
         acquired_sockets.append(sock)
-        await asyncio.sleep(0.01)
+        if len(acquired_sockets) == 50:
+            all_acquired.set()
+        await asyncio.wait_for(all_acquired.wait(), timeout=2)
+        assert len(set(acquired_sockets)) == 50, "Duplicate simultaneously acquired socket"
         await pool.release(sock)
 
     tasks = [worker() for _ in range(50)]
@@ -926,7 +943,7 @@ async def test_concurrent_socket_acquisition():
 
     # Verify zero connection leaks and no duplicate active sockets
     assert pool.active_count == 0
-    assert len(set(acquired_sockets)) <= 50
+    assert len(set(acquired_sockets)) == 50
     assert pool.idle_count == len(set(acquired_sockets))
 '''
 

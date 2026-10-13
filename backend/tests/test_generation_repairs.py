@@ -11,6 +11,28 @@ from app.services.task_router_service import task_router_service, is_basic_addit
 PROMPT = 'write a python code to add two numbers'
 
 
+@pytest.mark.parametrize('goal', ['author a utility', 'token counter', 'pool statistics', 'login form'])
+def test_loose_keywords_do_not_select_demo_templates(goal):
+    assert coder_service.template_kind('app/main.py', goal) is None
+
+
+@pytest.mark.asyncio
+async def test_pool_template_detects_duplicate_simultaneous_handles(monkeypatch):
+    import sys
+    import types
+    impl = types.ModuleType('src.core.connection_pool')
+    exec(coder_service._get_deterministic_code('src/core/connection_pool.py', None, None), impl.__dict__)
+    monkeypatch.setitem(sys.modules, 'src.core.connection_pool', impl)
+    namespace = {}
+    exec(coder_service._get_deterministic_code('tests/test_pool_concurrency.py', None, None), namespace)
+    await namespace['test_concurrent_socket_acquisition']()
+    async def broken_acquire(self):
+        return 1
+    monkeypatch.setattr(impl.ConnectionPool, 'acquire', broken_acquire)
+    with pytest.raises(AssertionError, match='Duplicate simultaneously'):
+        await namespace['test_concurrent_socket_acquisition']()
+
+
 @pytest.mark.parametrize('source', [
     "def execute_service( ): return {'status':'success'}",
     "def renamed(): return dict_placeholder",  # replaced below with an actual metadata dictionary
