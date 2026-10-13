@@ -57,3 +57,5 @@ backend/app/data/benchmark_workspaces/
 output/benchmarks/
 output/result-backups-*/
 *.benchmark.lock
+/output/
+/.lint-tools/
