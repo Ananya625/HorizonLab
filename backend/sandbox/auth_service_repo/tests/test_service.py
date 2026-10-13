@@ -1,17 +1,6 @@
 import pytest
-from app.service import execute_service
+from app.service import add
 
-def test_execute_service_nominal():
-    try:
-        res = execute_service(3)
-        assert res is not None
-    except TypeError:
-        res = execute_service()
-        assert res is not None
-
-def test_execute_service_edge_cases():
-    try:
-        assert execute_service(0) is not None
-        assert execute_service(-2) is not None
-    except TypeError:
-        pass
+@pytest.mark.parametrize("a,b,expected", [(2, 3, 5), (0, 0, 0), (-2, 3, 1), (1.5, 2.5, 4)])
+def test_add(a, b, expected):
+    assert add(a, b) == expected
