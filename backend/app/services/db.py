@@ -794,10 +794,10 @@ class DatabaseService:
             cursor.execute("""
                 SELECT * FROM execution_logs 
                 WHERE run_id = ? 
-                ORDER BY timestamp ASC, rowid ASC
+                ORDER BY timestamp DESC, rowid DESC
                 LIMIT ? OFFSET ?
             """, (run_id, limit if limit is not None else -1, offset))
-            rows = cursor.fetchall()
+            rows = list(reversed(cursor.fetchall()))
             return [
                 ExecutionLogEntry(
                     id=r["id"],

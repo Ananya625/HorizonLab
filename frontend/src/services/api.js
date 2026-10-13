@@ -196,8 +196,9 @@ export async function fetchRunDetails(runId) {
   return request(`/runs/${runId}`);
 }
 
-export async function fetchRunLogs(runId, limit = 200) {
-  return request(`/runs/${runId}/logs?limit=${limit}`);
+// Latest window in chronological order; offset counts backward from newest.
+export async function fetchRunLogs(runId, limit = 200, offset = 0) {
+  return request(`/runs/${encodeURIComponent(runId)}/logs?limit=${limit}&offset=${offset}`);
 }
 
 export async function fetchEvaluationDashboard() {

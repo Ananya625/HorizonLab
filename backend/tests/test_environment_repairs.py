@@ -2,6 +2,14 @@ from pathlib import Path
 from app.services.test_runner_service import test_runner_service
 
 
+def test_latest_logs_advance_beyond_two_hundred(database, run):
+    for i in range(205):
+        database.add_log(run.run_id, 'test', 'Fixture', 'info', str(i))
+    logs = database.get_execution_logs(run.run_id, limit=200)
+    assert [log.message for log in logs] == [str(i) for i in range(5, 205)]
+    assert [log.message for log in database.get_execution_logs(run.run_id, limit=2, offset=200)] == ['3', '4']
+
+
 def test_foreign_keys_reject_orphans_and_cascade(database, run):
     import sqlite3
     import pytest
