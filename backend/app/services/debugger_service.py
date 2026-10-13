@@ -1,3 +1,4 @@
+import asyncio
 from .workflow_service import observed, workflow
 import ast
 import re
@@ -177,7 +178,7 @@ class DebuggerService:
         """Executes test suite and performs bounded self-healing recovery if failures occur."""
         
         attempt_number = 1
-        current_test_result = test_runner_service.run_tests(
+        current_test_result = await asyncio.to_thread(test_runner_service.run_tests, 
             run_id=run_id,
             attempt_number=attempt_number,
             target_test_files=target_test_files
@@ -236,7 +237,7 @@ class DebuggerService:
                 try:
                     recovery.files_modified = await self._apply_recovery_fix(run_id, current_test_result, diagnosis, model_name, history=prior_history)
                     attempt_number += 1
-                    current_test_result = test_runner_service.run_tests(run_id=run_id, attempt_number=attempt_number, target_test_files=target_test_files)
+                    current_test_result = await asyncio.to_thread(test_runner_service.run_tests, run_id=run_id, attempt_number=attempt_number, target_test_files=target_test_files)
                     recovery.local_tests_passed = current_test_result.status == 'PASSED'
                     recovery.termination_reason = 'local_tests_passed' if recovery.local_tests_passed else 'tests_failed'
                 except Exception:

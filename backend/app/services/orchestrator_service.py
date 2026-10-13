@@ -1,3 +1,4 @@
+import asyncio
 from .workflow_service import observed, workflow
 import os
 import time
@@ -227,7 +228,7 @@ class OrchestratorService:
 
             # Fast Path Step 4: Targeted Test Execution
             t_span = tracker.start_span("testing", "targeted_pytest")
-            test_run = test_runner_service.run_tests(
+            test_run = await asyncio.to_thread(test_runner_service.run_tests, 
                 run_id=run_id,
                 attempt_number=1,
                 target_test_files=routing.target_test_files

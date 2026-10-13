@@ -1,5 +1,25 @@
 from pathlib import Path
 from app.services.test_runner_service import test_runner_service
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_async_recovery_runner_keeps_event_loop_responsive(monkeypatch):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+    from app.services.debugger_service import debugger_service
+    entered, released = threading.Event(), threading.Event()
+    def blocking(**kwargs):
+        entered.set()
+        assert released.wait(2), 'Event loop was blocked by test execution'
+        return SimpleNamespace(status='PASSED')
+    monkeypatch.setattr(test_runner_service, 'run_tests', blocking)
+    task = asyncio.create_task(debugger_service.run_testing_and_recovery_loop('fixture'))
+    while not entered.is_set():
+        await asyncio.sleep(0.001)
+    released.set()
+    assert (await task)['local_tests_passed'] is True
 
 
 def test_latest_logs_advance_beyond_two_hundred(database, run):
