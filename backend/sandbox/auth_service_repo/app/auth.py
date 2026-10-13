@@ -9,7 +9,7 @@ from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Secret key configuration with environment override
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "agent-eval-x-super-secure-production-secret-key-32b")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or os.urandom(32).hex()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

@@ -11,6 +11,23 @@ from app.services.task_router_service import task_router_service, is_basic_addit
 PROMPT = 'write a python code to add two numbers'
 
 
+def test_jwt_template_uses_env_or_fresh_runtime_secret(monkeypatch):
+    import ast
+    import os
+    source = coder_service._get_deterministic_code('app/auth.py', None, None)
+    assignment = next(n for n in ast.parse(source).body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'SECRET_KEY' for t in n.targets))
+    code = compile(ast.Module(body=[assignment], type_ignores=[]), '<secret>', 'exec')
+    monkeypatch.delenv('JWT_SECRET_KEY', raising=False)
+    first, second = {'os': os}, {'os': os}
+    exec(code, first)
+    exec(code, second)
+    assert len(first['SECRET_KEY']) == 64
+    assert first['SECRET_KEY'] != second['SECRET_KEY']
+    monkeypatch.setenv('JWT_SECRET_KEY', 'operator-supplied-secret')
+    exec(code, first)
+    assert first['SECRET_KEY'] == 'operator-supplied-secret'
+
+
 @pytest.mark.parametrize('goal', ['author a utility', 'token counter', 'pool statistics', 'login form'])
 def test_loose_keywords_do_not_select_demo_templates(goal):
     assert coder_service.template_kind('app/main.py', goal) is None
