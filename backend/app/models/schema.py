@@ -19,6 +19,7 @@ class SuccessCriterion(BaseModel):
     sub_goal_id: Optional[str] = None
     description: str
     metric: str
+    target_value: Optional[str] = ""
     verification_method: str = "automated_test"  # "automated_test", "diff_inspection", "schema_validation", "state_ledger_check", "ast_check"
     expected_output: Optional[str] = ""
 
@@ -59,7 +60,8 @@ class GoalModel(BaseModel):
     detected_language: str = "en"
     goal_model_version: str = "1.0"
     main_goal: str
-    summary: str
+    summary: str = ""
+    hierarchical_layer: Optional[str] = "Task"
     sub_goals: List[SubGoal] = []
     success_criteria: List[SuccessCriterion] = []
     hard_constraints: List[Constraint] = []
@@ -193,9 +195,12 @@ class CriterionVerification(BaseModel):
 
 class ConstraintCompliance(BaseModel):
     constraint_id: str
-    constraint_text: str
+    constraint_text: str = ""
+    constraint: Optional[str] = None
     is_hard: bool = True
     compliant: Optional[bool] = None
+    status: Optional[str] = "unknown"
+    evidence: Optional[str] = None
     notes: str = ""
 
 class VerificationReport(BaseModel):
@@ -214,6 +219,8 @@ class VerificationReport(BaseModel):
     score_status: str = "partial_evidence"  # "computed", "partial_evidence", "missing_criteria", "unavailable_tests", "unknown_semantic"
     score_version: str = "v2.0"
     evidence_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    tests_passed: Optional[int] = 0
+    tests_total: Optional[int] = 0
     criteria_evaluations: List[CriterionVerification] = []
     constraint_compliances: List[ConstraintCompliance] = []
     code_quality_score: Optional[float] = None
@@ -335,6 +342,8 @@ class StartPlanRequest(BaseModel):
 
 class ExecuteCodeRequest(BaseModel):
     run_id: str
+    temperature: Optional[float] = 0.2
+    model_name: Optional[str] = None
 
 class ExecuteTestsRequest(BaseModel):
     run_id: str
@@ -355,3 +364,21 @@ class ReviseGoalRequest(BaseModel):
     run_id: str
     new_goal: str
     change_reason: Optional[str] = "User revised task goal"
+
+
+class PolicyApprovalRequest(BaseModel):
+    approval_id: str
+    approved: bool
+    comment: Optional[str] = None
+
+class HardConstraint(BaseModel):
+    id: str
+    description: str
+    category: str = "security"
+
+class SoftConstraint(BaseModel):
+    id: str
+    description: str
+    preference_weight: float = 0.5
+
+AmbiguityQuestion = Ambiguity

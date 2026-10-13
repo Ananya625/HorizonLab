@@ -1,5 +1,6 @@
 import os
 import json
+import math
 import sqlite3
 import uuid
 from contextlib import nullcontext, contextmanager
@@ -252,6 +253,17 @@ class DatabaseService:
             """, (run_id, task_id, title, prompt, repo_path, current_stage, status, now, now, json.dumps(metadata) if metadata else None))
             conn.commit()
         return self.get_run_record(run_id)
+
+
+    def update_run_status(self, run_id: str, current_stage: str, status: str) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """UPDATE runs SET current_stage=?, status=?, updated_at=?
+                   WHERE run_id=?""",
+                (current_stage, status, datetime.now().isoformat(), run_id),
+            )
+            if cursor.rowcount != 1:
+                raise LookupError(f"Run {run_id} not found while updating status")
 
     def get_run_record(self, run_id: str) -> Optional[RunRecord]:
         with self._get_connection() as conn:
@@ -653,7 +665,25 @@ class DatabaseService:
                     'criteria_evaluations':[c.model_copy(update={'verdict':'UNVERIFIED', 'confidence_score':None, 'evidence':'Previous evidence is stale'}) for c in report.criteria_evaluations],
                     'constraint_compliances':[c.model_copy(update={'compliant':None, 'notes':'Previous evidence is stale'}) for c in report.constraint_compliances],
                     'review_summary':'Previous evidence is stale or a later stage failed. Reverify the current state.'})
-            return report
+                return report
+
+        test_results = self.get_test_results(run_id)
+        latest_test = test_results[-1] if test_results else None
+        if not latest_test or latest_test.total_tests == 0:
+            report.tests_passed = 0
+            report.tests_total = 0
+            report.pass_rate_percent = None
+            report.overall_verdict = "TESTS_NOT_RUN"
+            report.goal_drift_score = None
+            report.code_quality_score = None
+            for criterion in report.criteria_evaluations:
+                criterion.verdict = "NOT_VERIFIED"
+                criterion.confidence_score = None
+                criterion.evidence = (
+                    "No test-to-criterion mapping is available, so this criterion "
+                    "cannot be individually verified from the captured test results."
+                )
+        return report
 
     # --- Evaluation Methods ---
     def save_evaluation(self, eval_metrics: EvaluationMetrics, connection=None) -> EvaluationMetrics:
@@ -667,6 +697,7 @@ class DatabaseService:
                     created_at=excluded.created_at,
                     success_rate=excluded.success_rate,
                     execution_time_seconds=excluded.execution_time_seconds,
+                    created_at=excluded.created_at,
                     total_tool_calls=excluded.total_tool_calls,
                     recovery_attempts_count=excluded.recovery_attempts_count,
                     goal_drift_score=excluded.goal_drift_score,
@@ -763,11 +794,20 @@ class DatabaseService:
     def get_evaluation(self, run_id: str) -> Optional[EvaluationMetrics]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT data_json FROM evaluations WHERE run_id = ?", (run_id,))
+            cursor.execute("SELECT data_json, tests_passed, tests_total FROM evaluations WHERE run_id = ?", (run_id,))
             row = cursor.fetchone()
             if not row:
                 return None
-            return EvaluationMetrics.model_validate_json(row["data_json"])
+            evaluation = EvaluationMetrics.model_validate_json(row["data_json"])
+            evaluation.tests_passed = row["tests_passed"]
+            evaluation.tests_total = row["tests_total"]
+            evaluation.success_rate = (
+                round(row["tests_passed"] / row["tests_total"] * 100, 1)
+                if row["tests_total"] and row["tests_total"] > 0
+                else None
+            )
+            evaluation.goal_drift_score = None
+            return evaluation
 
     # --- Execution Logs ---
     def add_log(
@@ -838,32 +878,182 @@ class DatabaseService:
                 for r in rows
             ]
 
+    @staticmethod
+    def _reconstruct_duration_from_logs(
+        conn: sqlite3.Connection, run_id: str
+    ) -> Optional[float]:
+        rows = conn.execute(
+            """SELECT timestamp, stage, event_type, message
+               FROM execution_logs WHERE run_id=? ORDER BY timestamp""",
+            (run_id,),
+        ).fetchall()
+        completions = [
+            row for row in rows
+            if row["stage"] == "verifier"
+            and row["event_type"] == "success"
+            and row["message"].startswith("Verification Complete:")
+        ]
+        if not completions:
+            return None
+
+        completion = completions[-1]
+        workspace_starts = [
+            row for row in rows
+            if row["timestamp"] < completion["timestamp"]
+            and row["stage"] == "workspace"
+            and row["event_type"] == "info"
+            and row["message"].startswith("Initialized autonomous coding workflow run")
+        ]
+        if workspace_starts:
+            start = workspace_starts[-1]
+        else:
+            requirement_starts = [
+                row for row in rows
+                if row["timestamp"] < completion["timestamp"]
+                and row["stage"] == "requirement"
+                and row["event_type"] == "success"
+                and row["message"].startswith("Parsed Goal Model")
+            ]
+            if not requirement_starts:
+                return None
+            start = requirement_starts[-1]
+
+        duration = (
+            datetime.fromisoformat(completion["timestamp"])
+            - datetime.fromisoformat(start["timestamp"])
+        ).total_seconds()
+        return round(duration, 2) if duration >= 0 else None
+
+    def get_verified_execution_duration(
+        self, conn: sqlite3.Connection, run_id: str
+    ) -> Optional[float]:
+        """Return a duration tied to the current evaluation, or reconstruct it from logs."""
+        evaluation_columns = {
+            column["name"]
+            for column in conn.execute("PRAGMA table_info(evaluations)").fetchall()
+        }
+        if not {"execution_time_seconds", "created_at", "data_json"}.issubset(evaluation_columns):
+            return None
+
+        row = conn.execute(
+            """SELECT execution_time_seconds, created_at, data_json
+               FROM evaluations WHERE run_id=?""",
+            (run_id,),
+        ).fetchone()
+        if not row:
+            return None
+
+        try:
+            evaluation = json.loads(row["data_json"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            evaluation = {}
+        if not isinstance(evaluation, dict):
+            evaluation = {}
+
+        if evaluation.get("created_at") == row["created_at"]:
+            try:
+                duration = float(row["execution_time_seconds"])
+            except (TypeError, ValueError):
+                duration = None
+            if duration is not None and math.isfinite(duration) and duration >= 0:
+                return duration
+
+        log_columns = {
+            column["name"]
+            for column in conn.execute("PRAGMA table_info(execution_logs)").fetchall()
+        }
+        if not {"timestamp", "stage", "event_type", "message", "run_id"}.issubset(log_columns):
+            return None
+        return self._reconstruct_duration_from_logs(conn, run_id)
+
     def get_aggregate_evaluations(self) -> Dict[str, Any]:
         with self._get_connection() as conn:
-            rows = conn.execute('SELECT r.run_id, r.title, r.status, e.data_json FROM runs r LEFT JOIN evaluations e ON e.run_id=r.run_id ORDER BY r.created_at DESC').fetchall()
-        evaluations = [dict(json.loads(r['data_json']), title=r['title']) for r in rows if r['data_json']]
-        current = [e for e in evaluations if e.get('metric_version') == '2']
-        successes = sum(e.get('verified_success') is True for e in current)
-        durations = [e['execution_time_seconds'] for e in current if e.get('execution_time_seconds') is not None]
-        drift = [e['goal_drift_score'] for e in current if e.get('goal_drift_score') is not None and not e.get('evidence_stale')]
-        calls = [e['total_tool_calls'] for e in current if e.get('total_tool_calls') is not None]
-        modes = []
-        for mode in sorted({e.get('execution_mode', 'unknown') for e in current}):
-            population = [e for e in current if e.get('execution_mode', 'unknown') == mode]
-            verified = sum(e.get('verified_success') is True for e in population)
-            modes.append({'execution_mode':mode, 'sample_count':len(population),
-                          'verified_successes':verified, 'verified_success_rate':verified/len(population)})
-        return {'aggregate_stats': {
-            'total_runs': len(rows), 'evaluated_runs': len(current),
-            'legacy_runs': len(evaluations)-len(current), 'unevaluated_runs': len(rows)-len(evaluations),
-            'verified_successes': successes,
-            'unverified_runs': sum(e.get('verified_success') is None for e in current),
-            'avg_success_rate': successes / len(current) * 100 if current else None,
-            'avg_duration': sum(durations)/len(durations) if durations else None,
-            'total_tool_calls': sum(calls) if calls else None,
-            'avg_drift': sum(drift)/len(drift) if drift else None,
-            'total_recoveries': sum(e.get('recovery_attempts_count', 0) for e in current),
-            'population': 'Current metric-version evaluations; unknown outcomes remain in denominator. Legacy and pending runs reported separately.'
-        }, 'by_execution_mode': modes, 'recent_evaluations': evaluations[:15]}
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_runs,
+                    AVG(
+                        CASE WHEN tests_total > 0
+                             THEN 100.0 * tests_passed / tests_total END
+                    ) as avg_test_pass_rate,
+                    AVG(execution_time_seconds) as avg_duration,
+                    SUM(total_tool_calls) as total_tool_calls,
+                    SUM(recovery_attempts_count) as total_recoveries,
+                    AVG(goal_drift_score) as avg_drift
+                FROM evaluations
+            """)
+            stats = dict(cursor.fetchone() or {})
+
+            cursor.execute("""
+                SELECT run_id, execution_time_seconds, created_at, data_json
+                FROM evaluations
+            """)
+            durations = []
+            for row in cursor.fetchall():
+                try:
+                    evaluation = json.loads(row["data_json"] or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                duration = self.get_verified_execution_duration(conn, row["run_id"])
+                if duration is not None:
+                    durations.append(duration)
+            stats["avg_duration"] = (
+                sum(durations) / len(durations) if durations else None
+            )
+
+            cursor.execute("""
+                SELECT r.run_id, r.title, r.task_id, e.success_rate, e.execution_time_seconds, 
+                       e.total_tool_calls, e.recovery_attempts_count, e.goal_drift_score, 
+                       e.lines_added, e.lines_removed, e.tests_passed, e.tests_total, r.created_at,
+                       e.created_at AS evaluation_created_at, e.data_json
+                FROM evaluations e
+                JOIN runs r ON e.run_id = r.run_id
+                ORDER BY r.created_at DESC
+                LIMIT 15
+            """)
+            recent_evals = []
+            for row in cursor.fetchall():
+                evaluation_row = dict(row)
+                try:
+                    saved_evaluation = json.loads(evaluation_row.pop("data_json") or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    saved_evaluation = {}
+                indexed_created_at = evaluation_row.pop("evaluation_created_at")
+                duration_is_current = saved_evaluation.get("created_at") == indexed_created_at
+                verified_duration = self.get_verified_execution_duration(
+                    conn, evaluation_row["run_id"]
+                )
+                evaluation_row["execution_time_seconds"] = verified_duration
+                evaluation_row["duration_status"] = (
+                    "measured" if duration_is_current and verified_duration is not None
+                    else "reconstructed" if verified_duration is not None
+                    else "unverified_legacy"
+                )
+                recent_evals.append(evaluation_row)
+
+            eval_rows = conn.execute('SELECT r.run_id, r.title, r.status, e.data_json FROM runs r LEFT JOIN evaluations e ON e.run_id=r.run_id ORDER BY r.created_at DESC').fetchall()
+            evaluations = [dict(json.loads(r['data_json']), title=r['title']) for r in eval_rows if r['data_json']]
+            current = [e for e in evaluations if e.get('metric_version') == '2']
+            successes = sum(e.get('verified_success') is True for e in current)
+            stats['legacy_runs'] = len(evaluations) - len(current)
+            stats['evaluated_runs'] = len(current)
+            stats['unevaluated_runs'] = len(eval_rows) - len(evaluations)
+            stats['verified_successes'] = successes
+            stats['unverified_runs'] = sum(e.get('verified_success') is None for e in current)
+            stats['avg_success_rate'] = successes / len(current) * 100 if current else None
+            stats['population'] = 'Current metric-version evaluations; unknown outcomes remain in denominator. Legacy and pending runs reported separately.'
+
+            modes = []
+            for mode in sorted({e.get('execution_mode', 'unknown') for e in current}):
+                population = [e for e in current if e.get('execution_mode', 'unknown') == mode]
+                verified = sum(e.get('verified_success') is True for e in population)
+                modes.append({'execution_mode': mode, 'sample_count': len(population),
+                              'verified_successes': verified, 'verified_success_rate': verified / len(population)})
+
+            return {
+                "aggregate_stats": stats,
+                "recent_evaluations": recent_evals,
+                "by_execution_mode": modes
+            }
 
 db_service = DatabaseService()

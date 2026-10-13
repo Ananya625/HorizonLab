@@ -14,7 +14,8 @@ class OllamaService:
     def __init__(self, host: str = "http://127.0.0.1:11434", default_model: str = "qwen3:1.7b"):
         self.host = host.rstrip("/")
         self.default_model = default_model
-        self.default_timeout = 45.0
+        self.default_timeout = 180.0
+        self.timeout = 180.0
         self.keep_alive = "30m"
 
     def update_config(self, host: str, default_model: Optional[str] = None):

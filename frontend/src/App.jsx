@@ -14,12 +14,12 @@ import VerificationView from './components/VerificationView';
 import EvaluationDashboard from './components/EvaluationDashboard';
 import ExecutionControlRoom from './components/ExecutionControlRoom';
 
-import { 
-  fetchOllamaStatus, 
-  fetchPresets, 
-  parseTaskRequirement, 
-  patchGoalModel, 
-  resolveAmbiguityQuestion, 
+import {
+  fetchOllamaStatus,
+  fetchPresets,
+  parseTaskRequirement,
+  patchGoalModel,
+  resolveAmbiguityQuestion,
   confirmGoalModel,
   generatePlan,
   fetchPlan,
@@ -42,13 +42,13 @@ export default function App() {
   const [selectedLanguage, setSelectedLanguage] = useState('auto');
   const [temperature, setTemperature] = useState(0.2);
   const [maxRecoveryRetries, setMaxRecoveryRetries] = useState(3);
-  
+
   // Platform & Multi-Agent State
   const [ollamaStatus, setOllamaStatus] = useState(null);
   const [presets, setPresets] = useState([]);
   const [runsList, setRunsList] = useState([]);
   const [activeTab, setActiveTab] = useState('input');
-  
+
   // Pipeline Data State
   const [runId, setRunId] = useState(null);
   const [goalModel, setGoalModel] = useState(null);
@@ -86,7 +86,7 @@ export default function App() {
     const interval = setInterval(() => {
       fetchOllamaStatus()
         .then((status) => setOllamaStatus(status))
-        .catch(() => {});
+        .catch(() => { });
     }, 20000);
 
     return () => clearInterval(interval);
@@ -98,7 +98,7 @@ export default function App() {
     const fetchLogs = () => {
       fetchRunLogs(runId)
         .then((data) => setLogs(data.logs || []))
-        .catch(() => {});
+        .catch(() => { });
     };
 
     fetchLogs();
@@ -259,7 +259,7 @@ export default function App() {
     if (!runId) return;
     setIsExecuting(true);
     try {
-      const res = await executeCoding({ runId });
+      const res = await executeCoding({ runId, modelName: selectedModel, temperature });
       setCodeChanges(res.changes || []);
       setActiveTab('coder');
     } catch (err) {
@@ -366,7 +366,7 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', paddingBottom: '160px' }}>
       {/* Top Telemetry Header */}
-      <Header 
+      <Header
         runId={runId}
         currentStage={currentRunRecord?.current_stage || 'workspace'}
         activeTab={activeTab}
@@ -396,7 +396,7 @@ export default function App() {
 
         {/* State 1: Coding Workspace & Presets */}
         {!loading && !isExecuting && activeTab === 'input' && (
-          <TaskInputSection 
+          <TaskInputSection
             taskPrompt={taskPrompt}
             setTaskPrompt={setTaskPrompt}
             presets={presets}
@@ -416,7 +416,7 @@ export default function App() {
 
         {/* State 2: Requirement Analysis (Goal Model View) */}
         {!loading && !isExecuting && activeTab === 'goal_model' && goalModel && (
-          <GoalModelView 
+          <GoalModelView
             goalModel={goalModel}
             onSavePatch={handleSavePatch}
             onNavigateToClarifications={() => setActiveTab('clarifications')}
@@ -427,7 +427,7 @@ export default function App() {
 
         {/* State 2.1: Clarification Center */}
         {!loading && !isExecuting && activeTab === 'clarifications' && goalModel && (
-          <ClarificationCenter 
+          <ClarificationCenter
             goalModel={goalModel}
             onResolveQuestion={handleResolveQuestion}
             onProceedToConfirmation={() => setActiveTab('confirm')}
@@ -437,7 +437,7 @@ export default function App() {
 
         {/* State 2.2: Audit History */}
         {!loading && !isExecuting && activeTab === 'audit' && goalModel && (
-          <AuditHistoryView 
+          <AuditHistoryView
             runId={goalModel.run_id}
             currentModel={goalModel}
           />
@@ -445,7 +445,7 @@ export default function App() {
 
         {/* State 2.3: Confirmation Gate */}
         {!loading && !isExecuting && activeTab === 'confirm' && goalModel && (
-          <ConfirmationGate 
+          <ConfirmationGate
             goalModel={goalModel}
             onConfirm={handleConfirmGoal}
             continueFullWorkflow={pendingFullRunId === runId}
@@ -457,7 +457,7 @@ export default function App() {
 
         {/* State 3: Codebase Analyst & Planner */}
         {!loading && !isExecuting && activeTab === 'planner' && (
-          <PlannerView 
+          <PlannerView
             plan={plan}
             onExecuteCoding={handleExecuteCoding}
             isExecutingCode={isExecuting}
@@ -467,7 +467,7 @@ export default function App() {
 
         {/* State 4: Coding Agent (Diffs & Source Code) */}
         {!loading && !isExecuting && activeTab === 'coder' && (
-          <CodingAgentView 
+          <CodingAgentView
             codeChanges={codeChanges}
             onExecuteTesting={handleExecuteTesting}
             isTesting={isExecuting}
@@ -477,7 +477,7 @@ export default function App() {
 
         {/* State 5: Testing + Debugging Agents */}
         {!loading && !isExecuting && activeTab === 'testing' && (
-          <TestingDebugView 
+          <TestingDebugView
             testResults={testResults}
             recoveryAttempts={recoveryAttempts}
             onExecuteVerification={handleVerifyCode}
@@ -488,7 +488,7 @@ export default function App() {
 
         {/* State 6: Independent Code Reviewer / Verifier */}
         {!loading && !isExecuting && activeTab === 'verifier' && (
-          <VerificationView 
+          <VerificationView
             verification={verification}
             onNavigateToEvaluations={() => setActiveTab('evaluations')}
           />
@@ -496,7 +496,7 @@ export default function App() {
 
         {/* State 7: Evaluation Dashboard & Benchmarks */}
         {!loading && !isExecuting && activeTab === 'evaluations' && (
-          <EvaluationDashboard 
+          <EvaluationDashboard
             currentRunRecord={currentRunRecord}
             onSelectRun={handleSelectRun}
             onReset={handleReset}
@@ -505,14 +505,14 @@ export default function App() {
       </main>
 
       {/* Execution Control Room (Bottom Live Telemetry & Log Drawer) */}
-      <ExecutionControlRoom 
+      <ExecutionControlRoom
         runId={runId}
         logs={logs}
         onRefreshLogs={() => runId && fetchRunLogs(runId).then((d) => setLogs(d.logs || []))}
       />
 
       {/* Ollama Settings Modal */}
-      <OllamaSettingsModal 
+      <OllamaSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         currentStatus={ollamaStatus}

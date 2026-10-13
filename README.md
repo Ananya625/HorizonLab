@@ -29,7 +29,8 @@ AgentEval-X is a software engineering workflow prototype. It extracts requiremen
 
 - **Frontend**: React 19, Vite, Lucide Icons, Canvas-Confetti, Custom Glassmorphic Dark Design System
 - **Backend**: FastAPI, Uvicorn, Pydantic v2, HTTPX, SQLite3
-- **Local LLM**: Ollama (default `qwen3:1.7b`)
+- **Local LLM**: Ollama (default `qwen3:1.7b` / `qwen2.5-coder:7b`)
+- **Research feature graph**: LangGraph-backed recovery analytics and dynamic, evidence-grounded capability profiles
 - **Testing & Verification**: PyTest, PyTest-Asyncio, FastTestClient
 
 ---
@@ -84,7 +85,7 @@ SicProject/
 │   │   │   └── orchestrator_service.py# End-to-end pipeline orchestrator
 │   │   └── main.py                    # FastAPI application entrypoint
 │   ├── sandbox/                       # Isolated sandbox repository workspaces
-│   └── test_pipeline.py               # Manual workflow confirmation smoke check
+│   └── test_pipeline.py               # E2E pipeline verification test & smoke check
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
@@ -106,3 +107,27 @@ SicProject/
 │   └── package.json
 └── README.md
 ```
+
+---
+
+## Research Feature Integration
+
+The backend exposes recovery analytics and dynamic capability profiles:
+
+- **Recovery Stats:** recovery attempts and outcomes, recovery rate, time spent in the testing/recovery stage, extra steps, human-intervention count, and a clearly labelled proxy cost.
+- **Dynamic Agent Capability Profile:** directly observed outcomes for the seven pipeline agents, with the measured denominator and evidence basis shown in the Evaluation Dashboard. Missing outcomes remain unavailable; no prior-adjusted percentages are displayed.
+
+A LangGraph feature-monitoring graph processes observed pipeline stages. The existing main coding pipeline is still implemented as sequential service calls; the graph currently orchestrates the monitoring feature nodes, rather than replacing the entire coding pipeline.
+
+Feature endpoints:
+- `GET /api/features/{run_id}` — run analytics and recovery stats.
+- `GET /api/features/capabilities` — capability profiles across models.
+- `GET /api/features/capabilities?model_name=qwen2.5-coder:7b` — profile for one model.
+- `GET /api/runs/{run_id}/policy-approval` — inspect the pending human approval, if any.
+- `POST /api/runs/{run_id}/policy-approval` — resume or stop a paused run with `{"approval_id":"…","approved":true|false,"comment":"…"}`.
+
+Runtime policy decisions are persisted separately from execution outcomes. Recovery evidence can raise or lower the retry budget; `inspect` checks tracked changes for invalid AST, `switch_strategy` queues and verifies an alternate recovery strategy, `ask_human` pauses until approval, and `stop` prevents further autonomous mutations. Runs awaiting a person use status `awaiting_approval`; policy stops use `policy_stopped`.
+
+Evaluation percentages use persisted outcomes only and remain unavailable when the relevant evidence is missing. The seven agent profiles show their measured denominator (runs, file paths, files, tests, recovery attempts, or constraints) and do not claim semantic requirement correctness without ground truth. Capability panels show observed outcome rates and sample counts rather than prior-driven posterior percentages.
+
+After starting the backend, open `http://127.0.0.1:8000/docs` to inspect the endpoints. Feature values are populated after instrumented pipeline runs.

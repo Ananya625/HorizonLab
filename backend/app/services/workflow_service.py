@@ -20,7 +20,7 @@ def digest(value):
 
 
 def goal_revision(goal):
-    if not goal:
+    if not goal or not hasattr(goal, 'model_dump'):
         return None
     data = goal.model_dump(exclude={'created_at', 'updated_at', 'audit_history', 'confirmed_at', 'is_confirmed', 'goal_model_version'})
     for item in data.get('sub_goals', []):
@@ -29,7 +29,7 @@ def goal_revision(goal):
 
 
 def plan_revision(plan):
-    return digest(plan.model_dump(exclude={'created_at'})) if plan else None
+    return digest(plan.model_dump(exclude={'created_at'})) if plan and hasattr(plan, 'model_dump') else None
 
 
 class WorkflowService:
@@ -59,9 +59,9 @@ class WorkflowService:
         gr, pr = goal_revision(goal), plan_revision(plan)
         for kind, revision, data in [
             ('goal_snapshot', gr, {
-                'sub_goals': [{'id':s.id,'title':s.title[:160],'dependencies':s.dependencies} for s in goal.sub_goals],
-                'criteria': [{'id':c.id,'sub_goal_id':c.sub_goal_id} for c in goal.success_criteria],
-                'label':goal.goal_model_version} if goal else {}),
+                'sub_goals': [{'id':getattr(s, 'id', ''),'title':getattr(s, 'title', '')[:160],'dependencies':getattr(s, 'dependencies', [])} for s in getattr(goal, 'sub_goals', [])],
+                'criteria': [{'id':getattr(c, 'id', ''),'sub_goal_id':getattr(c, 'sub_goal_id', None)} for c in getattr(goal, 'success_criteria', [])],
+                'label':getattr(goal, 'goal_model_version', None)} if goal else {}),
             ('plan_snapshot', pr, {'steps':[s.model_dump() for s in plan.steps],
                                   'files':[{'path':f.path,'sub_goal_id':f.sub_goal_id} for f in plan.planned_files]} if plan else {})]:
             if revision:

@@ -509,3 +509,240 @@ def get_workflow_event(run_id: str, event_id: str):
 def export_workflow_analysis(run_id: str):
     report, events = workflow_report(db_service, run_id)
     return {'report':report, 'events':events}
+
+
+
+from ..models.schema import PolicyApprovalRequest
+from ..services.feature_analytics_service import feature_analytics_service, validate_model_name
+from ..services.hierarchical_proficiency_service import hierarchical_proficiency_service
+
+
+@router.get("/runs/{run_id}/policy-approval")
+async def get_pending_policy_approval(run_id: str):
+    return feature_analytics_service.get_pending_policy_approval(run_id)
+
+
+@router.post("/runs/{run_id}/policy-approval")
+async def resolve_policy_approval(run_id: str, req: PolicyApprovalRequest):
+    existing = feature_analytics_service.get_policy_approval(run_id, req.approval_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    approval = feature_analytics_service.resolve_policy_approval(
+        run_id=run_id,
+        approval_id=req.approval_id,
+        approved=req.approved,
+        comment=req.comment,
+    )
+    if approval:
+        return approval
+    raise HTTPException(status_code=409, detail="Approval request is no longer pending")
+
+# --- Runs, Telemetry & Evaluations ---
+
+@router.get("/runs")
+async def list_runs():
+    return {"runs": db_service.list_all_runs()}
+
+@router.get("/runs/{run_id}", response_model=RunRecord)
+async def get_run_details(run_id: str):
+    record = db_service.get_run_record(run_id)
+    if not record:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    return record
+
+@router.get("/runs/{run_id}/logs")
+async def get_run_logs(run_id: str, limit: int = Query(200)):
+    logs = db_service.get_execution_logs(run_id, limit=limit)
+    return {"run_id": run_id, "logs": logs}
+
+@router.get("/evaluations/dashboard")
+async def get_evaluations_dashboard():
+    return db_service.get_aggregate_evaluations()
+
+@router.get("/evaluations/{run_id}")
+async def get_run_evaluation(run_id: str):
+    ev = db_service.get_evaluation(run_id)
+    if not ev:
+        raise HTTPException(status_code=404, detail=f"Evaluation for run {run_id} not found")
+    return ev
+
+
+# --- AgentEval-X research features: prediction, recovery stats, capability profile ---
+
+@router.get("/features/capabilities")
+async def get_capability_profiles(
+    model_name: Optional[str] = Query(None),
+    task_type: Optional[str] = Query(None),
+    difficulty: Optional[str] = Query(None),
+    run_id: Optional[str] = Query(None),
+):
+    """Return directly observed capabilities, falling back to agent artifact outcomes."""
+    from ..services.hierarchical_proficiency_service import hierarchical_proficiency_service
+    hierarchical_proficiency_service.get_hierarchical_profiles(
+        model_name=model_name, run_id=run_id,
+    )
+    return feature_analytics_service.get_capability_profiles(
+        model_name=model_name, task_type=task_type, difficulty=difficulty, run_id=run_id,
+    )
+
+
+@router.get("/features/predictor/status")
+async def get_predictor_status():
+    """Return failure predictor status and labelled trajectory counts.
+
+    Includes whether a supervised model can be trained and what evaluation
+    metrics will be computed (precision, recall, F1, PR-AUC, Brier score,
+    warning lead time).
+    """
+    return feature_analytics_service.get_predictor_status()
+
+
+@router.post("/features/predictor/train")
+async def train_predictor():
+    """Train the supervised failure predictor using accumulated trajectory data.
+
+    Uses GroupShuffleSplit on run_id to prevent data leakage.
+    Returns INSUFFICIENT_DATA when fewer than 5 runs per class exist.
+    Reports PR-AUC, Brier score, precision, recall, prevalence, baseline,
+    and warning lead time.
+    """
+    return feature_analytics_service.train_and_evaluate_predictor()
+
+
+# ---------------------------------------------------------------------------
+# Hierarchical Agent Proficiency Profiling Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/features/hierarchical-proficiency")
+async def get_hierarchical_proficiency(
+    model_name: Optional[str] = Query(None),
+    run_id: Optional[str] = Query(None),
+):
+    """Return hierarchical agent proficiency profiling.
+
+    Tracks directly observed outcomes for all 7 actual agents and a macro-level
+    end-to-end system profile using persisted execution data and root-cause
+    failure and recovery attribution.
+    """
+    from ..services.hierarchical_proficiency_service import hierarchical_proficiency_service
+    return hierarchical_proficiency_service.get_hierarchical_profiles(
+        model_name=model_name, run_id=run_id,
+    )
+
+
+@router.post("/features/hierarchical-proficiency/rebuild")
+async def rebuild_hierarchical_proficiency():
+    """Scan all historical runs in SQLite and re-populate agent proficiency observations."""
+    from ..services.hierarchical_proficiency_service import hierarchical_proficiency_service
+    synced_count = hierarchical_proficiency_service.sync_all_historical_runs()
+    return {"status": "success", "runs_synced": synced_count}
+
+
+@router.get("/features/{run_id}/recovery")
+async def get_run_recovery(run_id: str):
+    """Return structured recovery episode data for a specific run.
+
+    Each episode includes failure type, timestamps, corrective actions,
+    extra test executions, and verified outcome â€” never inferred from
+    stage completion alone.
+    """
+    return feature_analytics_service.get_recovery_summary(run_id)
+
+
+@router.get("/features/{run_id}")
+async def get_feature_analytics(run_id: str):
+    """Return failure prediction signals and trajectory for a specific run.
+
+    Prediction remains unavailable until a supervised model is validated and deployed.
+    Trajectory features are retained for offline model evaluation.
+    """
+    return feature_analytics_service.get_run_analytics(run_id)
+
+@router.get("/features/capabilities")
+async def get_capability_profiles(
+    model_name: Optional[str] = Query(None),
+    task_type: Optional[str] = Query(None),
+    difficulty: Optional[str] = Query(None),
+    run_id: Optional[str] = Query(None),
+):
+    """Return directly observed capabilities, falling back to agent artifact outcomes."""
+    from ..services.hierarchical_proficiency_service import hierarchical_proficiency_service
+    hierarchical_proficiency_service.get_hierarchical_profiles(
+        model_name=model_name, run_id=run_id,
+    )
+    return feature_analytics_service.get_capability_profiles(
+        model_name=model_name, task_type=task_type, difficulty=difficulty, run_id=run_id,
+    )
+
+
+@router.get("/features/predictor/status")
+async def get_predictor_status():
+    """Return failure predictor status and labelled trajectory counts.
+
+    Includes whether a supervised model can be trained and what evaluation
+    metrics will be computed (precision, recall, F1, PR-AUC, Brier score,
+    warning lead time).
+    """
+    return feature_analytics_service.get_predictor_status()
+
+
+@router.post("/features/predictor/train")
+async def train_predictor():
+    """Train the supervised failure predictor using accumulated trajectory data.
+
+    Uses GroupShuffleSplit on run_id to prevent data leakage.
+    Returns INSUFFICIENT_DATA when fewer than 5 runs per class exist.
+    Reports PR-AUC, Brier score, precision, recall, prevalence, baseline,
+    and warning lead time.
+    """
+    return feature_analytics_service.train_and_evaluate_predictor()
+
+
+# ---------------------------------------------------------------------------
+# Hierarchical Agent Proficiency Profiling Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/features/hierarchical-proficiency")
+async def get_hierarchical_proficiency(
+    model_name: Optional[str] = Query(None),
+    run_id: Optional[str] = Query(None),
+):
+    """Return hierarchical agent proficiency profiling.
+
+    Tracks directly observed outcomes for all 7 actual agents and a macro-level
+    end-to-end system profile using persisted execution data and root-cause
+    failure and recovery attribution.
+    """
+    from ..services.hierarchical_proficiency_service import hierarchical_proficiency_service
+    return hierarchical_proficiency_service.get_hierarchical_profiles(
+        model_name=model_name, run_id=run_id,
+    )
+
+
+@router.post("/features/hierarchical-proficiency/rebuild")
+async def rebuild_hierarchical_proficiency():
+    """Scan all historical runs in SQLite and re-populate agent proficiency observations."""
+    from ..services.hierarchical_proficiency_service import hierarchical_proficiency_service
+    synced_count = hierarchical_proficiency_service.sync_all_historical_runs()
+    return {"status": "success", "runs_synced": synced_count}
+
+
+@router.get("/features/{run_id}/recovery")
+async def get_run_recovery(run_id: str):
+    """Return structured recovery episode data for a specific run.
+
+    Each episode includes failure type, timestamps, corrective actions,
+    extra test executions, and verified outcome â€” never inferred from
+    stage completion alone.
+    """
+    return feature_analytics_service.get_recovery_summary(run_id)
+
+
+@router.get("/features/{run_id}")
+async def get_feature_analytics(run_id: str):
+    """Return failure prediction signals and trajectory for a specific run.
+
+    Prediction remains unavailable until a supervised model is validated and deployed.
+    Trajectory features are retained for offline model evaluation.
+    """
+    return feature_analytics_service.get_run_analytics(run_id)

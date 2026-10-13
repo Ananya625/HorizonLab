@@ -1,3 +1,5 @@
+import asyncio
+from .feature_analytics_service import feature_analytics_service
 from .workflow_service import observed, workflow
 import os
 import time
@@ -38,6 +40,243 @@ logger = logging.getLogger(__name__)
 from ..models.schema import EvaluationMetrics
 
 class OrchestratorService:
+
+    async def _handle_policy_action(
+        self,
+        run_id: str,
+        state: dict[str, Any],
+        max_retry_budget: Optional[int] = None,
+    ) -> dict[str, Any]:
+        action = state.get("risk_action", "continue")
+        step_index = int(state.get("_step_index", 0))
+        stage = str(state.get("stage", "unknown"))
+        risk_score = state.get("risk_score")
+        risk_reasons = state.get("risk_reasons", [])
+
+        db_service.add_log(
+            run_id=run_id,
+            stage=stage,
+            agent_role="System Orchestrator",
+            event_type="policy_recommendation",
+            message=(
+                f"Policy recommends '{action}' at risk score {risk_score:.3f}."
+                if risk_score is not None
+                else f"Policy recommends '{action}'; no validated risk score is available."
+            ),
+            details={
+                "step_index": step_index,
+                "recommended_action": action,
+                "risk_score": risk_score,
+                "risk_reasons": risk_reasons,
+                "risk_model_version": state.get("risk_model_version"),
+            },
+        )
+
+        if action == "continue":
+            outcome = {"continued": True, "stage": stage}
+            feature_analytics_service.record_policy_execution(
+                run_id, step_index, "continue", "executed", outcome
+            )
+            db_service.add_log(
+                run_id=run_id,
+                stage=stage,
+                agent_role="System Orchestrator",
+                event_type="policy_action_executed",
+                message="Policy allowed execution to continue.",
+                details={"recommended_action": action, "executed_action": "continue", **outcome},
+            )
+            return {"stop": False}
+
+        if action == "inspect":
+            changes = db_service.get_code_changes(run_id)
+            plan = db_service.get_plan(run_id)
+            planned_files = {
+                planned.path.replace("\\", "/")
+                for planned in (plan.planned_files if plan else [])
+            }
+            invalid_files = [change.file_path for change in changes if not change.ast_valid]
+            unplanned_files = [
+                change.file_path for change in changes
+                if planned_files and change.file_path.replace("\\", "/") not in planned_files
+            ]
+            outcome = {
+                "inspected_change_count": len(changes),
+                "invalid_ast_files": invalid_files,
+                "unplanned_files": unplanned_files,
+                "safe_to_continue": not invalid_files,
+            }
+            feature_analytics_service.record_policy_execution(
+                run_id, step_index, "inspect", "executed", outcome
+            )
+            db_service.add_log(
+                run_id=run_id,
+                stage=stage,
+                agent_role="System Orchestrator",
+                event_type="policy_action_executed",
+                message=(
+                    "Policy inspection completed; invalid syntax found."
+                    if invalid_files else "Policy inspection completed; no invalid syntax found."
+                ),
+                details={"recommended_action": action, "executed_action": "inspect", **outcome},
+            )
+            return {"stop": bool(invalid_files), "stop_reason": "inspection_found_invalid_ast"}
+
+        if action == "switch_strategy":
+            attempt_number = int(state.get("details", {}).get("attempt_number", 1) or 1)
+            if stage == "testing" and max_retry_budget is not None and attempt_number > max_retry_budget:
+                outcome = {
+                    "strategy_override": None,
+                    "verified": False,
+                    "reason": "retry_budget_exhausted",
+                }
+                feature_analytics_service.record_policy_execution(
+                    run_id, step_index, "switch_strategy", "skipped", outcome
+                )
+                db_service.add_log(
+                    run_id=run_id,
+                    stage=stage,
+                    agent_role="System Orchestrator",
+                    event_type="policy_action_skipped",
+                    message="Strategy switch skipped because the recovery budget is exhausted.",
+                    details={"recommended_action": action, **outcome},
+                )
+                return {"stop": False}
+            strategy = "alternative_strategy"
+            outcome = {
+                "strategy_override": strategy,
+                "applies_to": "next recovery attempt",
+                "verified": False,
+            }
+            feature_analytics_service.record_policy_execution(
+                run_id, step_index, "switch_strategy", "queued", outcome
+            )
+            db_service.add_log(
+                run_id=run_id,
+                stage=stage,
+                agent_role="System Orchestrator",
+                event_type="policy_action_queued",
+                message=f"Recovery strategy '{strategy}' queued for the next repair attempt.",
+                details={"recommended_action": action, **outcome},
+            )
+            return {
+                "stop": False,
+                "strategy_override": strategy,
+                "strategy_step_index": step_index,
+            }
+
+        if action == "ask_human":
+            approval = feature_analytics_service.create_policy_approval(run_id, step_index)
+            feature_analytics_service.record_policy_execution(
+                run_id,
+                step_index,
+                "ask_human",
+                "pending_approval",
+                {"approval_id": approval["approval_id"]},
+            )
+            db_service.update_run_status(run_id, f"{stage}_awaiting_approval", "awaiting_approval")
+            db_service.add_log(
+                run_id=run_id,
+                stage=stage,
+                agent_role="System Orchestrator",
+                event_type="policy_approval_required",
+                message="Execution paused for human approval before continuing.",
+                details={
+                    "approval_id": approval["approval_id"],
+                    "step_index": step_index,
+                    "recommended_action": action,
+                    "risk_score": risk_score,
+                },
+            )
+            while True:
+                approval_state = feature_analytics_service.get_policy_approval(
+                    run_id, approval["approval_id"]
+                )
+                if not approval_state:
+                    raise LookupError(f"Approval {approval['approval_id']} disappeared")
+                if approval_state["status"] != "pending":
+                    break
+                await asyncio.sleep(0.25)
+
+            approved = approval_state["status"] == "approved"
+            outcome = {
+                "approval_id": approval["approval_id"],
+                "decision": approval_state["status"],
+                "comment": approval_state["comment"],
+                "pipeline_continues": approved,
+                "verified": True,
+            }
+            feature_analytics_service.record_policy_execution(
+                run_id, step_index, "ask_human", "executed", outcome
+            )
+            db_service.update_run_status(run_id, stage, "in_progress")
+            db_service.add_log(
+                run_id=run_id,
+                stage=stage,
+                agent_role="System Orchestrator",
+                event_type="policy_approval_resolved",
+                message=(
+                    "Human approved continuing the autonomous run."
+                    if approved else "Human rejected continuation; stopping autonomous work."
+                ),
+                details={"executed_action": "ask_human", **outcome},
+            )
+            return {
+                "stop": not approved,
+                "stop_reason": "human_rejected",
+                "human_intervention": True,
+            }
+
+        if action == "stop":
+            outcome = {
+                "pipeline_continues": False,
+                "mutations_halted": True,
+                "verified": True,
+            }
+            feature_analytics_service.record_policy_execution(
+                run_id, step_index, "stop", "executed", outcome
+            )
+            db_service.add_log(
+                run_id=run_id,
+                stage=stage,
+                agent_role="System Orchestrator",
+                event_type="policy_action_executed",
+                message="Policy stopped further autonomous execution.",
+                details={"recommended_action": action, "executed_action": "stop", **outcome},
+            )
+            return {"stop": True, "stop_reason": "policy_stop"}
+
+        raise ValueError(f"Unsupported policy action: {action}")
+
+    def _stop_policy_run(
+        self,
+        run_id: str,
+        stage: str,
+        reason: str,
+        pending_strategy_step_index: Optional[int] = None,
+    ) -> RunRecord:
+        if pending_strategy_step_index is not None:
+            feature_analytics_service.record_policy_execution(
+                run_id,
+                pending_strategy_step_index,
+                "switch_strategy",
+                "skipped",
+                {"verified": False, "reason": "pipeline_stopped_before_recovery"},
+            )
+        db_service.update_run_status(run_id, "stopped", "policy_stopped")
+        db_service.add_log(
+            run_id=run_id,
+            stage="stopped",
+            agent_role="System Orchestrator",
+            event_type="warning",
+            message="Autonomous pipeline stopped at a safe stage boundary.",
+            details={"stage": stage, "reason": reason},
+        )
+        record = db_service.get_run_record(run_id)
+        if not record:
+            raise LookupError(f"Run {run_id} disappeared after policy stop")
+        return record
+
+
     def __init__(self):
         self.active = set()
 

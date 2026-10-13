@@ -23,7 +23,7 @@ async function request(endpoint, options = {}) {
             ? errorJson.detail 
             : JSON.stringify(errorJson.detail);
         }
-      } catch {
+      } catch (e) {
         // Failed to parse JSON error response, use default
       }
       throw new Error(errorDetail);
@@ -133,10 +133,10 @@ export async function fetchPlan(runId) {
 
 // --- Stage 4: Coding Agent ---
 
-export async function executeCoding({ runId }) {
+export async function executeCoding({ runId, modelName, temperature }) {
   return request('/coder/execute', {
     method: 'POST',
-    body: JSON.stringify({ run_id: runId }),
+    body: JSON.stringify({ run_id: runId, model_name: modelName, temperature }),
   });
 }
 
@@ -200,6 +200,21 @@ export async function fetchRunLogs(runId, limit = 200) {
   return request(`/runs/${runId}/logs?limit=${limit}`);
 }
 
+export async function fetchPendingPolicyApproval(runId) {
+  return request(`/runs/${runId}/policy-approval`);
+}
+
+export async function respondToPolicyApproval(runId, approvalId, approved, comment = '') {
+  return request(`/runs/${runId}/policy-approval`, {
+    method: 'POST',
+    body: JSON.stringify({
+      approval_id: approvalId,
+      approved,
+      comment: comment.trim() || null,
+    }),
+  });
+}
+
 export async function fetchEvaluationDashboard() {
   return request('/evaluations/dashboard');
 }
@@ -220,3 +235,51 @@ export const fetchWorkflowReport = (runId, signal) => request(`/evaluations/${en
 export const fetchWorkflowEvents = (runId, after = 0, through, signal) => request(`/evaluations/${encodeURIComponent(runId)}/workflow/events?after=${after}&limit=50${through == null ? '' : `&through=${through}`}`, { signal });
 export const fetchWorkflowEvent = (runId, eventId, signal) => request(`/evaluations/${encodeURIComponent(runId)}/workflow/events/${encodeURIComponent(eventId)}`, { signal });
 export const exportWorkflow = runId => request(`/evaluations/${encodeURIComponent(runId)}/workflow/export`);
+
+/* --- AgentEval-X research features --- */
+export async function fetchFeatureAnalytics(runId) {
+  return request(`/features/${encodeURIComponent(runId)}`);
+}
+
+export async function fetchCapabilityProfiles(optionsOrModelName, runId) {
+  const params = new URLSearchParams();
+  if (typeof optionsOrModelName === 'string') {
+    if (optionsOrModelName) params.append('model_name', optionsOrModelName);
+  } else if (optionsOrModelName && typeof optionsOrModelName === 'object') {
+    if (optionsOrModelName.modelName) params.append('model_name', optionsOrModelName.modelName);
+    if (optionsOrModelName.taskType) params.append('task_type', optionsOrModelName.taskType);
+    if (optionsOrModelName.difficulty) params.append('difficulty', optionsOrModelName.difficulty);
+    if (optionsOrModelName.runId) params.append('run_id', optionsOrModelName.runId);
+  }
+  if (runId) params.append('run_id', runId);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request(`/features/capabilities${qs}`);
+}
+
+export async function fetchPredictorStatus() {
+  return request('/features/predictor/status');
+}
+
+export async function trainPredictor() {
+  return request('/features/predictor/train', {
+    method: 'POST',
+  });
+}
+
+export async function fetchRunRecovery(runId) {
+  return request(`/features/${encodeURIComponent(runId)}/recovery`);
+}
+
+export async function fetchHierarchicalProficiency(modelName, runId) {
+  const params = new URLSearchParams();
+  if (modelName) params.append('model_name', modelName);
+  if (runId) params.append('run_id', runId);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return request(`/features/hierarchical-proficiency${query}`);
+}
+
+export async function rebuildHierarchicalProficiency() {
+  return request('/features/hierarchical-proficiency/rebuild', {
+    method: 'POST',
+  });
+}

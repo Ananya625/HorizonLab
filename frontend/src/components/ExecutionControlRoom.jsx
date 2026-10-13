@@ -13,7 +13,11 @@ import {
   Layers,
   Activity
 } from 'lucide-react';
-import { fetchRunLogs } from '../services/api';
+import {
+  fetchRunLogs,
+  fetchPendingPolicyApproval,
+  respondToPolicyApproval,
+} from '../services/api';
 
 export default function ExecutionControlRoom({
   runId,
@@ -24,7 +28,53 @@ export default function ExecutionControlRoom({
   const [filterRole, setFilterRole] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
+  const [pendingApproval, setPendingApproval] = useState(null);
+  const [approvalComment, setApprovalComment] = useState('');
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+  const [approvalError, setApprovalError] = useState('');
   const logEndRef = useRef(null);
+
+  useEffect(() => {
+    if (!runId) {
+      setPendingApproval(null);
+      return undefined;
+    }
+    let active = true;
+    const refreshApproval = () => {
+      fetchPendingPolicyApproval(runId)
+        .then((approval) => {
+          if (active) setPendingApproval(approval);
+        })
+        .catch((err) => console.warn('Policy approval status error:', err));
+    };
+    refreshApproval();
+    const interval = setInterval(refreshApproval, 1000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [runId]);
+
+  const submitApproval = async (approved) => {
+    if (!pendingApproval || isSubmittingApproval) return;
+    setIsSubmittingApproval(true);
+    try {
+      await respondToPolicyApproval(
+        runId,
+        pendingApproval.approval_id,
+        approved,
+        approvalComment
+      );
+      setPendingApproval(null);
+      setApprovalComment('');
+      setApprovalError('');
+    } catch (err) {
+      setApprovalError(err.message || 'Could not submit approval response.');
+      console.error('Policy approval response failed:', err);
+    } finally {
+      setIsSubmittingApproval(false);
+    }
+  };
 
   useEffect(() => {
     if (autoScroll && logEndRef.current) {
@@ -79,6 +129,11 @@ export default function ExecutionControlRoom({
           {runId && (
             <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>
               {runId}
+            </span>
+          )}
+          {pendingApproval && (
+            <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>
+              HUMAN APPROVAL REQUIRED
             </span>
           )}
           <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>
@@ -167,6 +222,69 @@ export default function ExecutionControlRoom({
           flexDirection: 'column',
           gap: '4px'
         }}>
+          {pendingApproval && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px',
+              marginBottom: '8px',
+              border: '1px solid #f59e0b',
+              borderRadius: '6px',
+              color: '#fde68a',
+              fontFamily: 'var(--font-sans, sans-serif)',
+            }}>
+              <span style={{ flex: 1 }}>
+                The agent paused at step {pendingApproval.step_index} and is waiting for approval.
+              </span>
+              {approvalError && (
+                <span role="alert" style={{ color: '#fda4af' }}>{approvalError}</span>
+              )}
+              <input
+                aria-label="Approval comment"
+                value={approvalComment}
+                onChange={(event) => setApprovalComment(event.target.value)}
+                placeholder="Optional note"
+                style={{
+                  background: '#151d2e',
+                  border: '1px solid #334155',
+                  borderRadius: '4px',
+                  color: '#f8fafc',
+                  padding: '6px',
+                }}
+              />
+              <button
+                type="button"
+                disabled={isSubmittingApproval}
+                onClick={() => submitApproval(true)}
+                style={{
+                  background: '#047857',
+                  border: 0,
+                  borderRadius: '4px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  padding: '6px 10px',
+                }}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingApproval}
+                onClick={() => submitApproval(false)}
+                style={{
+                  background: '#be123c',
+                  border: 0,
+                  borderRadius: '4px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  padding: '6px 10px',
+                }}
+              >
+                Reject
+              </button>
+            </div>
+          )}
           {filteredLogs.length > 0 ? (
             filteredLogs.map((log) => {
               let tagColor = '#38bdf8';
