@@ -43,7 +43,13 @@ Thumbs.db
 backend/sandbox/*/.pytest_cache/
 backend/sandbox/*/__pycache__/
 backend/sandbox/workspace_run_*/
-sandbox/
+/backend/sandbox/*
+!/backend/sandbox/auth_service_repo/
+/backend/sandbox/auth_service_repo/*
+!/backend/sandbox/auth_service_repo/app/
+!/backend/sandbox/auth_service_repo/tests/
+!/backend/sandbox/auth_service_repo/pytest.ini
+!/backend/sandbox/auth_service_repo/requirements.txt
 *.db
 backend/app.db
 backend/*benchmark_results.json
