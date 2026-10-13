@@ -64,6 +64,10 @@ class WorkspaceService:
         os.makedirs(login_sandbox, exist_ok=True)
         os.makedirs(os.path.join(login_sandbox, "app"), exist_ok=True)
         os.makedirs(os.path.join(login_sandbox, "tests"), exist_ok=True)
+        for name, content in [('pytest.ini', '[pytest]\npythonpath = .\n'), ('app/__init__.py', ''), ('tests/__init__.py', '')]:
+            target = Path(login_sandbox) / name
+            if not target.exists():
+                target.write_text(content, encoding='utf-8')
 
         req_file = os.path.join(login_sandbox, "requirements.txt")
         if not os.path.exists(req_file):

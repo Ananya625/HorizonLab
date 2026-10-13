@@ -81,7 +81,11 @@ class TestRunnerService:
         env = self.subprocess_env(repo)
         with tempfile.TemporaryDirectory(prefix='agenteval-results-') as directory:
             report = str(Path(directory) / 'results.xml')
-            command = [sys.executable, '-m', 'pytest', '-v', '--tb=short', '-p', 'pytest_asyncio.plugin', f'--junitxml={report}', '--', *targets]
+            config = Path(repo) / 'pytest.ini'
+            if not config.is_file():
+                config = Path(directory) / 'pytest.ini'
+                config.write_text('[pytest]\n', encoding='utf-8')
+            command = [sys.executable, '-m', 'pytest', '-c', str(config), '--rootdir', repo, '-v', '--tb=short', '-p', 'pytest_asyncio.plugin', f'--junitxml={report}', '--', *targets]
             db_service.add_log(run_id, 'testing', 'Test Runner', 'tool_call', 'Executing pytest', {'operation_id': uuid.uuid4().hex, 'tool': 'pytest', 'target': target})
             try:
                 process = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, timeout=30)
