@@ -72,7 +72,7 @@ class WorkspaceService:
         req_file = os.path.join(login_sandbox, "requirements.txt")
         if not os.path.exists(req_file):
             with open(req_file, "w", encoding="utf-8") as f:
-                f.write("fastapi>=0.100.0\nuvicorn>=0.23.0\npyjwt>=2.8.0\npasslib[bcrypt]>=1.7.4\npytest>=7.4.0\npytest-asyncio>=0.21.0\nhttpx>=0.24.0\n")
+                f.write("fastapi>=0.100.0\nuvicorn>=0.23.0\npyjwt>=2.8.0\nemail-validator>=2,<3\npasslib[bcrypt]>=1.7.4\npytest>=7.4.0\npytest-asyncio>=0.21.0\nhttpx>=0.24.0\n")
 
         main_file = os.path.join(login_sandbox, "app", "main.py")
         if not os.path.exists(main_file):
@@ -101,7 +101,7 @@ def health():
         req_file = os.path.join(workspace_path, "requirements.txt")
         if not os.path.exists(req_file):
             with open(req_file, "w", encoding="utf-8") as f:
-                f.write("fastapi>=0.100.0\nuvicorn>=0.23.0\npyjwt>=2.8.0\npasslib[bcrypt]>=1.7.4\npytest>=7.4.0\npytest-asyncio>=0.21.0\nhttpx>=0.24.0\n")
+                f.write("fastapi>=0.100.0\nuvicorn>=0.23.0\npyjwt>=2.8.0\nemail-validator>=2,<3\npasslib[bcrypt]>=1.7.4\npytest>=7.4.0\npytest-asyncio>=0.21.0\nhttpx>=0.24.0\n")
 
         pytest_ini = os.path.join(workspace_path, "pytest.ini")
         if not os.path.exists(pytest_ini):
