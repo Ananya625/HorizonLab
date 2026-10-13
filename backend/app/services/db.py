@@ -30,6 +30,7 @@ class DatabaseService:
     @contextmanager
     def _get_connection(self):
         conn = sqlite3.connect(self.db_path, timeout=10)
+        conn.execute("PRAGMA foreign_keys=ON")
         conn.row_factory = sqlite3.Row
         try:
             with conn:
@@ -151,18 +152,6 @@ class DatabaseService:
                     FOREIGN KEY (run_id) REFERENCES runs (run_id) ON DELETE CASCADE
                 )
             """)
-            try:
-                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN error_summary TEXT")
-            except Exception:
-                pass
-            try:
-                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN subsequent_test_run_id TEXT")
-            except Exception:
-                pass
-            try:
-                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN test_result_status TEXT")
-            except Exception:
-                pass
 
             # Verification Reports table
             cursor.execute("""
@@ -216,8 +205,9 @@ class DatabaseService:
             """)
 
             columns = {r[1] for r in cursor.execute('PRAGMA table_info(recovery_attempts)')}
-            if 'data_json' not in columns:
-                cursor.execute('ALTER TABLE recovery_attempts ADD COLUMN data_json TEXT')
+            for name in ('error_summary', 'subsequent_test_run_id', 'test_result_status', 'data_json'):
+                if name not in columns:
+                    cursor.execute(f'ALTER TABLE recovery_attempts ADD COLUMN {name} TEXT')
             cursor.execute('CREATE TABLE IF NOT EXISTS experiment_runs (experiment_id TEXT PRIMARY KEY, manifest_json TEXT NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL)')
             cursor.execute('CREATE TABLE IF NOT EXISTS evaluation_history (id INTEGER PRIMARY KEY, run_id TEXT NOT NULL, data_json TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)')
             cursor.execute('CREATE TABLE IF NOT EXISTS benchmark_checkpoints (run_id TEXT PRIMARY KEY, data_json TEXT NOT NULL, updated_at TEXT NOT NULL)')
@@ -489,18 +479,6 @@ class DatabaseService:
     def save_recovery_attempt(self, attempt: RecoveryAttempt) -> RecoveryAttempt:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            try:
-                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN error_summary TEXT")
-            except Exception:
-                pass
-            try:
-                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN subsequent_test_run_id TEXT")
-            except Exception:
-                pass
-            try:
-                cursor.execute("ALTER TABLE recovery_attempts ADD COLUMN test_result_status TEXT")
-            except Exception:
-                pass
 
             # Check if this attempt outcome already exists to avoid duplicates
             cursor.execute("""

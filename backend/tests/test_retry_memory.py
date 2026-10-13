@@ -58,6 +58,7 @@ def test_02_second_retry_receives_first_failed_attempt():
         test_result_status="FAILED",
         error_summary="FAILED tests/test_calc.py::test_add - assert 4 == 5"
     )
+    db_service.create_or_update_run(attempt_1.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt_1)
 
     # In retry #2, retrieve history
@@ -97,6 +98,7 @@ def test_03_previously_successful_recovery_marked_correctly():
         test_result_status="PASSED",
         error_summary=""
     )
+    db_service.create_or_update_run(attempt.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt)
 
     history = db_service.get_recovery_attempts(run_id)
@@ -131,6 +133,7 @@ def test_04_no_repetition_of_unchanged_failed_approach():
         resolved=False,
         test_result_status="FAILED"
     )
+    db_service.create_or_update_run(attempt_1.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt_1)
 
     failed_code_change = CodeChange(
@@ -203,6 +206,7 @@ def test_05_unknown_test_outcomes_not_treated_as_failures():
         test_result_status="UNKNOWN",
         error_summary=""
     )
+    db_service.create_or_update_run(attempt.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt)
 
     history = db_service.get_recovery_attempts(run_id)
@@ -238,6 +242,7 @@ def test_06_history_limited_to_configured_number_of_attempts():
             test_result_status="FAILED",
             error_summary=f"AssertionError in step {i}"
         )
+        db_service.create_or_update_run(att.run_id, "fixture", "Fixture", "Fixture", str(__file__))
         db_service.save_recovery_attempt(att)
 
     history = db_service.get_recovery_attempts(run_id)
@@ -297,6 +302,7 @@ def test_08_strict_run_id_isolation():
         resolved=False,
         test_result_status="FAILED"
     )
+    db_service.create_or_update_run(attempt_a.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt_a)
 
     # Query for Run B
@@ -330,6 +336,7 @@ def test_09_database_persistence_across_application_restart():
         test_result_status="PASSED",
         error_summary="ImportError: cannot import name 'auth_handler'"
     )
+    db_service.create_or_update_run(attempt.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt)
 
     # Instantiate brand-new DatabaseService instance to simulate restart
@@ -366,6 +373,7 @@ def test_10_duplicate_outcome_handling():
         resolved=False,
         test_result_status="UNKNOWN"
     )
+    db_service.create_or_update_run(attempt_v1.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt_v1)
     assert len(db_service.get_recovery_attempts(run_id)) == 1
 
@@ -383,6 +391,7 @@ def test_10_duplicate_outcome_handling():
         test_result_status="PASSED",
         error_summary="Tests clean pass"
     )
+    db_service.create_or_update_run(attempt_v2.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt_v2)
 
     # Must still have exactly 1 record, updated in place
@@ -450,6 +459,7 @@ async def test_11_debugger_retrieval_and_prompt_injection_e2e(monkeypatch, tmp_p
         test_result_status="FAILED",
         error_summary="AssertionError: assert 404 == 200"
     )
+    db_service.create_or_update_run(attempt_1.run_id, "fixture", "Fixture", "Fixture", str(__file__))
     db_service.save_recovery_attempt(attempt_1)
 
     captured_messages = []
