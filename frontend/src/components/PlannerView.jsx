@@ -139,69 +139,50 @@ export default function PlannerView({
       </section>
 
       {/* Sequential Execution Steps Roadmap */}
-      <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
+      <section className="card-panel planner-roadmap" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
         <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
           <Workflow size={16} color="var(--accent-primary, #6257D9)" />
-          <span>Sequential Step-by-Step Execution Plan ({plan.steps?.length || 0} Steps)</span>
+          <span>Planned Execution Flow ({plan.steps?.length || 0} Steps)</span>
         </h3>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="planner-roadmap-track" aria-label="Sequential planned execution flow">
           {(plan.steps || []).map((step, idx) => (
-            <div 
-              key={idx}
-              style={{
-                backgroundColor: 'var(--bg-page, #F6F7FB)',
-                border: '1px solid var(--border-subtle, #E5E7EF)',
-                borderRadius: '8px',
-                padding: '14px 16px',
-                display: 'flex',
-                gap: '14px',
-                alignItems: 'flex-start'
-              }}
-            >
-              <div style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--accent-primary-subtle, #F0EEFF)',
-                color: 'var(--accent-primary, #6257D9)',
-                border: '1px solid var(--accent-primary-border, #D8D2FB)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700,
-                fontSize: '0.8rem',
-                flexShrink: 0
-              }}>
-                {step.step_number}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '6px' }}>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary, #172033)', margin: 0 }}>
-                    {step.title}
-                  </h4>
-                  <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>
-                    {step.assigned_agent}
-                  </span>
+            <React.Fragment key={`${step.step_number}-${idx}`}>
+              <article className="planner-roadmap-step">
+                <div className="planner-roadmap-step-marker" aria-hidden="true">
+                  <span>{step.step_number}</span>
                 </div>
-                <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary, #667085)', marginBottom: '8px', lineHeight: '1.4' }}>
-                  {step.description}
-                </p>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)' }}>Targets:</span>
-                  {(step.target_files || []).map((tf, i) => (
-                    <span key={i} style={{ fontSize: '0.725rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-primary, #6257D9)', background: '#FFFFFF', border: '1px solid var(--border-subtle, #E5E7EF)', padding: '1px 6px', borderRadius: '4px' }}>
-                      {tf}
+                <div className="planner-roadmap-step-content">
+                  <div className="planner-roadmap-step-heading">
+                    <span className="planner-roadmap-step-label">Step {step.step_number}</span>
+                    <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>
+                      {step.assigned_agent}
                     </span>
-                  ))}
-                  {step.expected_outcome && (
-                    <span style={{ fontSize: '0.725rem', color: 'var(--success-color, #16845B)', marginLeft: 'auto', fontWeight: 500 }}>
-                      ✓ Expected: {step.expected_outcome}
-                    </span>
-                  )}
+                  </div>
+                  <h4>{step.title}</h4>
+                  <p>{step.description}</p>
+                  <div className="planner-roadmap-step-targets">
+                    <span className="planner-roadmap-target-label">Targets</span>
+                    {(step.target_files || []).map((tf, i) => (
+                      <span key={i} className="planner-roadmap-file">
+                        {tf}
+                      </span>
+                    ))}
+                    {step.expected_outcome && (
+                      <span className="planner-roadmap-outcome">
+                        <CheckCircle2 size={13} />
+                        <span>{step.expected_outcome}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
+              </article>
+              {idx < (plan.steps || []).length - 1 && (
+                <div className="planner-roadmap-connector" aria-hidden="true">
+                  <ArrowRight size={17} />
+                </div>
+              )}
+            </React.Fragment>
           ))}
         </div>
       </section>

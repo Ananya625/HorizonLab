@@ -12,7 +12,10 @@ import {
   FlaskConical, 
   Database,
   Terminal,
-  Circle
+  Circle,
+  Sun,
+  Moon,
+  Route
 } from 'lucide-react';
 
 const STAGES = [
@@ -38,10 +41,13 @@ export default function Header({
   isRunning,
   hasRun,
   runsList = [],
-  onSelectRun
+  onSelectRun,
+  theme = 'light',
+  onToggleTheme,
+  onOpenTour
 }) {
   return (
-    <header style={{
+    <header className="app-header" style={{
       backgroundColor: '#FFFFFF',
       borderBottom: '1px solid var(--border-subtle, #E5E7EF)',
       position: 'sticky',
@@ -50,7 +56,7 @@ export default function Header({
       boxShadow: '0 1px 3px rgba(16, 24, 40, 0.05)'
     }}>
       {/* Top Application Header Row */}
-      <div style={{
+      <div className="app-header-top" style={{
         padding: '10px 24px',
         display: 'flex',
         alignItems: 'center',
@@ -60,8 +66,8 @@ export default function Header({
         flexWrap: 'wrap'
       }}>
         {/* Brand & Platform Identity */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
+        <div className="app-header-brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="app-header-brand-mark" style={{
             width: '34px',
             height: '34px',
             borderRadius: '8px',
@@ -74,7 +80,7 @@ export default function Header({
           }}>
             <Cpu size={18} />
           </div>
-          <div>
+          <div className="app-header-brand-copy">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ 
                 fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', 
@@ -133,6 +139,7 @@ export default function Header({
           {/* Ollama Connection Pill */}
           <button 
             type="button"
+            className="app-header-model-status"
             onClick={onOpenSettings}
             style={{
               display: 'inline-flex',
@@ -182,10 +189,32 @@ export default function Header({
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={onReset}
+            disabled={isRunning}
             title="Start a new software engineering task"
           >
             <RotateCcw size={13} />
             <span>New Task</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm header-tour-button"
+            onClick={onOpenTour}
+            title="Walk through the existing workflow and its evidence"
+          >
+            <Route size={14} />
+            <span>Guided Tour</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm header-theme-button"
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+          >
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
 
           {/* Settings Button */}
@@ -202,7 +231,7 @@ export default function Header({
       </div>
 
       {/* Stage Navigation & Workflow Tabs Row */}
-      <div style={{
+      <div className="app-header-navigation" style={{
         padding: '0 24px',
         display: 'flex',
         alignItems: 'center',
@@ -210,7 +239,7 @@ export default function Header({
         overflowX: 'auto',
         backgroundColor: '#FFFFFF'
       }}>
-        <nav aria-label="Workflow navigation" style={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
+        <nav className="app-stage-navigation" aria-label="Workflow navigation" style={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
           {STAGES.map((stage) => {
             const Icon = stage.icon;
             const isActive = activeTab === stage.id;
@@ -218,6 +247,8 @@ export default function Header({
               <button
                 key={stage.id}
                 type="button"
+                className={`app-stage-tab${isActive ? ' is-active' : ''}`}
+                aria-current={isActive ? 'step' : undefined}
                 onClick={() => setActiveTab(stage.id)}
                 style={{
                   display: 'flex',

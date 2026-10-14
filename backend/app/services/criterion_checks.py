@@ -63,12 +63,14 @@ def evaluate(criterion, repo):
                 summary_line = output_lines[-1] if output_lines else ""
                 if res.returncode == 0:
                     return 'PASS', f'Executed workspace test suite with exit code 0; all unit tests passed cleanly ({summary_line or "100% pass"}).'
-                else:
+                if res.returncode == 1:
                     err_lines = [l.strip() for l in res.stderr.strip().splitlines() if l.strip()]
                     fail_detail = summary_line or (err_lines[-1] if err_lines else f"exit code {res.returncode}")
                     return 'FAIL', f'Workspace test suite failed: {fail_detail}'
+                detail = summary_line or f'pytest exited with code {res.returncode}'
+                return 'UNVERIFIED', f'Test result is inconclusive: {detail}.'
             except subprocess.TimeoutExpired:
-                return 'FAIL', 'Workspace test suite execution timed out after 20 seconds.'
+                return 'UNVERIFIED', 'Workspace test suite execution timed out after 20 seconds; no pass or failure result was established.'
             except Exception as e:
                 return 'UNVERIFIED', f'Unable to execute test suite ({type(e).__name__}): {e}'
 

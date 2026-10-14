@@ -1,4 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import {
+  BarChart3,
+  Braces,
+  ClipboardList,
+  FileCheck2,
+  FlaskConical,
+  ListChecks,
+  ShieldCheck,
+  Terminal,
+} from 'lucide-react';
 import Header from './components/Header';
 import OllamaSettingsModal from './components/OllamaSettingsModal';
 import TaskInputSection from './components/TaskInputSection';
@@ -14,6 +24,17 @@ import VerificationView from './components/VerificationView';
 import EvaluationDashboard from './components/EvaluationDashboard';
 import ExecutionControlRoom from './components/ExecutionControlRoom';
 import WorkflowProgress from './components/WorkflowProgress';
+import GuidedTour from './components/GuidedTour';
+
+const PIPELINE_STAGES = [
+  { name: 'Workspace', detail: 'Define the goal and execution settings', icon: Terminal },
+  { name: 'Requirements', detail: 'Extract criteria and resolve ambiguity', icon: ListChecks },
+  { name: 'Planner', detail: 'Map dependencies into actionable steps', icon: ClipboardList },
+  { name: 'Coding Agent', detail: 'Implement changes in the workspace', icon: Braces },
+  { name: 'Test & Debug', detail: 'Run checks and repair failures', icon: FlaskConical },
+  { name: 'Code Review', detail: 'Independently verify the result', icon: ShieldCheck },
+  { name: 'Evaluation', detail: 'Review measured outcomes and evidence', icon: BarChart3 },
+];
 
 import {
   fetchOllamaStatus,
@@ -37,6 +58,17 @@ import {
 } from './services/api';
 
 export default function App() {
+  const [theme, setTheme] = useState(() => (
+    typeof window !== 'undefined' && window.localStorage.getItem('horizonlab-theme') === 'dark'
+      ? 'dark'
+      : 'light'
+  ));
+  const [isTourOpen, setIsTourOpen] = useState(false);
+
+  useEffect(() => {
+    window.localStorage.setItem('horizonlab-theme', theme);
+  }, [theme]);
+
   // Workspace & Input State
   const [taskPrompt, setTaskPrompt] = useState('Build a login API with JWT authentication using FastAPI. Implement user registration with password hashing, login endpoint returning JWT bearer token, protected route GET /api/auth/me, invalid credentials rejection (HTTP 401), expired token rejection, and automated pytest suite.');
   const [repoPath, setRepoPath] = useState('');
@@ -374,7 +406,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', paddingBottom: '160px' }}>
+    <div className="app-shell" data-theme={theme} style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', paddingBottom: '160px' }}>
       {/* Top Telemetry Header */}
       <Header
         runId={runId}
@@ -389,19 +421,98 @@ export default function App() {
         hasRun={!!runId}
         runsList={runsList}
         onSelectRun={handleSelectRun}
+        theme={theme}
+        onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+        onOpenTour={() => setIsTourOpen(true)}
       />
 
       {/* Main Workspace Container */}
-      <main style={{ flex: 1, maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '24px 20px' }}>
+      <main className="dashboard-main" style={{ flex: 1, maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '24px 20px' }}>
         {error && (
           <div role="alert" className="card-panel" style={{ padding: '12px 18px', marginBottom: 16, color: '#D14343', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', fontSize: '0.85rem' }}>
             {error}
           </div>
         )}
-        {pendingFullRunId === runId && runId && !goalModel?.is_confirmed && !isExecuting && (
+        {runId && currentRunRecord?.run_id === runId && currentRunRecord.status === 'in_progress' && goalModel && !goalModel.is_confirmed && !isExecuting && (
           <div role="status" className="card-panel" style={{ padding: '14px 18px', marginBottom: 16, color: '#B7791F', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', fontSize: '0.85rem' }}>
-            Workflow paused for your review. Resolve any blocking questions and confirm the requirements to continue through stages 3–7.
+            <strong>Requirements awaiting review.</strong> This run is paused, not actively executing. Resolve blocking questions, confirm the goal, then choose the next stage or run the full pipeline.
           </div>
+        )}
+
+        {activeTab === 'input' && (
+        <section className="project-intro-card card-panel" aria-labelledby="project-intro-title">
+          <div className="project-intro-copy">
+            <h1 id="project-intro-title">One Pipeline. Every Stage. Complete Confidence.</h1>
+            <p className="project-intro-description">
+              From task brief to tested, independently verified code—HorizonLab coordinates
+              planning, coding, testing, recovery, verification, and evaluation in one
+              closed-loop workflow.
+            </p>
+            <div className="project-intro-assurance">
+              <FileCheck2 size={14} aria-hidden="true" />
+              <span>Evidence-backed delivery, from first brief to final review</span>
+            </div>
+          </div>
+          <aside className="pipeline-stage-diagram" aria-labelledby="pipeline-diagram-title">
+            <div className="pipeline-stage-diagram-heading">
+              <div>
+                <span className="pipeline-diagram-eyebrow">A connected workflow</span>
+                <h2 id="pipeline-diagram-title">One coordinated loop</h2>
+              </div>
+              <span className="pipeline-stage-total">07 stages</span>
+            </div>
+            <div className="pipeline-loop-canvas">
+              <svg className="pipeline-loop-orbit" viewBox="0 0 100 100" role="img" aria-label="Circular flow connecting seven pipeline stages">
+                <defs>
+                  <linearGradient id="pipeline-orbit-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#7E9B72" />
+                    <stop offset="50%" stopColor="#315B40" />
+                    <stop offset="100%" stopColor="#A5B58B" />
+                  </linearGradient>
+                  <marker id="pipeline-orbit-arrow" markerWidth="5" markerHeight="5" refX="3.4" refY="2.5" orient="auto">
+                    <path d="M 0 0 L 5 2.5 L 0 5 z" fill="#527553" />
+                  </marker>
+                </defs>
+                <ellipse
+                  cx="50"
+                  cy="50"
+                  rx="34"
+                  ry="40"
+                  fill="none"
+                  stroke="url(#pipeline-orbit-gradient)"
+                  strokeWidth="0.8"
+                  strokeDasharray="1.5 1.4"
+                  markerEnd="url(#pipeline-orbit-arrow)"
+                />
+              </svg>
+              <div className="pipeline-loop-core" aria-hidden="true">
+                <span className="pipeline-core-icon"><FileCheck2 size={19} /></span>
+                <strong>One pipeline</strong>
+                <small>Plan · build · verify</small>
+              </div>
+              <ol className="pipeline-stage-orbit">
+                {PIPELINE_STAGES.map(({ name, detail, icon: Icon }, index) => {
+                  const angle = (index / PIPELINE_STAGES.length) * Math.PI * 2 - Math.PI / 2;
+                  const x = 50 + 34 * Math.cos(angle);
+                  const y = 50 + 40 * Math.sin(angle);
+                  return (
+                    <li
+                      className={`pipeline-stage-node pipeline-stage-node-${index + 1}`}
+                      key={name}
+                      style={{ '--stage-x': `${x}%`, '--stage-y': `${y}%` }}
+                    >
+                      <span className="pipeline-stage-icon"><Icon size={15} aria-hidden="true" /></span>
+                      <span className="pipeline-stage-copy">
+                        <strong><span className="pipeline-stage-index">{String(index + 1).padStart(2, '0')}</span>{name}</strong>
+                        <small>{detail}</small>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          </aside>
+        </section>
         )}
 
         {/* Consistent Workflow Progress Indicator */}
@@ -442,6 +553,7 @@ export default function App() {
             setRepoPath={setRepoPath}
             maxRecoveryRetries={maxRecoveryRetries}
             setMaxRecoveryRetries={setMaxRecoveryRetries}
+            goalModel={goalModel}
           />
         )}
 
@@ -553,6 +665,17 @@ export default function App() {
         temperature={temperature}
         setTemperature={setTemperature}
       />
+      {isTourOpen && (
+        <GuidedTour
+          onClose={() => setIsTourOpen(false)}
+          onNavigate={setActiveTab}
+          runId={runId}
+          goalModel={goalModel}
+          codeChanges={codeChanges}
+          testResults={testResults}
+          verification={verification}
+        />
+      )}
     </div>
   );
 }

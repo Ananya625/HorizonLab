@@ -82,6 +82,33 @@ test('dashboard displays zero measurements without fabricated defaults', async (
   assert.match(html, /Unavailable/);
 });
 
+test('evaluation dashboard visualizes measured rates and keeps missing rates uncharted', async () => {
+  const {default: Dashboard} = await loadComponent('./src/components/EvaluationDashboard.jsx');
+  const html = renderToStaticMarkup(React.createElement(Dashboard, {currentRunRecord:{run_id:'r', evaluation:{
+    metric_version:'2', success_rate:60, execution_time_seconds:12, total_tool_calls:3,
+    tests_passed:3, tests_total:4, recovery_attempts_count:0, goal_drift_score:null,
+  }}}));
+  assert.match(html, /aria-label="Criteria coverage"[^>]*aria-valuenow="60"/);
+  assert.match(html, /aria-label="Tests passing"[^>]*aria-valuenow="75"/);
+  assert.doesNotMatch(html, /aria-label="Goal drift score"/);
+});
+
+test('recent-run coverage chart plots validated measurements as vertical bars on a capped scale', async () => {
+  const {RecentRunCoverageChart} = await loadComponent('./src/components/EvaluationDashboard.jsx');
+  const html = renderToStaticMarkup(React.createElement(RecentRunCoverageChart, {runs:[
+    {run_id:'current',title:'Current run',metric_version:'2',success_rate:120},
+    {run_id:'zero',title:'Zero coverage',metric_version:'2',success_rate:0},
+    {run_id:'legacy',title:'Legacy run',metric_version:'1',success_rate:75},
+    {run_id:'missing',title:'Missing coverage',metric_version:'2',success_rate:null},
+  ]}));
+  assert.match(html, /role="img" aria-label="Vertical bar chart of criteria coverage for 2 recent runs"/);
+  assert.match(html, /class="evaluation-run-chart-bar" style="height:100%"/);
+  assert.match(html, /class="evaluation-run-chart-bar" style="height:0%"/);
+  assert.match(html, /100%<\/span>[\s\S]*75%[\s\S]*50%[\s\S]*25%[\s\S]*0%/);
+  assert.doesNotMatch(html, /Legacy run/);
+  assert.doesNotMatch(html, /Missing coverage/);
+});
+
 test('verification does not approve unknown constraints or label missing drift optimal', async () => {
   const {default: View} = await loadComponent('./src/components/VerificationView.jsx');
   const html = renderToStaticMarkup(React.createElement(View, {verification:{
@@ -100,6 +127,7 @@ test('evaluation starts with the selected run and keeps benchmark controls out o
   assert.match(html, /aria-label="Evaluation sections"/);
   assert.match(html, /aria-pressed="true"[^>]*>This run/);
   assert.match(html, /Run history/);
+  assert.doesNotMatch(html, /aria-label="Vertical bar chart of criteria coverage/);
   assert.doesNotMatch(html, /Run deterministic studies/);
   assert.doesNotMatch(html, /Historical Run Benchmark Comparisons/);
 });

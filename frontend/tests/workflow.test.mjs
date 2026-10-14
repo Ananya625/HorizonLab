@@ -83,7 +83,7 @@ test('workflow UI renders zeros, unknowns, stale verification and evidence contr
     new Function('require', 'module', 'exports', output[0].code)(createRequire(import.meta.url), module, module.exports);
     const resource = { tool_calls: 0, model_calls: 0, duration_seconds: 0, output_tokens: null };
     const report = { version: 'workflow-v1', execution_mode: 'mixed_demo', evidence_status: 'partial', snapshot_sequence: 1,
-      summary: { action_attempts: 0, resources: resource, progress_rate: 0, verified_outcome: null }, coverage: {},
+      summary: { action_attempts: 0, resources: resource, progress_rate: 0, verified_sub_goals: 0, required_sub_goals: 1, verified_outcome: null }, coverage: { paired_outcomes: 0 },
       stagnation: { baseline: 'first_observation', actions: 0 }, sub_goals: [{ id: 's', title: 'A', status: 'stale', attempts: 1, incomplete_attempts: 0, revisits: 0, regressions: 0, resources: resource }],
       overhead: { recovery: resource, rework: resource, union: resource }, recovery: [], progress: [], limitations: [], calculation: {},
       saved_measurements: { source: 'Stored records only', recorded_model_requests: 2, latest_test: { reported_status: 'PASSED', passed: 3, total: 3, evidence_version: 'legacy', freshness: 'Not revalidated' } },
@@ -92,6 +92,9 @@ test('workflow UI renders zeros, unknowns, stale verification and evidence contr
     const html = renderToStaticMarkup(React.createElement(module.exports.WorkflowView, { state: { runId: 'r', report, history: [0], evidence: [], page: { events: [{ event_id: 'e1', sequence: 1, kind: 'action_start' }] } } }));
     assert.match(html, /Actual Workflow Analysis/); assert.match(html, /Unavailable/); assert.match(html, /0.0%/);
     assert.match(html, /stale/); assert.match(html, /heuristic/); assert.match(html, /Inspect event 1/);
+    assert.match(html, /Workflow visual summary/); assert.match(html, /Sub-goal verification/);
+    assert.match(html, /Evidence coverage/); assert.match(html, /Effort by sub-goal/);
+    assert.match(html, /aria-valuenow="0"/);
     assert.doesNotMatch(html, /Verified success/);
     assert.match(html, /Not revalidated/); assert.match(html, /Supply a trusted baseline/);
     assert.match(html, /Run verification to obtain a result/);

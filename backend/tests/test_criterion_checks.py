@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 import pytest
 from app.models.schema import GoalModel, SuccessCriterion, TestRunResult as RunResult
 from app.services.criterion_checks import evaluate, support
@@ -49,6 +50,52 @@ def test_large_files_unreadable_encoding_and_broad_claims_stay_unknown(tmp_path)
         method='ast_check' if metric.startswith('Bandit') else 'automated_test'
         verdict,evidence=evaluate(criterion(method,metric),str(tmp_path))
         assert verdict=='UNVERIFIED' and evidence
+
+
+@pytest.mark.parametrize(
+    ('returncode', 'expected_verdict'),
+    [(0, 'PASS'), (1, 'FAIL'), (2, 'UNVERIFIED'), (3, 'UNVERIFIED'), (5, 'UNVERIFIED')],
+)
+def test_workspace_test_suite_distinguishes_failures_from_incomplete_runs(
+    tmp_path, monkeypatch, returncode, expected_verdict
+):
+    from app.services import criterion_checks
+
+    (tmp_path / 'test_sample.py').write_text('def test_sample(): pass\n')
+    monkeypatch.setattr(
+        'subprocess.run',
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=returncode,
+            stdout='1 passed\n' if returncode == 0 else '1 error\n',
+            stderr='',
+        ),
+    )
+
+    verdict, _evidence = criterion_checks.evaluate(
+        criterion('automated_test', 'pytest new_tests == 100% PASS'), str(tmp_path)
+    )
+
+    assert verdict == expected_verdict
+
+
+def test_workspace_test_suite_timeout_remains_unverified(tmp_path, monkeypatch):
+    import subprocess
+
+    from app.services import criterion_checks
+
+    (tmp_path / 'test_sample.py').write_text('def test_sample(): pass\n')
+
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], timeout=20)
+
+    monkeypatch.setattr('subprocess.run', timeout)
+
+    verdict, evidence = criterion_checks.evaluate(
+        criterion('automated_test', 'pytest new_tests == 100% PASS'), str(tmp_path)
+    )
+
+    assert verdict == 'UNVERIFIED'
+    assert 'timed out' in evidence
 
 
 @pytest.mark.asyncio

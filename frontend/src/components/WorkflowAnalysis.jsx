@@ -14,6 +14,40 @@ const box = { padding: 16, marginTop: 12, overflowX: 'auto', lineHeight: 1.6 };
 
 const api = { report: fetchWorkflowReport, events: fetchWorkflowEvents, event: fetchWorkflowEvent };
 
+function WorkflowMeter({ label, value }) {
+  if (!Number.isFinite(value)) return <span className="workflow-meter-unavailable">Unavailable</span>;
+  const ratio = Math.max(0, Math.min(1, value));
+  const percentage = ratio * 100;
+  return <div className="workflow-meter" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}>
+    <span style={{ width: `${percentage}%` }} />
+  </div>;
+}
+
+function WorkflowProgressRing({ value, verified, required }) {
+  const hasProgress = Number.isFinite(value);
+  const ratio = hasProgress ? Math.max(0, Math.min(1, value)) : 0;
+  const radius = 30;
+  const circumference = 2 * Math.PI * radius;
+  return <div className="workflow-progress-ring" role={hasProgress ? 'img' : undefined}
+    aria-label={hasProgress ? `${show(verified)} of ${show(required)} sub-goals verified` : 'Verified sub-goal progress unavailable'}>
+    <svg viewBox="0 0 80 80" aria-hidden="true">
+      <circle className="workflow-progress-ring-track" cx="40" cy="40" r={radius} />
+      {hasProgress && <circle className="workflow-progress-ring-value" cx="40" cy="40" r={radius}
+        strokeDasharray={`${ratio * circumference} ${circumference}`} />}
+    </svg>
+    <div className="workflow-progress-ring-label">
+      <strong>{hasProgress ? `${Math.round(ratio * 100)}%` : '—'}</strong>
+      <span>verified</span>
+    </div>
+  </div>;
+}
+
+function SubGoalStatus({ status }) {
+  const label = status || 'unverified';
+  const knownStatuses = ['verified', 'failed', 'stale', 'unverified'];
+  return <span className={`workflow-status-chip ${knownStatuses.includes(label) ? `is-${label}` : ''}`}>{label}</span>;
+}
+
 
 
 export function WorkflowView({ state, onRefresh, onPage, onInspect, onExport }) {
@@ -25,6 +59,19 @@ export function WorkflowView({ state, onRefresh, onPage, onInspect, onExport }) 
   const summary = report?.summary;
 
   const findings = report?.findings || [];
+  const subGoals = report?.sub_goals || [];
+  const statusCounts = subGoals.reduce((counts, goal) => {
+    const status = ['verified', 'failed', 'stale'].includes(goal.status) ? goal.status : 'unverified';
+    counts[status] += 1;
+    return counts;
+  }, { verified: 0, failed: 0, stale: 0, unverified: 0 });
+  const maximumAttempts = Math.max(0, ...subGoals.map(goal => goal.attempts).filter(Number.isFinite));
+  const maximumToolCalls = Math.max(0, ...subGoals.map(goal => goal.resources?.tool_calls).filter(Number.isFinite));
+  const coverageMetrics = [
+    ['Paired outcomes', report?.coverage?.paired_outcomes],
+    ['State evidence', report?.coverage?.state_references],
+    ['Sub-goal mapping', report?.coverage?.sub_goal_mapping],
+  ];
 
   useEffect(() => setFindingPage(0), [report]);
 
@@ -47,6 +94,144 @@ export function WorkflowView({ state, onRefresh, onPage, onInspect, onExport }) 
       <p>Evidence: {report.evidence_status}. <span title="Detailed event data is available in the timeline below.">Only recorded actions are counted.</span></p>
 
       <p>{report.evidence_status === 'unavailable' ? 'This historical run has no structured action evidence. Missing actions and completion are not reconstructed from logs.' : 'Refresh to observe new activity. Unfinished actions remain incomplete.'}</p>
+
+      <section className="workflow-visual-overview" aria-label="Workflow visual summary">
+        <div className="workflow-overview-header">
+          <div>
+            <h3>Run at a glance</h3>
+            <p>Verified progress and observed execution activity for this workflow.</p>
+          </div>
+          <span className={`workflow-evidence-badge is-${report.evidence_status || 'unavailable'}`}>
+            {String(report.evidence_status || 'unavailable').replaceAll('_', ' ')} evidence
+          </span>
+        </div>
+
+        <div className="workflow-overview-grid">
+          <article className="workflow-progress-card">
+            <WorkflowProgressRing
+              value={summary.progress_rate}
+              verified={summary.verified_sub_goals}
+              required={summary.required_sub_goals}
+            />
+            <div>
+              <span className="workflow-visual-label">Verified sub-goals</span>
+              <strong className="workflow-progress-count">
+                {show(summary.verified_sub_goals)} <span>/ {show(summary.required_sub_goals)}</span>
+              </strong>
+              <span className="workflow-visual-caption">Freshly supported by verification evidence</span>
+            </div>
+          </article>
+
+          <article className="workflow-kpi-card">
+            <span className="workflow-visual-label">Action attempts</span>
+            <strong>{show(summary.action_attempts)}</strong>
+            <span className="workflow-visual-caption">{show(summary.incomplete_actions)} incomplete actions recorded</span>
+          </article>
+
+          <article className="workflow-kpi-card">
+            <span className="workflow-visual-label">Model calls</span>
+            <strong>{show(summary.model_calls)}</strong>
+            <span className="workflow-visual-caption">Observed wall time: {show(summary.wall_seconds)}s</span>
+          </article>
+
+          <article className="workflow-kpi-card workflow-kpi-rework">
+            <span className="workflow-visual-label">Repeated actions</span>
+            <strong>{show(summary.repeated_actions)}</strong>
+            {Number.isFinite(summary.action_attempts) && summary.action_attempts > 0 && Number.isFinite(summary.repeated_actions)
+              ? <WorkflowMeter label="Repeated actions as a share of action attempts" value={summary.repeated_actions / summary.action_attempts} />
+              : <span className="workflow-visual-caption">Share unavailable</span>}
+          </article>
+        </div>
+
+        <div className="workflow-chart-grid">
+          <article className="workflow-chart-card">
+            <div className="workflow-chart-heading">
+              <div>
+                <h4>Sub-goal verification</h4>
+                <p>Current evidence status for each required sub-goal.</p>
+              </div>
+              {subGoals.length > 0 && <span>{subGoals.length} total</span>}
+            </div>
+            {subGoals.length === 0 ? <p className="workflow-chart-empty">No explicit sub-goal evidence is available.</p> : <>
+              <div className="workflow-status-stack" role="img" aria-label={`${statusCounts.verified} verified, ${statusCounts.failed} failed, ${statusCounts.stale} stale, ${statusCounts.unverified} unverified sub-goals`}>
+                {[
+                  ['verified', '#16845B'],
+                  ['failed', '#D14343'],
+                  ['stale', '#D9A441'],
+                  ['unverified', '#CBD2E0'],
+                ].map(([status, color]) => statusCounts[status] > 0 && (
+                  <span key={status} style={{ width: `${(statusCounts[status] / subGoals.length) * 100}%`, background: color }} />
+                ))}
+              </div>
+              <div className="workflow-status-legend">
+                {[
+                  ['verified', 'Verified'],
+                  ['failed', 'Failed'],
+                  ['stale', 'Stale'],
+                  ['unverified', 'Unverified'],
+                ].filter(([status]) => statusCounts[status] > 0).map(([status, label]) => (
+                  <span key={status}><i className={`workflow-legend-dot is-${status}`} />{label} <strong>{statusCounts[status]}</strong></span>
+                ))}
+              </div>
+            </>}
+          </article>
+
+          <article className="workflow-chart-card">
+            <div className="workflow-chart-heading">
+              <div>
+                <h4>Evidence coverage</h4>
+                <p>How much of the observed work has supporting references.</p>
+              </div>
+            </div>
+            <div className="workflow-coverage-list">
+              {coverageMetrics.map(([label, value]) => (
+                <div key={label} className="workflow-coverage-row">
+                  <div><span>{label}</span><strong>{percent(value)}</strong></div>
+                  <WorkflowMeter label={label} value={value} />
+                </div>
+              ))}
+            </div>
+          </article>
+        </div>
+
+        {subGoals.length > 0 && (
+          <article className="workflow-chart-card workflow-effort-card">
+            <div className="workflow-chart-heading">
+              <div>
+                <h4>Effort by sub-goal</h4>
+                <p>Compare observed attempts and tool calls; each measure uses its own scale.</p>
+              </div>
+            </div>
+            <div className="workflow-effort-list">
+              {subGoals.map(goal => (
+                <div className="workflow-effort-row" key={goal.id}>
+                  <div className="workflow-effort-name">
+                    <span title={goal.title}>{goal.title || goal.id}</span>
+                    <SubGoalStatus status={goal.status} />
+                  </div>
+                  <div className="workflow-effort-metric">
+                    <span>Attempts <strong>{show(goal.attempts)}</strong></span>
+                    {maximumAttempts > 0 && Number.isFinite(goal.attempts) && (
+                      <div className="workflow-meter" role="img" aria-label={`${goal.attempts} attempts for ${goal.title || goal.id}, relative to the highest sub-goal`}>
+                        <span style={{ width: `${(goal.attempts / maximumAttempts) * 100}%` }} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="workflow-effort-metric is-tools">
+                    <span>Tool calls <strong>{show(goal.resources?.tool_calls)}</strong></span>
+                    {maximumToolCalls > 0 && Number.isFinite(goal.resources?.tool_calls) && (
+                      <div className="workflow-meter" role="img" aria-label={`${goal.resources.tool_calls} tool calls for ${goal.title || goal.id}, relative to the highest sub-goal`}>
+                        <span style={{ width: `${(goal.resources.tool_calls / maximumToolCalls) * 100}%` }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+        )}
+      </section>
+
       {report.saved_measurements && <details><summary>Available saved measurements</summary>
         <p>{report.saved_measurements.source}</p>
         <p>Recorded tool log entries: {show(report.saved_measurements.recorded_tool_log_entries)} · Recorded model requests: {show(report.saved_measurements.recorded_model_requests)} · Saved recovery episodes: {show(report.saved_measurements.recorded_recovery_episodes)}</p>
@@ -84,11 +269,11 @@ export function WorkflowView({ state, onRefresh, onPage, onInspect, onExport }) 
       <p>Stagnation since {report.stagnation.baseline.replaceAll('_', ' ')}: {show(report.stagnation.actions)} actions / {show(report.stagnation.seconds)} seconds. Preparation can be legitimate.</p>
 
       </details>
-      <details><summary>Sub-goals, attempts and revisits ({report.sub_goals.length})</summary>
+      <details><summary>Sub-goals, attempts and revisits ({subGoals.length})</summary>
 
-      {!report.sub_goals.length ? <p>No explicit sub-goal evidence is available.</p> : <table><thead><tr>{['Sub-goal', 'Reported status', 'Verification', 'Attempts', 'Revisits', 'Regressions', 'Calls (tool/model)', 'Seconds', 'Generated tokens'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>
+      {!subGoals.length ? <p>No explicit sub-goal evidence is available.</p> : <table><thead><tr>{['Sub-goal', 'Reported status', 'Verification', 'Attempts', 'Revisits', 'Regressions', 'Calls (tool/model)', 'Seconds', 'Generated tokens'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>
 
-        {report.sub_goals.map(g => <tr key={g.id}><td>{g.id}: {g.title}</td><td>{g.reported_status || 'Unavailable'}</td><td>{g.status}</td><td>{g.attempts} ({g.incomplete_attempts} incomplete)</td><td>{g.revisits}</td><td>{g.regressions}</td><td>{g.resources.tool_calls}/{g.resources.model_calls}</td><td>{show(g.resources.duration_seconds)}</td><td>{show(g.resources.output_tokens)}</td></tr>)}
+        {subGoals.map(g => <tr key={g.id}><td>{g.id}: {g.title}</td><td>{g.reported_status || 'Unavailable'}</td><td><SubGoalStatus status={g.status} /></td><td>{g.attempts} ({g.incomplete_attempts} incomplete)</td><td>{g.revisits}</td><td>{g.regressions}</td><td>{g.resources.tool_calls}/{g.resources.model_calls}</td><td>{show(g.resources.duration_seconds)}</td><td>{show(g.resources.output_tokens)}</td></tr>)}
 
       </tbody></table>}
 
@@ -182,4 +367,3 @@ export default function WorkflowAnalysis({ runId, refreshKey }) {
   return <WorkflowView state={visible} onRefresh={() => controller.select(runId)} onPage={controller.page} onInspect={controller.inspect} onExport={download} />;
 
 }
-

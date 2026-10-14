@@ -88,19 +88,19 @@ export default function WorkflowProgress({
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'completed': return { bg: '#ECFDF5', text: '#16845B', border: '#A7F3D0', dot: '#16845B' };
-      case 'active': return { bg: '#F0EEFF', text: '#6257D9', border: '#D8D2FB', dot: '#6257D9' };
-      case 'failed': return { bg: '#FEF2F2', text: '#D14343', border: '#FECACA', dot: '#D14343' };
-      case 'blocked': return { bg: '#FEF2F2', text: '#D14343', border: '#FECACA', dot: '#D14343' };
-      case 'attention': return { bg: '#FFFBEB', text: '#B7791F', border: '#FDE68A', dot: '#B7791F' };
-      case 'pending_review': return { bg: '#FFFBEB', text: '#B7791F', border: '#FDE68A', dot: '#B7791F' };
-      case 'skipped': return { bg: '#F1F4F9', text: '#667085', border: '#E2E8F0', dot: '#98A2B3' };
-      default: return { bg: '#FFFFFF', text: '#98A2B3', border: '#E5E7EF', dot: '#D0D5DD' };
+      case 'completed': return { bg: 'var(--success-subtle)', text: 'var(--success-color)', border: 'var(--success-border)', dot: 'var(--success-color)' };
+      case 'active': return { bg: 'var(--accent-primary-subtle)', text: 'var(--accent-primary)', border: 'var(--accent-primary-border)', dot: 'var(--accent-primary)' };
+      case 'failed':
+      case 'blocked': return { bg: 'var(--danger-subtle)', text: 'var(--danger-color)', border: 'var(--danger-border)', dot: 'var(--danger-color)' };
+      case 'attention':
+      case 'pending_review': return { bg: 'var(--warning-subtle)', text: 'var(--warning-color)', border: 'var(--warning-border)', dot: 'var(--warning-color)' };
+      case 'skipped': return { bg: 'var(--bg-card-subtle)', text: 'var(--text-secondary)', border: 'var(--border-subtle)', dot: 'var(--text-muted)' };
+      default: return { bg: 'var(--bg-card)', text: 'var(--text-muted)', border: 'var(--border-subtle)', dot: 'var(--text-dim)' };
     }
   };
 
   return (
-    <div className="card-panel" style={{
+    <div className="card-panel workflow-progress" style={{
       padding: '14px 20px',
       backgroundColor: '#FFFFFF',
       marginBottom: '16px',
@@ -136,10 +136,10 @@ export default function WorkflowProgress({
       </div>
 
       {/* Stepper track */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
+      <div className="workflow-progress-track" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         overflowX: 'auto',
         gap: '4px',
         padding: '2px 0'
@@ -149,37 +149,30 @@ export default function WorkflowProgress({
           const isTargetTab = activeTab === stage.id || (stage.id === 'recovery' && activeTab === 'testing');
           return (
             <React.Fragment key={stage.id}>
-              <div
+              <button
+                type="button"
+                className={`workflow-progress-step${isTargetTab ? ' is-current' : ''}`}
+                data-status={stage.status}
+                aria-current={isTargetTab ? 'step' : undefined}
+                aria-label={`${stage.name}: ${stage.label}. Open stage`}
                 onClick={() => onNavigateTab && onNavigateTab(stage.id === 'recovery' ? 'testing' : stage.id)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  backgroundColor: isTargetTab ? 'var(--accent-primary-subtle, #F0EEFF)' : c.bg,
-                  border: `1px solid ${isTargetTab ? 'var(--accent-primary, #6257D9)' : c.border}`,
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease'
+                  '--step-bg': isTargetTab ? 'var(--accent-primary-subtle)' : c.bg,
+                  '--step-border': isTargetTab ? 'var(--accent-primary-border)' : c.border,
+                  '--step-text': isTargetTab ? 'var(--accent-primary)' : 'var(--text-primary)',
+                  '--step-status': c.text,
+                  '--step-dot': c.dot
                 }}
               >
-                <span style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: c.dot
-                }} />
-                <span style={{ fontSize: '0.775rem', fontWeight: 600, color: isTargetTab ? '#6257D9' : '#172033' }}>
+                <span className="workflow-progress-dot" />
+                <span className="workflow-progress-name">
                   {stage.name}
                 </span>
-                <span style={{ fontSize: '0.675rem', color: c.text, fontWeight: 500 }}>
-                  ({stage.label})
-                </span>
-              </div>
+                <span className="workflow-progress-label">{stage.label}</span>
+              </button>
 
               {idx < stages.length - 1 && (
-                <div style={{ color: '#CBD2E0', flexShrink: 0 }}>
+                <div className="workflow-progress-connector">
                   <ArrowRight size={12} />
                 </div>
               )}

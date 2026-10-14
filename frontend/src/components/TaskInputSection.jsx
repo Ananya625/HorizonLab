@@ -13,7 +13,13 @@ import {
   Layers,
   Shield,
   FileCode,
-  Box
+  Box,
+  GitBranch,
+  ListChecks,
+  Bot,
+  ShieldCheck,
+  Bug,
+  KeyRound
 } from 'lucide-react';
 import { inspectWorkspace, fetchSampleRepos } from '../services/api';
 
@@ -31,13 +37,14 @@ export default function TaskInputSection({
   repoPath,
   setRepoPath,
   maxRecoveryRetries,
-  setMaxRecoveryRetries
+  setMaxRecoveryRetries,
+  goalModel
 }) {
   const [sampleRepos, setSampleRepos] = useState([]);
   const [repoInspection, setRepoInspection] = useState(null);
   const [inspectingRepo, setInspectingRepo] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState(null);
-  const [isExamplesOpen, setIsExamplesOpen] = useState(false);
+  const [isExamplesOpen, setIsExamplesOpen] = useState(true);
 
   // Load sample repositories
   useEffect(() => {
@@ -67,11 +74,27 @@ export default function TaskInputSection({
     setTaskPrompt(preset.prompt);
   };
 
+  const subGoals = goalModel?.sub_goals || [];
+  const languageLabel = {
+    auto: 'Auto detect',
+    en: 'English',
+    py: 'Python',
+    ts: 'TypeScript'
+  }[selectedLanguage] || selectedLanguage || 'Auto detect';
+  const getPresetIcon = (category = '') => {
+    const normalizedCategory = category.toLowerCase();
+    if (normalizedCategory.includes('security') || normalizedCategory.includes('auth')) return ShieldCheck;
+    if (normalizedCategory.includes('debug') || normalizedCategory.includes('concurrency')) return Bug;
+    if (normalizedCategory.includes('refactor') || normalizedCategory.includes('architecture')) return GitBranch;
+    if (normalizedCategory.includes('api')) return KeyRound;
+    return FileCode;
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="workspace-view" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
       
       {/* 1. Main Task Input: Primary Visual Focus */}
-      <section className="card-panel" style={{ padding: '24px 28px', backgroundColor: '#FFFFFF' }}>
+      <section className="card-panel workspace-composer" style={{ padding: '24px 28px', backgroundColor: '#FFFFFF' }}>
         <div style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span className="badge badge-purple">Stage 1: Workspace</span>
@@ -107,8 +130,8 @@ export default function TaskInputSection({
               <Terminal size={15} color="var(--accent-primary, #6257D9)" />
               <span>Task Specification Prompt</span>
             </label>
-            <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)', fontFamily: 'var(--font-mono)' }}>
-              {taskPrompt.length} characters
+            <span className="workspace-prompt-count" aria-live="polite">
+              {taskPrompt.length.toLocaleString()} characters
             </span>
           </div>
 
@@ -119,8 +142,10 @@ export default function TaskInputSection({
               setTaskPrompt(e.target.value);
               setSelectedPresetId(null);
             }}
-            placeholder="e.g. Build a login API with JWT authentication using FastAPI. Implement user registration with password hashing, login endpoint returning JWT bearer token, protected route GET /api/auth/me, invalid credentials rejection (HTTP 401), and automated pytest suite..."
+            placeholder="Describe your goal. HorizonLab will break it into actionable subgoals."
             rows={6}
+            className="workspace-prompt-editor"
+            aria-describedby="goal-breakdown-caption"
             style={{
               width: '100%',
               backgroundColor: '#FFFFFF',
@@ -138,8 +163,73 @@ export default function TaskInputSection({
           />
         </div>
 
+        <section className="goal-breakdown-panel" aria-labelledby="goal-breakdown-title">
+          <div className="goal-breakdown-heading">
+            <div>
+              <span className="workspace-section-eyebrow">How HorizonLab works</span>
+              <h3 id="goal-breakdown-title">Goal Breakdown</h3>
+            </div>
+            {subGoals.length > 0 && (
+              <span className="goal-breakdown-count">
+                {subGoals.length} actual subgoal{subGoals.length === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+          <div className="goal-breakdown-flow" role="list" aria-label="Task execution workflow">
+            <div className="goal-flow-step" role="listitem">
+              <span className="goal-flow-icon"><Terminal size={15} /></span>
+              <span><strong>Goal</strong><small>Task brief</small></span>
+            </div>
+            <ArrowRight className="goal-flow-arrow" size={15} aria-hidden="true" />
+            <div className="goal-flow-step goal-flow-subgoals" role="listitem">
+              <span className="goal-flow-icon"><ListChecks size={15} /></span>
+              <span><strong>Subgoals</strong><small>{subGoals.length ? `${subGoals.length} from requirements` : 'Created from requirements'}</small></span>
+            </div>
+            <ArrowRight className="goal-flow-arrow" size={15} aria-hidden="true" />
+            <div className="goal-flow-step" role="listitem">
+              <span className="goal-flow-icon"><Bot size={15} /></span>
+              <span><strong>Agent execution</strong><small>Plan and implement</small></span>
+            </div>
+            <ArrowRight className="goal-flow-arrow" size={15} aria-hidden="true" />
+            <div className="goal-flow-step" role="listitem">
+              <span className="goal-flow-icon"><ShieldCheck size={15} /></span>
+              <span><strong>Verification</strong><small>Evidence-backed checks</small></span>
+            </div>
+          </div>
+          <div id="goal-breakdown-caption" className="goal-breakdown-detail">
+            {subGoals.length > 0 ? (
+              <ul aria-label="Requirements-derived subgoals">
+                {subGoals.map((subGoal) => (
+                  <li key={subGoal.id}>
+                    <span className={`goal-subgoal-status goal-status-${subGoal.status || 'pending'}`} aria-hidden="true" />
+                    <span className="goal-subgoal-copy">
+                      <strong>{subGoal.title}</strong>
+                      <small>{subGoal.assigned_agent_role || 'Agent assignment pending'} · {subGoal.status || 'pending'}</small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>
+                Subgoals appear here after requirements are analyzed. No execution steps or results are assumed in advance.
+              </p>
+            )}
+          </div>
+        </section>
+
         {/* Workspace Mode & Execution Parameters */}
-        <div style={{ 
+        <details className="workspace-settings">
+          <summary className="workspace-settings-summary">
+            <span className="workspace-settings-title">
+              <FolderGit2 size={16} />
+              <span>
+                <strong>Execution Settings</strong>
+                <small>{repoPath ? `Workspace: ${repoPath}` : 'Clean isolated sandbox'} · {languageLabel} · {maxRecoveryRetries ?? 3} recovery retries</small>
+              </span>
+            </span>
+            <span className="workspace-settings-action"><span>Configure</span><ChevronDown size={16} /></span>
+          </summary>
+          <div className="workspace-settings-content" style={{
           background: 'var(--bg-page, #F6F7FB)', 
           border: '1px solid var(--border-subtle, #E5E7EF)', 
           borderRadius: '8px', 
@@ -165,6 +255,8 @@ export default function TaskInputSection({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
               <button
                 type="button"
+                className="workspace-mode-option"
+                aria-pressed={!repoPath}
                 onClick={() => setRepoPath('')}
                 style={{
                   background: !repoPath ? 'var(--accent-primary, #6257D9)' : '#FFFFFF',
@@ -189,6 +281,8 @@ export default function TaskInputSection({
                 <button
                   key={sr.id}
                   type="button"
+                  className="workspace-mode-option"
+                  aria-pressed={repoPath === sr.path}
                   onClick={() => setRepoPath(sr.path)}
                   style={{
                     background: repoPath === sr.path ? 'var(--accent-primary-subtle, #F0EEFF)' : '#FFFFFF',
@@ -291,13 +385,14 @@ export default function TaskInputSection({
               </select>
             </div>
           </div>
-        </div>
+          </div>
+        </details>
 
         {/* Primary Execution Buttons Row */}
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary workspace-run-button"
             onClick={onRunFullPipeline}
             disabled={loading || !taskPrompt.trim()}
             style={{ 
@@ -400,14 +495,16 @@ export default function TaskInputSection({
       )}
 
       {/* 3. Collapsible Example Tasks Section (Moved BELOW main task prompt) */}
-      <section className="card-panel" style={{ padding: '18px 24px', backgroundColor: '#FFFFFF' }}>
-        <div 
+      <section className="card-panel quick-start-missions" style={{ padding: '18px 24px', backgroundColor: '#FFFFFF' }}>
+        <button
+          type="button"
+          aria-expanded={isExamplesOpen}
+          className="quick-start-toggle"
           onClick={() => setIsExamplesOpen(!isExamplesOpen)}
           style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center', 
-            cursor: 'pointer',
             userSelect: 'none'
           }}
         >
@@ -420,10 +517,10 @@ export default function TaskInputSection({
               color: 'var(--text-primary, #172033)',
               margin: 0
             }}>
-              Example Tasks
+              Quick Start Missions
             </h3>
             <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)' }}>
-              ({presets.length} curated engineering presets available)
+              ({presets.length} curated engineering presets)
             </span>
           </div>
 
@@ -431,7 +528,7 @@ export default function TaskInputSection({
             <span>{isExamplesOpen ? 'Collapse presets' : 'Explore presets'}</span>
             {isExamplesOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </div>
-        </div>
+        </button>
 
         {isExamplesOpen && (
           <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -439,16 +536,20 @@ export default function TaskInputSection({
               Click any preset below to pre-fill the task prompt without triggering execution.
             </p>
 
-            <div style={{
+            <div className="quick-start-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
               gap: '12px'
             }}>
               {presets.map((p) => {
                 const isSelected = selectedPresetId === p.id;
+                const PresetIcon = getPresetIcon(p.category);
                 return (
-                  <div
+                  <button
                     key={p.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    className="mission-card"
                     onClick={() => handleSelectPreset(p)}
                     style={{
                       padding: '12px 14px',
@@ -457,14 +558,17 @@ export default function TaskInputSection({
                       border: `1px solid ${isSelected ? 'var(--accent-primary, #6257D9)' : 'var(--border-subtle, #E5E7EF)'}`,
                       backgroundColor: isSelected ? 'var(--accent-primary-subtle, #F0EEFF)' : '#FFFFFF',
                       transition: 'all 0.15s ease',
-                      boxShadow: isSelected ? '0 2px 6px rgba(98, 87, 217, 0.15)' : 'none'
+                      boxShadow: isSelected ? '0 2px 6px rgba(98, 87, 217, 0.15)' : 'none',
+                      textAlign: 'left',
+                      font: 'inherit'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div className="mission-card-top">
+                      <span className="mission-card-icon"><PresetIcon size={17} /></span>
                       <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>
                         {p.category}
                       </span>
-                      {isSelected && <CheckCircle size={14} color="var(--accent-primary, #6257D9)" />}
+                      {isSelected && <CheckCircle size={15} color="var(--accent-primary, #6257D9)" aria-label="Selected" />}
                     </div>
                     <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '4px' }}>
                       {p.title}
@@ -472,7 +576,7 @@ export default function TaskInputSection({
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.4', margin: 0 }}>
                       {p.description}
                     </p>
-                  </div>
+                  </button>
                 );
               })}
             </div>

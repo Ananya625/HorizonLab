@@ -766,27 +766,39 @@ export default function GoalModelView({
 
       {/* Tab 4: Expected Output */}
       {activeSubTab === 'output' && (
-        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '12px' }}>
-            Expected Delivery Format & Target
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
-            <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-subtle, #E5E7EF)' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                Format
-              </span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-primary, #6257D9)' }}>
-                {expectedOutput.format || 'Application Files'}
-              </span>
+        <section className="card-panel expected-output-panel">
+          <div className="expected-output-header">
+            <div className="expected-output-heading">
+              <span className="expected-output-heading-icon"><FileCheck size={16} /></span>
+              <div>
+                <h3>Expected Delivery Format &amp; Target</h3>
+                <p>What HorizonLab will produce and where it will be delivered.</p>
+              </div>
             </div>
-            <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-subtle, #E5E7EF)' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                Delivery Target
-              </span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)' }}>
-                {expectedOutput.delivery_target || 'Workspace Filesystem'}
-              </span>
+            <span className="expected-output-badge">DELIVERY CONTRACT</span>
+          </div>
+          <div className="expected-output-flow">
+            <article className="expected-output-card expected-output-format">
+              <span className="expected-output-card-icon"><FileCode size={18} /></span>
+              <div className="expected-output-card-content">
+                <span className="expected-output-label">Output format</span>
+                <strong>{expectedOutput.format || 'Application Files'}</strong>
+                <span className="expected-output-hint">The deliverable structure</span>
+              </div>
+            </article>
+            <div className="expected-output-connector" aria-hidden="true">
+              <span />
+              <ChevronRight size={16} />
+              <span />
             </div>
+            <article className="expected-output-card expected-output-target">
+              <span className="expected-output-card-icon"><Target size={18} /></span>
+              <div className="expected-output-card-content">
+                <span className="expected-output-label">Delivery target</span>
+                <strong>{expectedOutput.delivery_target || 'Workspace Filesystem'}</strong>
+                <span className="expected-output-hint">Where the result will land</span>
+              </div>
+            </article>
           </div>
         </section>
       )}

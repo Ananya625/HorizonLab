@@ -93,6 +93,16 @@ export default function ExecutionControlRoom({
     return true;
   });
 
+  const agentActivity = [...filteredLogs.reduce((activity, log) => {
+    const name = log.agent_role || log.stage || 'Unattributed';
+    const current = activity.get(name) || { name, eventCount: 0, attentionCount: 0, latestEvent: null };
+    current.eventCount += 1;
+    if (log.event_type === 'error' || log.event_type === 'warning') current.attentionCount += 1;
+    current.latestEvent = log;
+    activity.set(name, current);
+    return activity;
+  }, new Map()).values()];
+
   return (
     <div style={{
       position: 'fixed',
@@ -217,7 +227,7 @@ export default function ExecutionControlRoom({
       {/* Expanded Logs Body */}
       {isOpen && (
         <div style={{
-          maxHeight: '210px',
+          maxHeight: '300px',
           overflowY: 'auto',
           padding: '10px 20px',
           backgroundColor: '#F8F9FC',
@@ -278,6 +288,45 @@ export default function ExecutionControlRoom({
                 Reject
               </button>
             </div>
+          )}
+
+          {agentActivity.length > 0 && (
+            <section className="observed-agent-activity" aria-label="Observed agent activity from execution logs">
+              <div className="observed-agent-heading">
+                <div>
+                  <strong>Observed agent activity</strong>
+                  <span>From {filteredLogs.length} matching recorded event{filteredLogs.length === 1 ? '' : 's'}</span>
+                </div>
+                <span className="observed-agent-count">{agentActivity.length} observed</span>
+              </div>
+              <div className="observed-agent-track">
+                {agentActivity.map((agent) => {
+                  const latestType = agent.latestEvent?.event_type || 'event';
+                  const tone = agent.attentionCount > 0
+                    ? 'attention'
+                    : latestType === 'success'
+                      ? 'success'
+                      : 'neutral';
+                  return (
+                    <article className={`observed-agent-card is-${tone}`} key={agent.name}>
+                      <div className="observed-agent-card-top">
+                        <span className="observed-agent-icon"><Cpu size={14} /></span>
+                        <span className={`observed-agent-status is-${tone}`}>
+                          {agent.attentionCount > 0 ? `${agent.attentionCount} attention` : latestType}
+                        </span>
+                      </div>
+                      <strong className="observed-agent-name">{agent.name}</strong>
+                      <span className="observed-agent-events">{agent.eventCount} recorded event{agent.eventCount === 1 ? '' : 's'}</span>
+                      {agent.latestEvent?.message && (
+                        <span className="observed-agent-latest" title={agent.latestEvent.message}>
+                          {agent.latestEvent.message}
+                        </span>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
           )}
 
           {filteredLogs.length > 0 ? (
