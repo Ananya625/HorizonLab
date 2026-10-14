@@ -34,8 +34,8 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
       left: 0,
       width: '100vw',
       height: '100vh',
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(6px)',
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+      backdropFilter: 'blur(4px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -45,8 +45,9 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
         width: '560px',
         maxWidth: '92vw',
         padding: '24px',
-        backgroundColor: '#111827',
-        border: '1px solid #1f293d',
+        backgroundColor: '#FFFFFF',
+        border: '1px solid #E5E7EF',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         position: 'relative'
       }}>
         <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ position: 'absolute', top: '16px', right: '16px', padding: '4px' }}>
@@ -58,19 +59,19 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
             width: '32px',
             height: '32px',
             borderRadius: '6px',
-            background: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
+            background: 'rgba(22, 132, 91, 0.1)',
+            border: '1px solid rgba(22, 132, 91, 0.25)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <CheckCircle2 size={18} color="#10b981" />
+            <CheckCircle2 size={18} color="#16845B" />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#172033' }}>
               {isNew ? 'Add Success Criterion' : `Edit Success Criterion (${id})`}
             </h3>
-            <p style={{ fontSize: '0.775rem', color: '#94a3b8' }}>
+            <p style={{ fontSize: '0.775rem', color: '#667085' }}>
               Define measurable checks to be independently verified during task execution
             </p>
           </div>
@@ -79,7 +80,7 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Criterion ID</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Criterion ID</label>
               <input 
                 type="text" 
                 value={id} 
@@ -89,27 +90,27 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#0c121d',
-                  border: '1px solid #24344d',
+                  backgroundColor: isNew ? '#FFFFFF' : '#F6F7FB',
+                  border: '1px solid #E5E7EF',
                   borderRadius: '6px',
-                  color: '#f8fafc',
+                  color: '#172033',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Mapped Sub-Goal</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Mapped Sub-Goal</label>
               <select
                 value={subGoalId}
                 onChange={(e) => setSubGoalId(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#0c121d',
-                  border: '1px solid #24344d',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E7EF',
                   borderRadius: '6px',
-                  color: '#f8fafc',
+                  color: '#172033',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
@@ -125,7 +126,7 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Description</label>
+            <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Description</label>
             <input 
               type="text" 
               value={description} 
@@ -135,10 +136,10 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
               style={{
                 width: '100%',
                 padding: '8px 12px',
-                backgroundColor: '#0c121d',
-                border: '1px solid #24344d',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #E5E7EF',
                 borderRadius: '6px',
-                color: '#f8fafc',
+                color: '#172033',
                 fontSize: '0.85rem',
                 outline: 'none'
               }}
@@ -147,7 +148,7 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Measurable Metric / Expression</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Measurable Metric / Expression</label>
               <input 
                 type="text" 
                 value={metric} 
@@ -158,27 +159,27 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#0c121d',
-                  border: '1px solid #24344d',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E7EF',
                   borderRadius: '6px',
-                  color: '#38bdf8',
+                  color: '#6257D9',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Verification Method</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Verification Method</label>
               <select
                 value={verificationMethod}
                 onChange={(e) => setVerificationMethod(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#0c121d',
-                  border: '1px solid #24344d',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E7EF',
                   borderRadius: '6px',
-                  color: '#f8fafc',
+                  color: '#172033',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
@@ -192,7 +193,7 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Expected Output / Evidence Artifact</label>
+            <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Expected Output / Evidence Artifact</label>
             <input 
               type="text" 
               value={expectedOutput} 
@@ -201,10 +202,10 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
               style={{
                 width: '100%',
                 padding: '8px 12px',
-                backgroundColor: '#0c121d',
-                border: '1px solid #24344d',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #E5E7EF',
                 borderRadius: '6px',
-                color: '#f8fafc',
+                color: '#172033',
                 fontSize: '0.85rem',
                 outline: 'none'
               }}
@@ -215,7 +216,7 @@ export function EditCriterionModal({ isOpen, onClose, criterion, subGoals = [], 
             <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancel
             </button>
-            <button type="submit" className="btn btn-emerald">
+            <button type="submit" className="btn btn-primary">
               <CheckCircle2 size={14} />
               <span>{isNew ? 'Add Criterion' : 'Save Criterion'}</span>
             </button>
@@ -256,8 +257,8 @@ export function EditConstraintModal({ isOpen, onClose, constraint, isHardDefault
       left: 0,
       width: '100vw',
       height: '100vh',
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(6px)',
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+      backdropFilter: 'blur(4px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -267,8 +268,9 @@ export function EditConstraintModal({ isOpen, onClose, constraint, isHardDefault
         width: '520px',
         maxWidth: '92vw',
         padding: '24px',
-        backgroundColor: '#111827',
-        border: '1px solid #1f293d',
+        backgroundColor: '#FFFFFF',
+        border: '1px solid #E5E7EF',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         position: 'relative'
       }}>
         <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ position: 'absolute', top: '16px', right: '16px', padding: '4px' }}>
@@ -280,19 +282,19 @@ export function EditConstraintModal({ isOpen, onClose, constraint, isHardDefault
             width: '32px',
             height: '32px',
             borderRadius: '6px',
-            background: isHard ? 'rgba(244, 63, 94, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-            border: `1px solid ${isHard ? 'rgba(244, 63, 94, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+            background: isHard ? 'rgba(209, 67, 67, 0.1)' : 'rgba(183, 121, 31, 0.1)',
+            border: `1px solid ${isHard ? 'rgba(209, 67, 67, 0.25)' : 'rgba(183, 121, 31, 0.25)'}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <ShieldAlert size={18} color={isHard ? '#f43f5e' : '#f59e0b'} />
+            <ShieldAlert size={18} color={isHard ? '#D14343' : '#B7791F'} />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#172033' }}>
               {isNew ? (isHard ? 'Add Hard Constraint' : 'Add Soft Constraint') : `Edit Constraint (${id})`}
             </h3>
-            <p style={{ fontSize: '0.775rem', color: '#94a3b8' }}>
+            <p style={{ fontSize: '0.775rem', color: '#667085' }}>
               {isHard 
                 ? 'Hard constraints are immutable invariant boundaries that must NEVER be violated' 
                 : 'Soft constraints express heuristics, preferences, and style guidelines'}
@@ -303,7 +305,7 @@ export function EditConstraintModal({ isOpen, onClose, constraint, isHardDefault
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Constraint Type</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Constraint Type</label>
               <select
                 value={isHard ? 'hard' : 'soft'}
                 onChange={(e) => {
@@ -316,10 +318,10 @@ export function EditConstraintModal({ isOpen, onClose, constraint, isHardDefault
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#0c121d',
-                  border: '1px solid #24344d',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E7EF',
                   borderRadius: '6px',
-                  color: isHard ? '#fb7185' : '#fbbf24',
+                  color: isHard ? '#D14343' : '#B7791F',
                   fontSize: '0.825rem',
                   fontWeight: 600,
                   outline: 'none'
@@ -330,17 +332,17 @@ export function EditConstraintModal({ isOpen, onClose, constraint, isHardDefault
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Category</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Category</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#0c121d',
-                  border: '1px solid #24344d',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E7EF',
                   borderRadius: '6px',
-                  color: '#f8fafc',
+                  color: '#172033',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
@@ -358,7 +360,7 @@ export function EditConstraintModal({ isOpen, onClose, constraint, isHardDefault
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Constraint Rule Text</label>
+            <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Constraint Rule Text</label>
             <textarea 
               value={text} 
               onChange={(e) => setText(e.target.value)}
@@ -368,10 +370,10 @@ export function EditConstraintModal({ isOpen, onClose, constraint, isHardDefault
               style={{
                 width: '100%',
                 padding: '8px 12px',
-                backgroundColor: '#0c121d',
-                border: '1px solid #24344d',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #E5E7EF',
                 borderRadius: '6px',
-                color: '#f8fafc',
+                color: '#172033',
                 fontSize: '0.85rem',
                 outline: 'none',
                 resize: 'vertical'

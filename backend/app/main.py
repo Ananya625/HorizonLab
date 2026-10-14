@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
 
 app = FastAPI(
-    title="AgentEval-X API",
+    title="HorizonLab API",
     description="Evaluation, Goal Governance, Memory-Aware Recovery & Benchmarking Platform for Long-Horizon AI Agents",
     version="1.0.0"
 )
@@ -22,7 +22,7 @@ app.include_router(router, prefix="/api")
 @app.get("/")
 def root():
     return {
-        "platform": "AgentEval-X",
+        "platform": "HorizonLab",
         "description": "Closed-loop evaluation, goal governance, memory-aware recovery & benchmarking platform",
         "docs": "/docs",
         "status": "online"

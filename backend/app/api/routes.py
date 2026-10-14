@@ -30,6 +30,7 @@ from ..services.orchestrator_service import orchestrator_service
 from ..services.goal_tracker_service import goal_tracker_service
 from ..services.drift_controller_service import drift_controller_service
 from ..services.db import db_service
+from ..services.feature_analytics_service import validate_model_name
 
 router = APIRouter()
 
@@ -228,8 +229,13 @@ async def execute_coding(req: ExecuteCodeRequest):
         if not record:
             raise ValueError('Unknown run')
         config = record.metadata.get('config', {})
-        changes = await coder_service.execute_plan(run_id=req.run_id,
-            model_name=config.get('model_name'), temperature=config.get('temperature', 0.2))
+        effective_model = req.model_name or config.get('model_name')
+        effective_temp = req.temperature if req.temperature is not None else config.get('temperature', 0.2)
+        changes = await coder_service.execute_plan(
+            run_id=req.run_id,
+            model_name=effective_model,
+            temperature=effective_temp
+        )
         return {"run_id": req.run_id, "changes_count": len(changes), "changes": changes}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -250,9 +256,11 @@ async def execute_testing(req: ExecuteTestsRequest):
         record = db_service.get_run_record(req.run_id)
         if not record:
             raise ValueError('Unknown run')
+        config = record.metadata.get('config', {}) if hasattr(record, 'metadata') and record.metadata else {}
+        effective_model = req.model_name or config.get('model_name')
         result = await debugger_service.run_testing_and_recovery_loop(
             run_id=req.run_id,
-            model_name=record.metadata.get('config', {}).get('model_name'),
+            model_name=effective_model,
             max_recovery_retries=req.max_recovery_retries if req.max_recovery_retries is not None else 3
         )
         return result
@@ -293,6 +301,8 @@ async def get_verification(run_id: str):
 @router.post("/pipeline/run-all", response_model=RunRecord)
 async def run_pipeline(req: RunPipelineRequest):
     try:
+        if req.model_name is not None:
+            validate_model_name(req.model_name)
         record = await orchestrator_service.run_full_pipeline(
             request_text=req.request_text,
             repo_path=req.repo_path,

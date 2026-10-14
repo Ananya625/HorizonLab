@@ -44,13 +44,16 @@ def check_addition(source):
         body = list(tree.body)
         if body and _docstring(body[0]):
             body.pop(0)
-        if len(body) != 1 or not isinstance(body[0], ast.FunctionDef) or body[0].name != 'add':
-            raise Unsupported('Expected one standalone add(a, b) function without imports or module-level effects')
+        if (len(body) != 1 or not isinstance(body[0], ast.FunctionDef)
+                or not (body[0].name in ('add', 'add_numbers', 'sum_numbers', 'sum_two_numbers')
+                        or body[0].name.startswith(('add_', 'sum_')))):
+            raise Unsupported('Expected one standalone addition function without imports or module-level effects')
         fn = body[0]
         args = fn.args
         if (fn.decorator_list or getattr(fn, 'type_params', []) or args.posonlyargs or args.kwonlyargs
-                or args.defaults or args.vararg or args.kwarg or [a.arg for a in args.args] != ['a', 'b']):
-            raise Unsupported('Expected an undecorated add(a, b) interface without defaults')
+                or args.defaults or args.vararg or args.kwarg or len(args.args) != 2):
+            raise Unsupported('Expected an undecorated addition interface with two positional parameters and without defaults')
+        arg_names = [a.arg for a in args.args]
         for annotation in [fn.returns, *(a.annotation for a in args.args)]:
             if annotation is not None and not (isinstance(annotation, ast.Name) and annotation.id in ('int', 'float')):
                 raise Unsupported('Only simple int/float annotations are supported')
@@ -65,7 +68,7 @@ def check_addition(source):
                 raise Unsupported('Only local numeric assignments followed by return are supported')
         passed = 0
         for a, b, expected in CASES:
-            values = {'a': a, 'b': b}
+            values = {arg_names[0]: a, arg_names[1]: b}
             for statement in statements[:-1]:
                 values[statement.targets[0].id] = _expression(statement.value, values)
             actual = _expression(statements[-1].value, values)

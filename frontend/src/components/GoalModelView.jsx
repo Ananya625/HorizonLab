@@ -12,14 +12,12 @@ import {
   ArrowDown, 
   Save, 
   Code, 
-  Eye, 
   HelpCircle,
-  Clock,
   Sparkles,
   ChevronRight,
   Shield,
-  Zap,
-  Info
+  FileCode,
+  AlertTriangle
 } from 'lucide-react';
 import EditSubGoalModal from './EditSubGoalModal';
 import { EditCriterionModal, EditConstraintModal } from './EditConstraintModal';
@@ -83,7 +81,6 @@ export default function GoalModelView({
 
   const handleDeleteSubGoal = (id) => {
     setSubGoals(subGoals.filter((s) => s.id !== id));
-    // Also remove orphaned criteria
     setCriteria(criteria.filter((c) => c.sub_goal_id !== id));
   };
 
@@ -94,7 +91,6 @@ export default function GoalModelView({
     const temp = updated[idx];
     updated[idx] = updated[newIdx];
     updated[newIdx] = temp;
-    // Reassign order
     updated.forEach((sg, i) => { sg.order = i + 1; });
     setSubGoals(updated);
   };
@@ -146,9 +142,9 @@ export default function GoalModelView({
     }
   };
 
-  // Save patch to backend
+  // Trigger Save Patch to backend
   const handleTriggerSavePatch = () => {
-    onSavePatch({
+    const payload = {
       run_id: goalModel.run_id,
       main_goal: mainGoal,
       summary: summary,
@@ -157,87 +153,100 @@ export default function GoalModelView({
       hard_constraints: hardConstraints,
       soft_constraints: softConstraints,
       expected_output: expectedOutput,
-      change_summary: changeNote.trim() || `User updated Goal Model elements`
-    });
+      change_summary: changeNote.trim() || 'Manual revision of goal model'
+    };
+    onSavePatch(payload);
     setChangeNote('');
   };
 
-  const unresolvedBlockingCount = (goalModel?.ambiguities || []).filter(a => a.severity === 'blocking' && !a.resolved).length;
+  const unresolvedBlockingCount = (goalModel?.ambiguities || []).filter(
+    (a) => a.severity === 'blocking' && !a.resolved
+  ).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Top Telemetry & Main Goal Card */}
-      <div className="card-panel" style={{ padding: '24px', position: 'relative' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '8px',
-              background: 'rgba(56, 189, 248, 0.1)',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+      {/* Top Banner & Primary Navigation */}
+      <section className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+          marginBottom: '16px'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span className="badge badge-purple">Stage 2: Requirements Analysis</span>
+              <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>
+                v{goalModel?.version || '1.0'}
+              </span>
+              <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)' }}>
+                {goalModel?.is_confirmed ? '✓ Confirmed by Engineer' : 'Pending Formal Confirmation'}
+              </span>
+            </div>
+            <h2 style={{ 
+              fontSize: '1.35rem', 
+              fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', 
+              fontWeight: 700, 
+              color: 'var(--text-primary, #172033)' 
             }}>
-              <Target size={20} color="#38bdf8" />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="badge badge-cyan">State 2: Goal Model</span>
-                <span className="font-mono" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{goalModel?.task_id}</span>
-                <span className="badge badge-purple">Version {goalModel?.goal_model_version}</span>
-              </div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
-                Governed Goal Specification
-              </h2>
-            </div>
+              Interpreted Requirements & Goal Model
+            </h2>
           </div>
 
-          {onProceedToConfirmation && (
-            <button className="btn btn-primary" disabled={isSaving}
-              onClick={unresolvedBlockingCount > 0 ? onNavigateToClarifications : onProceedToConfirmation}>
-              {unresolvedBlockingCount > 0 ? 'Resolve questions to continue' : 'Review and confirm requirements'}
-              <ChevronRight size={14} />
-            </button>
-          )}
-          {/* Ambiguity Alert button */}
-          {goalModel?.ambiguities && goalModel.ambiguities.length > 0 && (
-            <button 
-              onClick={onNavigateToClarifications}
-              className={`btn btn-sm ${unresolvedBlockingCount > 0 ? 'btn-danger' : 'btn-secondary'}`}
-              style={{ padding: '6px 12px' }}
-            >
-              <HelpCircle size={14} />
-              <span>
-                {unresolvedBlockingCount > 0 
-                  ? `${unresolvedBlockingCount} Blocking Clarifications Required` 
-                  : `${goalModel.ambiguities.length} Clarifications Answered`}
-              </span>
-              <ChevronRight size={14} />
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {onProceedToConfirmation && (
+              <button 
+                type="button"
+                className="btn btn-primary" 
+                disabled={isSaving}
+                onClick={unresolvedBlockingCount > 0 ? onNavigateToClarifications : onProceedToConfirmation}
+                style={{ fontWeight: 600 }}
+              >
+                <span>{unresolvedBlockingCount > 0 ? 'Resolve questions to continue' : 'Review and confirm requirements'}</span>
+                <ChevronRight size={14} />
+              </button>
+            )}
+
+            {goalModel?.ambiguities && goalModel.ambiguities.length > 0 && (
+              <button 
+                type="button"
+                onClick={onNavigateToClarifications}
+                className={`btn btn-sm ${unresolvedBlockingCount > 0 ? 'btn-danger' : 'btn-secondary'}`}
+              >
+                <HelpCircle size={14} />
+                <span>
+                  {unresolvedBlockingCount > 0 
+                    ? `${unresolvedBlockingCount} Blocking Clarifications Required` 
+                    : `${goalModel.ambiguities.length} Clarifications Answered`}
+                </span>
+                <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Main Goal editable row */}
+        {/* Section A: Task Understanding (Main Objective) */}
         <div style={{
-          backgroundColor: '#0c121d',
-          border: '1px solid #1f2a3e',
+          backgroundColor: 'var(--bg-page, #F6F7FB)',
+          border: '1px solid var(--border-subtle, #E5E7EF)',
           borderRadius: '8px',
           padding: '16px',
-          marginBottom: '14px'
+          marginBottom: '16px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Main Objective (Goal Model Root)
+            <span style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--accent-primary, #6257D9)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Task Understanding & Executive Summary
             </span>
             <button 
+              type="button"
               onClick={() => setIsEditingMainGoal(!isEditingMainGoal)}
               className="btn btn-ghost btn-sm"
-              style={{ fontSize: '0.725rem', padding: '2px 6px', color: '#94a3b8' }}
+              style={{ fontSize: '0.725rem', padding: '2px 6px' }}
             >
               <Edit3 size={12} />
-              <span>{isEditingMainGoal ? 'Collapse' : 'Edit Objective'}</span>
+              <span>{isEditingMainGoal ? 'Close Edit' : 'Edit Objective'}</span>
             </button>
           </div>
 
@@ -250,10 +259,10 @@ export default function GoalModelView({
                 style={{
                   width: '100%',
                   padding: '8px 12px',
-                  backgroundColor: '#070b12',
-                  border: '1px solid #38bdf8',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid var(--accent-primary, #6257D9)',
                   borderRadius: '6px',
-                  color: '#f8fafc',
+                  color: 'var(--text-primary, #172033)',
                   fontSize: '0.95rem',
                   fontWeight: 600,
                   outline: 'none'
@@ -267,10 +276,10 @@ export default function GoalModelView({
                 style={{
                   width: '100%',
                   padding: '8px 12px',
-                  backgroundColor: '#070b12',
-                  border: '1px solid #24344d',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid var(--border-subtle, #E5E7EF)',
                   borderRadius: '6px',
-                  color: '#cbd5e1',
+                  color: 'var(--text-primary, #172033)',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
@@ -278,100 +287,113 @@ export default function GoalModelView({
             </div>
           ) : (
             <div>
-              <div style={{ fontSize: '1rem', fontWeight: 600, color: '#f8fafc', marginBottom: '4px' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '4px' }}>
                 {mainGoal}
               </div>
-              <div style={{ fontSize: '0.825rem', color: '#94a3b8', lineHeight: '1.4' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.5' }}>
                 {summary}
               </div>
             </div>
           )}
         </div>
 
-        {/* Quick metrics row */}
+        {/* Quick Metrics Count Bar */}
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#cbd5e1' }}>
-            <Layers size={14} color="#38bdf8" />
-            <span style={{ color: '#64748b' }}>Sub-Goals:</span>
-            <span className="font-mono" style={{ fontWeight: 600, color: '#38bdf8' }}>{subGoals.length}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.775rem' }}>
+            <Layers size={14} color="var(--accent-primary, #6257D9)" />
+            <span style={{ color: 'var(--text-secondary, #667085)' }}>Sub-Goals:</span>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary, #172033)' }}>{subGoals.length}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#cbd5e1' }}>
-            <CheckCircle2 size={14} color="#10b981" />
-            <span style={{ color: '#64748b' }}>Success Criteria:</span>
-            <span className="font-mono" style={{ fontWeight: 600, color: '#10b981' }}>{criteria.length}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.775rem' }}>
+            <CheckCircle2 size={14} color="var(--success-color, #16845B)" />
+            <span style={{ color: 'var(--text-secondary, #667085)' }}>Acceptance Criteria:</span>
+            <span style={{ fontWeight: 700, color: 'var(--success-color, #16845B)' }}>{criteria.length}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#cbd5e1' }}>
-            <ShieldAlert size={14} color="#f43f5e" />
-            <span style={{ color: '#64748b' }}>Hard Constraints:</span>
-            <span className="font-mono" style={{ fontWeight: 600, color: '#fb7185' }}>{hardConstraints.length}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.775rem' }}>
+            <ShieldAlert size={14} color="var(--danger-color, #D14343)" />
+            <span style={{ color: 'var(--text-secondary, #667085)' }}>Hard Constraints:</span>
+            <span style={{ fontWeight: 700, color: 'var(--danger-color, #D14343)' }}>{hardConstraints.length}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#cbd5e1' }}>
-            <Shield size={14} color="#f59e0b" />
-            <span style={{ color: '#64748b' }}>Soft Constraints:</span>
-            <span className="font-mono" style={{ fontWeight: 600, color: '#fbbf24' }}>{softConstraints.length}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.775rem' }}>
+            <Shield size={14} color="var(--warning-color, #B7791F)" />
+            <span style={{ color: 'var(--text-secondary, #667085)' }}>Soft Constraints:</span>
+            <span style={{ fontWeight: 700, color: 'var(--warning-color, #B7791F)' }}>{softConstraints.length}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#cbd5e1' }}>
-            <FileCheck size={14} color="#8b5cf6" />
-            <span style={{ color: '#64748b' }}>Output Format:</span>
-            <span className="font-mono" style={{ fontWeight: 600, color: '#c084fc' }}>{expectedOutput.format}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.775rem' }}>
+            <FileCheck size={14} color="var(--accent-primary, #6257D9)" />
+            <span style={{ color: 'var(--text-secondary, #667085)' }}>Output Format:</span>
+            <span style={{ fontWeight: 600, color: 'var(--accent-primary, #6257D9)' }}>{expectedOutput.format}</span>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Navigation Sub-Tabs */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '2px' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        borderBottom: '1px solid var(--border-subtle, #E5E7EF)', 
+        paddingBottom: '2px',
+        overflowX: 'auto'
+      }}>
+        <div style={{ display: 'flex', gap: '6px' }}>
           <button 
+            type="button"
             onClick={() => setActiveSubTab('sub_goals')}
-            className={`btn btn-sm ${activeSubTab === 'sub_goals' ? 'btn-secondary' : 'btn-ghost'}`}
-            style={{ borderBottom: activeSubTab === 'sub_goals' ? '2px solid #38bdf8' : 'none', borderRadius: '4px 4px 0 0' }}
+            className={`btn btn-sm ${activeSubTab === 'sub_goals' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ borderRadius: '6px 6px 0 0' }}
           >
-            <Layers size={14} />
-            <span>1. Sub-Goals Hierarchy ({subGoals.length})</span>
+            <Layers size={13} />
+            <span>1. Functional Requirements ({subGoals.length})</span>
           </button>
           <button 
+            type="button"
             onClick={() => setActiveSubTab('criteria')}
-            className={`btn btn-sm ${activeSubTab === 'criteria' ? 'btn-secondary' : 'btn-ghost'}`}
-            style={{ borderBottom: activeSubTab === 'criteria' ? '2px solid #10b981' : 'none', borderRadius: '4px 4px 0 0' }}
+            className={`btn btn-sm ${activeSubTab === 'criteria' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ borderRadius: '6px 6px 0 0' }}
           >
-            <CheckCircle2 size={14} />
-            <span>2. Success Criteria Matrix ({criteria.length})</span>
+            <CheckCircle2 size={13} />
+            <span>2. Acceptance Criteria ({criteria.length})</span>
           </button>
           <button 
+            type="button"
             onClick={() => setActiveSubTab('constraints')}
-            className={`btn btn-sm ${activeSubTab === 'constraints' ? 'btn-secondary' : 'btn-ghost'}`}
-            style={{ borderBottom: activeSubTab === 'constraints' ? '2px solid #f43f5e' : 'none', borderRadius: '4px 4px 0 0' }}
+            className={`btn btn-sm ${activeSubTab === 'constraints' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ borderRadius: '6px 6px 0 0' }}
           >
-            <ShieldAlert size={14} />
-            <span>3. Constraints Guardrails ({hardConstraints.length + softConstraints.length})</span>
+            <ShieldAlert size={13} />
+            <span>3. Constraints & Guardrails ({hardConstraints.length + softConstraints.length})</span>
           </button>
           <button 
+            type="button"
             onClick={() => setActiveSubTab('output')}
-            className={`btn btn-sm ${activeSubTab === 'output' ? 'btn-secondary' : 'btn-ghost'}`}
-            style={{ borderBottom: activeSubTab === 'output' ? '2px solid #8b5cf6' : 'none', borderRadius: '4px 4px 0 0' }}
+            className={`btn btn-sm ${activeSubTab === 'output' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ borderRadius: '6px 6px 0 0' }}
           >
-            <FileCheck size={14} />
+            <FileCheck size={13} />
             <span>4. Expected Output</span>
           </button>
           <button 
+            type="button"
             onClick={() => setActiveSubTab('raw_json')}
-            className={`btn btn-sm ${activeSubTab === 'raw_json' ? 'btn-secondary' : 'btn-ghost'}`}
-            style={{ borderBottom: activeSubTab === 'raw_json' ? '2px solid #06b6d4' : 'none', borderRadius: '4px 4px 0 0' }}
+            className={`btn btn-sm ${activeSubTab === 'raw_json' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ borderRadius: '6px 6px 0 0' }}
           >
-            <Code size={14} />
-            <span>5. Raw JSON Spec</span>
+            <Code size={13} />
+            <span>5. Technical Specification</span>
           </button>
         </div>
       </div>
 
-      {/* Tab 1: Sub-Goals Hierarchy */}
+      {/* Tab 1: Functional Requirements (Sub-Goals) */}
       {activeSubTab === 'sub_goals' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-              Ordered hierarchical decomposition of required operational stages and assigned agent roles:
+            <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
+              Hierarchical operational decomposition and assigned agent capabilities:
             </p>
             <button 
+              type="button"
               onClick={() => {
                 setEditingSubGoal(null);
                 setIsSubGoalModalOpen(true);
@@ -388,64 +410,66 @@ export default function GoalModelView({
               className="card-panel"
               style={{
                 padding: '16px',
-                backgroundColor: '#0e1522',
-                border: '1px solid #1e2a3c',
+                backgroundColor: '#FFFFFF',
                 display: 'flex',
                 gap: '16px',
                 alignItems: 'flex-start'
               }}
             >
               {/* Order & Reorder Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', minWidth: '32px' }}>
-                <span className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', minWidth: '32px' }}>
+                <span className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-primary, #6257D9)' }}>
                   #{idx + 1}
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <button 
+                    type="button"
                     onClick={() => handleMoveSubGoal(idx, -1)} 
                     disabled={idx === 0}
                     className="btn btn-ghost btn-sm" 
                     style={{ padding: '2px', opacity: idx === 0 ? 0.2 : 1 }}
+                    title="Move up"
                   >
                     <ArrowUp size={12} />
                   </button>
                   <button 
+                    type="button"
                     onClick={() => handleMoveSubGoal(idx, 1)} 
                     disabled={idx === subGoals.length - 1}
                     className="btn btn-ghost btn-sm" 
                     style={{ padding: '2px', opacity: idx === subGoals.length - 1 ? 0.2 : 1 }}
+                    title="Move down"
                   >
                     <ArrowDown size={12} />
                   </button>
                 </div>
               </div>
 
-              {/* Body */}
+              {/* Sub-Goal Body */}
               <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <span className="font-mono" style={{ fontSize: '0.75rem', color: '#94a3b8', backgroundColor: '#131e30', padding: '2px 6px', borderRadius: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                  <span className="font-mono" style={{ fontSize: '0.725rem', color: '#172033', backgroundColor: '#F1F4F9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
                     {sg.id}
                   </span>
-                  <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f8fafc' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)', margin: 0 }}>
                     {sg.title}
                   </h4>
                   <span className={`badge ${sg.priority === 'high' ? 'badge-rose' : (sg.priority === 'medium' ? 'badge-amber' : 'badge-slate')}`}>
                     {sg.priority}
                   </span>
-                  <span className="badge badge-cyan" style={{ textTransform: 'none' }}>
+                  <span className="badge badge-purple" style={{ textTransform: 'none' }}>
                     Role: {sg.assigned_agent_role}
                   </span>
                 </div>
-                <p style={{ fontSize: '0.825rem', color: '#94a3b8', lineHeight: '1.4', marginBottom: '8px' }}>
+                <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.5', marginBottom: '8px' }}>
                   {sg.description}
                 </p>
 
-                {/* Dependencies pills */}
                 {sg.dependencies && sg.dependencies.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Depends on:</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)' }}>Depends on:</span>
                     {sg.dependencies.map((dep) => (
-                      <span key={dep} className="font-mono" style={{ fontSize: '0.675rem', backgroundColor: '#1a2538', color: '#38bdf8', padding: '1px 6px', borderRadius: '3px' }}>
+                      <span key={dep} className="font-mono" style={{ fontSize: '0.675rem', backgroundColor: '#F1F4F9', color: 'var(--accent-primary, #6257D9)', padding: '1px 6px', borderRadius: '3px' }}>
                         {dep}
                       </span>
                     ))}
@@ -453,9 +477,10 @@ export default function GoalModelView({
                 )}
               </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '6px' }}>
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '4px' }}>
                 <button 
+                  type="button"
                   onClick={() => {
                     setEditingSubGoal(sg);
                     setIsSubGoalModalOpen(true);
@@ -466,9 +491,10 @@ export default function GoalModelView({
                   <Edit3 size={14} />
                 </button>
                 <button 
+                  type="button"
                   onClick={() => handleDeleteSubGoal(sg.id)}
                   className="btn btn-ghost btn-sm"
-                  style={{ color: '#fb7185' }}
+                  style={{ color: 'var(--danger-color, #D14343)' }}
                   title="Delete Sub-Goal"
                 >
                   <Trash2 size={14} />
@@ -476,22 +502,23 @@ export default function GoalModelView({
               </div>
             </div>
           ))}
-        </div>
+        </section>
       )}
 
-      {/* Tab 2: Success Criteria Matrix */}
+      {/* Tab 2: Acceptance Criteria Matrix */}
       {activeSubTab === 'criteria' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+            <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
               Objective verification criteria evaluated independently at completion:
             </p>
             <button 
+              type="button"
               onClick={() => {
                 setEditingCriterion(null);
                 setIsCriterionModalOpen(true);
               }}
-              className="btn btn-sm btn-emerald"
+              className="btn btn-sm btn-primary"
             >
               <Plus size={14} /> Add Criterion
             </button>
@@ -504,94 +531,101 @@ export default function GoalModelView({
                 className="card-panel"
                 style={{
                   padding: '16px',
-                  backgroundColor: '#0e1522',
-                  border: '1px solid #1e2a3c',
+                  backgroundColor: '#FFFFFF',
                   display: 'flex',
                   flexDirection: 'column',
-                  justifyContent: 'space-between'
+                  justifyContent: 'space-between',
+                  gap: '10px'
                 }}
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span className="font-mono" style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>{sc.id}</span>
+                      <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--accent-primary, #6257D9)', fontWeight: 700 }}>
+                        {sc.id}
+                      </span>
                       {sc.sub_goal_id && (
-                        <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>Mapped: {sc.sub_goal_id}</span>
+                        <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>
+                          Sub-Goal: {sc.sub_goal_id}
+                        </span>
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button 
+                        type="button"
                         onClick={() => {
                           setEditingCriterion(sc);
                           setIsCriterionModalOpen(true);
                         }}
                         className="btn btn-ghost btn-sm" 
                         style={{ padding: '2px 4px' }}
+                        title="Edit Criterion"
                       >
                         <Edit3 size={13} />
                       </button>
                       <button 
+                        type="button"
                         onClick={() => handleDeleteCriterion(sc.id)}
                         className="btn btn-ghost btn-sm" 
-                        style={{ padding: '2px 4px', color: '#fb7185' }}
+                        style={{ padding: '2px 4px', color: 'var(--danger-color, #D14343)' }}
+                        title="Delete Criterion"
                       >
                         <Trash2 size={13} />
                       </button>
                     </div>
                   </div>
 
-                  <p style={{ fontSize: '0.85rem', color: '#f8fafc', fontWeight: 500, marginBottom: '10px' }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-primary, #172033)', fontWeight: 500, marginBottom: '8px' }}>
                     {sc.description}
                   </p>
 
                   <div style={{
-                    backgroundColor: '#080d15',
-                    border: '1px solid #1a2538',
+                    backgroundColor: 'var(--bg-page, #F6F7FB)',
+                    border: '1px solid var(--border-subtle, #E5E7EF)',
                     borderRadius: '6px',
                     padding: '8px 10px',
                     marginBottom: '8px'
                   }}>
-                    <div style={{ fontSize: '0.675rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>
+                    <div style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', marginBottom: '2px' }}>
                       Verification Metric
                     </div>
-                    <div className="font-mono" style={{ fontSize: '0.775rem', color: '#38bdf8' }}>
+                    <div className="font-mono" style={{ fontSize: '0.775rem', color: 'var(--text-primary, #172033)' }}>
                       {sc.metric}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: '#64748b', borderTop: '1px solid #1a2538', paddingTop: '8px', marginTop: '6px' }}>
-                  <span className="badge badge-emerald" style={{ fontSize: '0.625rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.725rem', borderTop: '1px solid var(--border-subtle, #E5E7EF)', paddingTop: '8px' }}>
+                  <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>
                     {sc.verification_method}
                   </span>
-                  {sc.expected_output && (
-                    <span style={{ color: '#94a3b8', fontStyle: 'italic', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sc.expected_output}>
-                      Target: {sc.expected_output}
-                    </span>
-                  )}
+                  <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>
+                    Status: {goalModel?.is_confirmed ? 'Confirmed' : 'Pending'}
+                  </span>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Tab 3: Constraints Guardrails */}
       {activeSubTab === 'constraints' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
           {/* Hard Constraints Column */}
-          <div className="card-panel" style={{ padding: '18px', backgroundColor: '#0e1522', border: '1px solid rgba(244, 63, 94, 0.3)' }}>
+          <div className="card-panel" style={{ padding: '18px', backgroundColor: '#FFFFFF', border: '1px solid #FECACA' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShieldAlert size={18} color="#f43f5e" />
+                <ShieldAlert size={18} color="var(--danger-color, #D14343)" />
                 <div>
-                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fb7185' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--danger-color, #D14343)', margin: 0 }}>
                     Hard Constraints ({hardConstraints.length})
                   </h4>
-                  <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Strict invariant walls — Never violated</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)' }}>Strict invariant guardrails — Non-negotiable</span>
                 </div>
               </div>
               <button 
+                type="button"
                 onClick={() => {
                   setEditingConstraint(null);
                   setDefaultHardModal(true);
@@ -608,8 +642,8 @@ export default function GoalModelView({
                 <div 
                   key={hc.id}
                   style={{
-                    backgroundColor: '#120f18',
-                    border: '1px solid rgba(244, 63, 94, 0.25)',
+                    backgroundColor: '#FEF2F2',
+                    border: '1px solid #FECACA',
                     borderRadius: '6px',
                     padding: '10px 12px',
                     display: 'flex',
@@ -619,15 +653,16 @@ export default function GoalModelView({
                 >
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <span className="font-mono" style={{ fontSize: '0.7rem', color: '#fb7185', fontWeight: 600 }}>{hc.id}</span>
+                      <span className="font-mono" style={{ fontSize: '0.7rem', color: '#D14343', fontWeight: 700 }}>{hc.id}</span>
                       <span className="badge badge-rose" style={{ fontSize: '0.6rem' }}>{hc.category}</span>
                     </div>
-                    <p style={{ fontSize: '0.8rem', color: '#f1f5f9', lineHeight: '1.4' }}>
+                    <p style={{ fontSize: '0.8rem', color: '#172033', lineHeight: '1.4', margin: 0 }}>
                       {hc.text}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: '2px', marginLeft: '8px' }}>
                     <button 
+                      type="button"
                       onClick={() => {
                         setEditingConstraint(hc);
                         setDefaultHardModal(true);
@@ -639,9 +674,10 @@ export default function GoalModelView({
                       <Edit3 size={12} />
                     </button>
                     <button 
+                      type="button"
                       onClick={() => handleDeleteConstraint(hc.id, true)}
                       className="btn btn-ghost btn-sm" 
-                      style={{ padding: '2px', color: '#fb7185' }}
+                      style={{ padding: '2px', color: '#D14343' }}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -652,18 +688,19 @@ export default function GoalModelView({
           </div>
 
           {/* Soft Constraints Column */}
-          <div className="card-panel" style={{ padding: '18px', backgroundColor: '#0e1522', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+          <div className="card-panel" style={{ padding: '18px', backgroundColor: '#FFFFFF', border: '1px solid #FDE68A' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Shield size={18} color="#f59e0b" />
+                <Shield size={18} color="var(--warning-color, #B7791F)" />
                 <div>
-                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fbbf24' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--warning-color, #B7791F)', margin: 0 }}>
                     Soft Constraints ({softConstraints.length})
                   </h4>
-                  <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Operational preferences & guidelines</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)' }}>Operational preferences & architectural guidelines</span>
                 </div>
               </div>
               <button 
+                type="button"
                 onClick={() => {
                   setEditingConstraint(null);
                   setDefaultHardModal(false);
@@ -680,8 +717,8 @@ export default function GoalModelView({
                 <div 
                   key={sc.id}
                   style={{
-                    backgroundColor: '#141410',
-                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                    backgroundColor: '#FFFBEB',
+                    border: '1px solid #FDE68A',
                     borderRadius: '6px',
                     padding: '10px 12px',
                     display: 'flex',
@@ -691,15 +728,16 @@ export default function GoalModelView({
                 >
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <span className="font-mono" style={{ fontSize: '0.7rem', color: '#fbbf24', fontWeight: 600 }}>{sc.id}</span>
+                      <span className="font-mono" style={{ fontSize: '0.7rem', color: '#B7791F', fontWeight: 700 }}>{sc.id}</span>
                       <span className="badge badge-amber" style={{ fontSize: '0.6rem' }}>{sc.category}</span>
                     </div>
-                    <p style={{ fontSize: '0.8rem', color: '#f1f5f9', lineHeight: '1.4' }}>
+                    <p style={{ fontSize: '0.8rem', color: '#172033', lineHeight: '1.4', margin: 0 }}>
                       {sc.text}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: '2px', marginLeft: '8px' }}>
                     <button 
+                      type="button"
                       onClick={() => {
                         setEditingConstraint(sc);
                         setDefaultHardModal(false);
@@ -711,9 +749,10 @@ export default function GoalModelView({
                       <Edit3 size={12} />
                     </button>
                     <button 
+                      type="button"
                       onClick={() => handleDeleteConstraint(sc.id, false)}
                       className="btn btn-ghost btn-sm" 
-                      style={{ padding: '2px', color: '#fb7185' }}
+                      style={{ padding: '2px', color: '#D14343' }}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -722,139 +761,96 @@ export default function GoalModelView({
               ))}
             </div>
           </div>
-        </div>
+        </section>
       )}
 
       {/* Tab 4: Expected Output */}
       {activeSubTab === 'output' && (
-        <div className="card-panel" style={{ padding: '24px', backgroundColor: '#0e1522', maxWidth: '640px' }}>
-          <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#f8fafc', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileCheck size={18} color="#8b5cf6" /> Expected Output Artifact Specifications
-          </h4>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Target Output Format</label>
-              <input 
-                type="text" 
-                value={expectedOutput.format} 
-                onChange={(e) => setExpectedOutput({ ...expectedOutput, format: e.target.value })}
-                placeholder="e.g. JSON Summary & Audit Ledger"
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  backgroundColor: '#070b12',
-                  border: '1px solid #24344d',
-                  borderRadius: '6px',
-                  color: '#f8fafc',
-                  fontSize: '0.85rem',
-                  outline: 'none'
-                }}
-              />
+        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '12px' }}>
+            Expected Delivery Format & Target
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+            <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-subtle, #E5E7EF)' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                Format
+              </span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-primary, #6257D9)' }}>
+                {expectedOutput.format || 'Application Files'}
+              </span>
             </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Schema & Artifact Structure</label>
-              <textarea 
-                value={expectedOutput.schema_summary} 
-                onChange={(e) => setExpectedOutput({ ...expectedOutput, schema_summary: e.target.value })}
-                rows={3}
-                placeholder="Description of required fields, arrays, checksums, or report sections..."
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  backgroundColor: '#070b12',
-                  border: '1px solid #24344d',
-                  borderRadius: '6px',
-                  color: '#f8fafc',
-                  fontSize: '0.85rem',
-                  outline: 'none',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#cbd5e1', marginBottom: '4px' }}>Delivery Target / Destination</label>
-              <input 
-                type="text" 
-                value={expectedOutput.delivery_target} 
-                onChange={(e) => setExpectedOutput({ ...expectedOutput, delivery_target: e.target.value })}
-                placeholder="e.g. Support Dashboard and Event Ledger"
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  backgroundColor: '#070b12',
-                  border: '1px solid #24344d',
-                  borderRadius: '6px',
-                  color: '#f8fafc',
-                  fontSize: '0.85rem',
-                  outline: 'none'
-                }}
-              />
+            <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-subtle, #E5E7EF)' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                Delivery Target
+              </span>
+              <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)' }}>
+                {expectedOutput.delivery_target || 'Workspace Filesystem'}
+              </span>
             </div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Tab 5: Raw JSON Spec */}
+      {/* Tab 5: Technical Details (Raw JSON) */}
       {activeSubTab === 'raw_json' && (
-        <div className="card-panel" style={{ padding: '20px', backgroundColor: '#090d14' }}>
+        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span className="font-mono" style={{ fontSize: '0.75rem', color: '#64748b' }}>
+            <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)' }}>
               Canonical JSON Manifest (Task ID: {goalModel?.task_id})
             </span>
             <button 
+              type="button"
               onClick={() => navigator.clipboard.writeText(JSON.stringify(goalModel, null, 2))}
               className="btn btn-secondary btn-sm"
             >
               Copy JSON
             </button>
           </div>
-          <pre className="font-mono" style={{
+          <pre style={{
             fontSize: '0.775rem',
-            color: '#38bdf8',
-            backgroundColor: '#05070c',
+            color: '#172033',
+            backgroundColor: 'var(--bg-page, #F6F7FB)',
             padding: '16px',
             borderRadius: '6px',
+            border: '1px solid var(--border-subtle, #E5E7EF)',
             overflowX: 'auto',
             maxHeight: '420px'
           }}>
             {JSON.stringify(goalModel, null, 2)}
           </pre>
-        </div>
+        </section>
       )}
 
       {/* Persistent Save Patch Bar */}
       <div style={{
         position: 'sticky',
-        bottom: '16px',
-        backgroundColor: '#111827',
-        border: '1px solid #24344d',
+        bottom: '44px',
+        backgroundColor: '#FFFFFF',
+        border: '1px solid var(--border-subtle, #E5E7EF)',
         borderRadius: '10px',
         padding: '12px 20px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        boxShadow: 'var(--shadow-md)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        zIndex: 50
+        zIndex: 35
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, marginRight: '16px' }}>
-          <span style={{ fontSize: '0.775rem', fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>
-            Change Summary Log:
+          <span style={{ fontSize: '0.775rem', fontWeight: 600, color: 'var(--text-secondary, #667085)', whiteSpace: 'nowrap' }}>
+            Revision Note:
           </span>
           <input 
             type="text"
             value={changeNote}
             onChange={(e) => setChangeNote(e.target.value)}
-            placeholder="e.g. Added constraint for manager approval threshold (optional note)"
+            placeholder="e.g. Added constraint for password hashing salt rounds (optional)"
             style={{
               flex: 1,
-              padding: '6px 10px',
-              backgroundColor: '#070b12',
-              border: '1px solid #1e293b',
+              padding: '6px 12px',
+              backgroundColor: 'var(--bg-page, #F6F7FB)',
+              border: '1px solid var(--border-subtle, #E5E7EF)',
               borderRadius: '6px',
-              color: '#f8fafc',
+              color: 'var(--text-primary, #172033)',
               fontSize: '0.8rem',
               outline: 'none'
             }}
@@ -862,13 +858,14 @@ export default function GoalModelView({
         </div>
 
         <button 
+          type="button"
           onClick={handleTriggerSavePatch}
           disabled={isSaving}
-          className="btn btn-primary"
-          style={{ padding: '8px 18px' }}
+          className="btn btn-primary btn-sm"
+          style={{ padding: '8px 16px', fontWeight: 600 }}
         >
           <Save size={14} />
-          <span>{isSaving ? 'Patching Goal Model...' : 'Save & Bump Version'}</span>
+          <span>{isSaving ? 'Saving Changes...' : 'Save & Bump Version'}</span>
         </button>
       </div>
 

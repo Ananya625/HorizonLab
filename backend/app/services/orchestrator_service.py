@@ -281,7 +281,8 @@ class OrchestratorService:
         self.active = set()
 
     async def run_full_pipeline(self, request_text, repo_path=None, model_name=None,
-                                temperature=0.2, max_recovery_retries=3, existing_run_id=None):
+                                temperature=0.2, max_recovery_retries=3, existing_run_id=None,
+                                authorized_benchmark: bool = False):
         run_id = existing_run_id or f'run_{uuid.uuid4().hex}'
         if run_id in self.active:
             raise ValueError('This run is already executing')
@@ -303,7 +304,8 @@ class OrchestratorService:
             model_name = model_name or record.metadata.get('config', {}).get('model_name') or ollama_service.default_model
             config = {'model_name': model_name, 'temperature': temperature,
                 'max_recovery_retries': max_recovery_retries}
-            db_service.update_metadata(run_id, config=config, execution_mode='mixed_demo')
+            mode = 'authorized_benchmark' if authorized_benchmark else 'mixed_demo'
+            db_service.update_metadata(run_id, config=config, execution_mode=mode)
             if not goal:
                 try:
                     await goal_parser_service.parse_request(request_text, run_id=run_id,
@@ -313,7 +315,26 @@ class OrchestratorService:
                         metric_version='2', outcome='error', verified_success=False,
                         termination_reason=f'goal_parse:{type(exc).__name__}', execution_time_seconds=time.perf_counter()-start))
                     raise
-                return db_service.get_run_record(run_id)
+                if authorized_benchmark:
+                    goal = db_service.get_goal_model(run_id)
+                    for ambiguity in goal.ambiguities:
+                        if ambiguity.severity == 'blocking' and not ambiguity.resolved:
+                            ambiguity.resolved = True
+                            ambiguity.user_answer = ambiguity.default_assumption or 'Benchmark default assumption'
+                    db_service.save_goal_model(goal)
+                    goal_parser_service.confirm_goal_model(run_id)
+                    goal = db_service.get_goal_model(run_id)
+                else:
+                    return db_service.get_run_record(run_id)
+            elif authorized_benchmark and not goal.is_confirmed:
+                for ambiguity in goal.ambiguities:
+                    if ambiguity.severity == 'blocking' and not ambiguity.resolved:
+                        ambiguity.resolved = True
+                        ambiguity.user_answer = ambiguity.default_assumption or 'Benchmark default assumption'
+                db_service.save_goal_model(goal)
+                goal_parser_service.confirm_goal_model(run_id)
+                goal = db_service.get_goal_model(run_id)
+
             if not goal.is_confirmed or any(a.severity == 'blocking' and not a.resolved for a in goal.ambiguities):
                 raise ValueError('Confirm the goal and resolve blocking ambiguities before execution')
             try:
@@ -321,9 +342,10 @@ class OrchestratorService:
                     model_name=model_name, temperature=temperature, max_recovery_retries=max_recovery_retries,
                     existing_run_id=run_id, execution_started=start)
             except Exception as exc:
+                stage_prefix = 'coder:' if 'Code generation failed' in str(exc) else ''
                 db_service.finalize_run(EvaluationMetrics(run_id=run_id, task_id=record.task_id,
                     metric_version='2', outcome='error', verified_success=False,
-                    termination_reason=type(exc).__name__, execution_time_seconds=time.perf_counter()-start))
+                    termination_reason=f'{stage_prefix}{type(exc).__name__}', execution_time_seconds=time.perf_counter()-start))
                 raise
         finally:
             self.active.discard(run_id)
@@ -487,7 +509,8 @@ class OrchestratorService:
                     run_id=run_id,
                     max_recovery_retries=max_recovery_retries,
                     model_name=effective_model,
-                    target_test_files=routing.target_test_files
+                    target_test_files=routing.target_test_files,
+                    initial_test_result=test_run
                 )
 
             # Fast Path Step 5: Independent Verification
@@ -500,13 +523,15 @@ class OrchestratorService:
             tracker.end_span("verifier", "verification", t_span)
 
             # Fast Path Completion & Drift Verification Check
-            comp_check = drift_controller_service.check_completion(run_id)
-            if comp_check.allowed and verification_report.overall_verdict == "VERIFIED_PASSED":
-                goal_tracker_service.complete_subtask(run_id, "SUBTASK-1", evidence=verification_report.review_summary)
-                goal_tracker_service.terminate_task(run_id, status="completed", reason="criteria_verified", evidence={"verdict": verification_report.overall_verdict})
+            if verification_report.overall_verdict == "VERIFIED_PASSED":
+                comp_check = drift_controller_service.check_completion(run_id)
+                if comp_check.allowed:
+                    goal_tracker_service.complete_subtask(run_id, "SUBTASK-1", evidence=verification_report.review_summary)
+                    goal_tracker_service.terminate_task(run_id, status="completed", reason="criteria_verified", evidence={"verdict": verification_report.overall_verdict})
+                else:
+                    goal_tracker_service.terminate_task(run_id, status="failed", reason=comp_check.reason, evidence={"verdict": verification_report.overall_verdict})
             else:
-                reason = "verification_failed" if verification_report.overall_verdict != "VERIFIED_PASSED" else comp_check.reason
-                goal_tracker_service.terminate_task(run_id, status="failed", reason=reason, evidence={"verdict": verification_report.overall_verdict})
+                goal_tracker_service.terminate_task(run_id, status="failed", reason="verification_failed", evidence={"verdict": verification_report.overall_verdict})
 
         # =====================================================================
         # STANDARD MULTI-AGENT WORKFLOW FOR MEDIUM / COMPLEX TASKS
@@ -609,13 +634,15 @@ class OrchestratorService:
             tracker.end_span("verifier", "verification", t_span)
 
             # Standard Path Completion & Drift Verification Check
-            comp_check = drift_controller_service.check_completion(run_id)
-            if comp_check.allowed and verification_report.overall_verdict in ("VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS"):
-                goal_tracker_service.complete_subtask(run_id, "SUBTASK-3", evidence=verification_report.review_summary)
-                goal_tracker_service.terminate_task(run_id, status="completed", reason="criteria_verified", evidence={"verdict": verification_report.overall_verdict})
+            if verification_report.overall_verdict in ("VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS"):
+                comp_check = drift_controller_service.check_completion(run_id)
+                if comp_check.allowed:
+                    goal_tracker_service.complete_subtask(run_id, "SUBTASK-3", evidence=verification_report.review_summary)
+                    goal_tracker_service.terminate_task(run_id, status="completed", reason="criteria_verified", evidence={"verdict": verification_report.overall_verdict})
+                else:
+                    goal_tracker_service.terminate_task(run_id, status="failed", reason=comp_check.reason, evidence={"verdict": verification_report.overall_verdict})
             else:
-                reason = "verification_failed" if verification_report.overall_verdict not in ("VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS") else comp_check.reason
-                goal_tracker_service.terminate_task(run_id, status="failed", reason=reason, evidence={"verdict": verification_report.overall_verdict})
+                goal_tracker_service.terminate_task(run_id, status="failed", reason="verification_failed", evidence={"verdict": verification_report.overall_verdict})
 
         return db_service.get_run_record(run_id)
 

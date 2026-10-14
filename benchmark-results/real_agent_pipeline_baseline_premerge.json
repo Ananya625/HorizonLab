@@ -1,0 +1,318 @@
+[
+  {
+    "task_id": "task_1_cold",
+    "name": "Task 1 (Cold Start): Small isolated function",
+    "prompt": "Implement a helper function multiply(a: float, b: float) -> float in app/service.py and test it in tests/test_service.py.",
+    "total_wall_clock_seconds": 8.941,
+    "status": "completed",
+    "verdict": "VERIFIED_PASSED",
+    "success_rate": 100.0,
+    "stage_durations": {
+      "routing": 0.001,
+      "workspace": 0.014,
+      "requirement": 0.019,
+      "coder": 6.352,
+      "testing": 2.421
+    },
+    "counters": {
+      "model_calls": 2,
+      "agent_invocations": 2,
+      "repository_files_inspected": 2,
+      "tool_calls": 3,
+      "retries": 0,
+      "total_tokens_in": 577,
+      "total_tokens_out": 250
+    },
+    "model_calls_detail": [
+      {
+        "model_name": "qwen2.5-coder:1.5b",
+        "stage": "coder",
+        "duration_ms": 2868.0,
+        "tokens_in": 196,
+        "tokens_out": 34,
+        "tok_per_sec": 58.0,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:04:01.549227"
+      },
+      {
+        "model_name": "qwen2.5-coder:1.5b",
+        "stage": "coder",
+        "duration_ms": 3395.52,
+        "tokens_in": 381,
+        "tokens_out": 216,
+        "tok_per_sec": 83.7,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:04:04.974556"
+      }
+    ],
+    "tests_passed": 1,
+    "tests_total": 1
+  },
+  {
+    "task_id": "task_1_warm",
+    "name": "Task 1 (Warm Run): Small isolated function (repeat)",
+    "prompt": "Implement a helper function power(base: float, exponent: int) -> float in app/service.py and test it in tests/test_service.py.",
+    "total_wall_clock_seconds": 7.356,
+    "status": "completed",
+    "verdict": "VERIFIED_PASSED",
+    "success_rate": 100.0,
+    "stage_durations": {
+      "routing": 0.0,
+      "workspace": 0.008,
+      "requirement": 0.016,
+      "coder": 5.583,
+      "testing": 1.64
+    },
+    "counters": {
+      "model_calls": 2,
+      "agent_invocations": 2,
+      "repository_files_inspected": 2,
+      "tool_calls": 3,
+      "retries": 0,
+      "total_tokens_in": 577,
+      "total_tokens_out": 354
+    },
+    "model_calls_detail": [
+      {
+        "model_name": "qwen2.5-coder:1.5b",
+        "stage": "coder",
+        "duration_ms": 1154.03,
+        "tokens_in": 196,
+        "tokens_out": 38,
+        "tok_per_sec": 79.5,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:04:08.745111"
+      },
+      {
+        "model_name": "qwen2.5-coder:1.5b",
+        "stage": "coder",
+        "duration_ms": 4348.54,
+        "tokens_in": 381,
+        "tokens_out": 316,
+        "tok_per_sec": 84.3,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:04:13.125234"
+      }
+    ],
+    "tests_passed": 2,
+    "tests_total": 2
+  },
+  {
+    "task_id": "task_2_bugfix",
+    "name": "Task 2: Small bug fix",
+    "prompt": "Fix bug in app/service.py where calculate_discount(price: float, discount_percent: float) returns negative price when discount is over 100%. Clamp discount between 0 and 100. Add tests in tests/test_service.py.",
+    "total_wall_clock_seconds": 8.471,
+    "status": "completed",
+    "verdict": "VERIFIED_PASSED",
+    "success_rate": 100.0,
+    "stage_durations": {
+      "routing": 0.0,
+      "workspace": 0.006,
+      "requirement": 0.015,
+      "coder": 6.391,
+      "testing": 1.955
+    },
+    "counters": {
+      "model_calls": 2,
+      "agent_invocations": 2,
+      "repository_files_inspected": 2,
+      "tool_calls": 3,
+      "retries": 0,
+      "total_tokens_in": 723,
+      "total_tokens_out": 429
+    },
+    "model_calls_detail": [
+      {
+        "model_name": "qwen2.5-coder:1.5b",
+        "stage": "coder",
+        "duration_ms": 1935.33,
+        "tokens_in": 221,
+        "tokens_out": 113,
+        "tok_per_sec": 85.1,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:04:16.866877"
+      },
+      {
+        "model_name": "qwen2.5-coder:1.5b",
+        "stage": "coder",
+        "duration_ms": 4368.37,
+        "tokens_in": 502,
+        "tokens_out": 316,
+        "tok_per_sec": 83.8,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:04:21.267741"
+      }
+    ],
+    "tests_passed": 2,
+    "tests_total": 2
+  },
+  {
+    "task_id": "task_3_multifile",
+    "name": "Task 3: Multi-file change",
+    "prompt": "Add user account status field with UserStatus enum in app/models.py, update user response serializer in app/serializers.py, and verify in tests/test_models.py.",
+    "total_wall_clock_seconds": 153.793,
+    "status": "completed",
+    "verdict": "VERIFIED_PASSED",
+    "success_rate": 100.0,
+    "stage_durations": {
+      "routing": 0.0,
+      "workspace": 0.009,
+      "requirement": 45.545,
+      "planner": 45.568,
+      "coder": 59.609,
+      "testing": 2.929
+    },
+    "counters": {
+      "model_calls": 4,
+      "agent_invocations": 2,
+      "repository_files_inspected": 7,
+      "tool_calls": 3,
+      "retries": 0,
+      "total_tokens_in": 871,
+      "total_tokens_out": 507
+    },
+    "model_calls_detail": [
+      {
+        "model_name": "qwen2.5-coder:7b",
+        "stage": "requirement",
+        "duration_ms": 45506.3,
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "tok_per_sec": 0.0,
+        "error_status": "Ollama timed out after 45.0s",
+        "timestamp": "2026-10-12T10:05:08.876580"
+      },
+      {
+        "model_name": "qwen2.5-coder:7b",
+        "stage": "planner",
+        "duration_ms": 45491.17,
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "tok_per_sec": 0.0,
+        "error_status": "Ollama timed out after 45.0s",
+        "timestamp": "2026-10-12T10:05:54.469492"
+      },
+      {
+        "model_name": "qwen2.5-coder:7b",
+        "stage": "coder",
+        "duration_ms": 21758.74,
+        "tokens_in": 334,
+        "tokens_out": 191,
+        "tok_per_sec": 9.4,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:06:16.281071"
+      },
+      {
+        "model_name": "qwen2.5-coder:7b",
+        "stage": "coder",
+        "duration_ms": 37768.44,
+        "tokens_in": 537,
+        "tokens_out": 316,
+        "tok_per_sec": 8.7,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:06:54.081119"
+      }
+    ],
+    "tests_passed": 10,
+    "tests_total": 10
+  },
+  {
+    "task_id": "task_4_recovery",
+    "name": "Task 4: Failing-test recovery task (Escalation)",
+    "prompt": "Implement string sanitizer in app/service.py with strict validation for HTML tags and test in tests/test_service.py.",
+    "total_wall_clock_seconds": 15.417,
+    "status": "completed",
+    "verdict": "VERIFIED_PASSED",
+    "success_rate": 100.0,
+    "stage_durations": {
+      "routing": 0.0,
+      "workspace": 0.009,
+      "requirement": 0.016,
+      "coder": 13.441,
+      "testing": 1.824
+    },
+    "counters": {
+      "model_calls": 2,
+      "agent_invocations": 2,
+      "repository_files_inspected": 2,
+      "tool_calls": 3,
+      "retries": 0,
+      "total_tokens_in": 820,
+      "total_tokens_out": 507
+    },
+    "model_calls_detail": [
+      {
+        "model_name": "qwen2.5-coder:1.5b",
+        "stage": "coder",
+        "duration_ms": 8952.79,
+        "tokens_in": 346,
+        "tokens_out": 191,
+        "tok_per_sec": 83.5,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:07:06.156926"
+      },
+      {
+        "model_name": "qwen2.5-coder:1.5b",
+        "stage": "coder",
+        "duration_ms": 4415.81,
+        "tokens_in": 474,
+        "tokens_out": 316,
+        "tok_per_sec": 83.0,
+        "error_status": null,
+        "timestamp": "2026-10-12T10:07:10.605293"
+      }
+    ],
+    "tests_passed": 2,
+    "tests_total": 2
+  },
+  {
+    "task_id": "task_5_complex",
+    "name": "Task 5: Complex feature (JWT Authentication Suite)",
+    "prompt": "Implement complete JWT authentication with user registration, login, and token verification with password hashing and expiring tokens in app/auth.py, app/routes/auth_routes.py, app/main.py, and tests/test_auth.py.",
+    "total_wall_clock_seconds": 94.781,
+    "status": "completed",
+    "verdict": "VERIFIED_PASSED",
+    "success_rate": 100.0,
+    "stage_durations": {
+      "routing": 0.0,
+      "workspace": 0.003,
+      "requirement": 45.533,
+      "planner": 45.598,
+      "coder": 0.158,
+      "testing": 3.352
+    },
+    "counters": {
+      "model_calls": 2,
+      "agent_invocations": 2,
+      "repository_files_inspected": 7,
+      "tool_calls": 5,
+      "retries": 0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0
+    },
+    "model_calls_detail": [
+      {
+        "model_name": "qwen2.5-coder:7b",
+        "stage": "requirement",
+        "duration_ms": 45495.22,
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "tok_per_sec": 0.0,
+        "error_status": "Ollama timed out after 45.0s",
+        "timestamp": "2026-10-12T10:07:58.073863"
+      },
+      {
+        "model_name": "qwen2.5-coder:7b",
+        "stage": "planner",
+        "duration_ms": 45559.42,
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "tok_per_sec": 0.0,
+        "error_status": "Ollama timed out after 45.0s",
+        "timestamp": "2026-10-12T10:08:43.692358"
+      }
+    ],
+    "tests_passed": 10,
+    "tests_total": 10
+  }
+]

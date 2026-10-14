@@ -102,7 +102,7 @@ class GoalParserService:
         if existing and existing.goal_model:
             raise ValueError('Edit the existing goal instead of reparsing it')
         task_id = existing.task_id if existing else storage_service.generate_task_id()
-        target_repo = existing.repo_path if existing else repo_path or workspace_service.get_default_repo_path()
+        target_repo = existing.repo_path if existing else (repo_path or workspace_service.create_task_workspace(task_id=task_id, run_id=run_id))
         db_service.create_or_update_run(run_id, task_id, request_text[:80], request_text, target_repo, current_stage='requirement', status='in_progress')
         if not existing or not existing.metadata.get('config'):
             db_service.update_metadata(run_id, config={'model_name': model_name, 'temperature': temperature, 'max_recovery_retries': 3})

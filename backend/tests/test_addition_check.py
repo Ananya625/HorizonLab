@@ -6,6 +6,8 @@ from app.models.schema import SuccessCriterion
 
 @pytest.mark.parametrize('source', [
     'def add(a, b): return a + b',
+    'def add_numbers(a, b): return a + b',
+    'def sum_numbers(x, y): return x + y',
     'def add(a: float, b: float) -> float:\n    total = a + b\n    return total',
     'def add(a, b): return b - (-a)',
 ])

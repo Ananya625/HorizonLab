@@ -665,25 +665,24 @@ class DatabaseService:
                     'criteria_evaluations':[c.model_copy(update={'verdict':'UNVERIFIED', 'confidence_score':None, 'evidence':'Previous evidence is stale'}) for c in report.criteria_evaluations],
                     'constraint_compliances':[c.model_copy(update={'compliant':None, 'notes':'Previous evidence is stale'}) for c in report.constraint_compliances],
                     'review_summary':'Previous evidence is stale or a later stage failed. Reverify the current state.'})
-                return report
-
-        test_results = self.get_test_results(run_id)
-        latest_test = test_results[-1] if test_results else None
-        if not latest_test or latest_test.total_tests == 0:
-            report.tests_passed = 0
-            report.tests_total = 0
-            report.pass_rate_percent = None
-            report.overall_verdict = "TESTS_NOT_RUN"
-            report.goal_drift_score = None
-            report.code_quality_score = None
-            for criterion in report.criteria_evaluations:
-                criterion.verdict = "NOT_VERIFIED"
-                criterion.confidence_score = None
-                criterion.evidence = (
-                    "No test-to-criterion mapping is available, so this criterion "
-                    "cannot be individually verified from the captured test results."
-                )
-        return report
+            elif getattr(report, "verifier_version", None) != "2":
+                test_results = self.get_test_results(run_id)
+                latest_test = test_results[-1] if test_results else None
+                if not latest_test or latest_test.total_tests == 0:
+                    report.tests_passed = 0
+                    report.tests_total = 0
+                    report.pass_rate_percent = None
+                    report.overall_verdict = "TESTS_NOT_RUN"
+                    report.goal_drift_score = None
+                    report.code_quality_score = None
+                    for criterion in report.criteria_evaluations:
+                        criterion.verdict = "NOT_VERIFIED"
+                        criterion.confidence_score = None
+                        criterion.evidence = (
+                            "No test-to-criterion mapping is available, so this criterion "
+                            "cannot be individually verified from the captured test results."
+                        )
+            return report
 
     # --- Evaluation Methods ---
     def save_evaluation(self, eval_metrics: EvaluationMetrics, connection=None) -> EvaluationMetrics:
@@ -806,7 +805,6 @@ class DatabaseService:
                 if row["tests_total"] and row["tests_total"] > 0
                 else None
             )
-            evaluation.goal_drift_score = None
             return evaluation
 
     # --- Execution Logs ---
@@ -1029,6 +1027,9 @@ class DatabaseService:
                     else "reconstructed" if verified_duration is not None
                     else "unverified_legacy"
                 )
+                for k, v in saved_evaluation.items():
+                    if k != "execution_time_seconds" and (k not in evaluation_row or evaluation_row[k] is None):
+                        evaluation_row[k] = v
                 recent_evals.append(evaluation_row)
 
             eval_rows = conn.execute('SELECT r.run_id, r.title, r.status, e.data_json FROM runs r LEFT JOIN evaluations e ON e.run_id=r.run_id ORDER BY r.created_at DESC').fetchall()

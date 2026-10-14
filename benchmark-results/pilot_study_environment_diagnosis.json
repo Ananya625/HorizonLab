@@ -1,0 +1,27 @@
+{
+  "experiment_attempt": "Qwen3 Study Manifest via benchmark_cli",
+  "command_executed": "python -m app.benchmark_cli --study-manifest benchmarks/qwen3_1_7b_remaining_pilot.json --output benchmark-results/qwen3_pilot_attempt.json",
+  "target_manifest": "backend/benchmarks/qwen3_1_7b_remaining_pilot.json",
+  "target_model": "qwen3:1.7b",
+  "environment": {
+    "ollama_host": "http://127.0.0.1:11434",
+    "installed_models": [
+      {
+        "name": "qwen2.5-coder:1.5b",
+        "id": "d7372fd82851",
+        "size": "986 MB"
+      },
+      {
+        "name": "qwen2.5-coder:7b",
+        "id": "dae161e27b0e",
+        "size": "4.7 GB"
+      }
+    ],
+    "os": "Windows (win32)",
+    "python_version": "3.13.2"
+  },
+  "outcome": "FAILED_ENVIRONMENT_LIMITATION",
+  "error_type": "ValueError",
+  "error_message": "The selected model is not installed or has no recorded digest",
+  "analysis": "The benchmark manifest specifies qwen3:1.7b which is not installed in the local Ollama instance. Tuning the model parameter or manifest is strictly prohibited by baseline freeze requirements. Furthermore, this study adapter exercises simulator action selection on string fixtures rather than arbitrary agent code generation."
+}

@@ -13,6 +13,7 @@ import TestingDebugView from './components/TestingDebugView';
 import VerificationView from './components/VerificationView';
 import EvaluationDashboard from './components/EvaluationDashboard';
 import ExecutionControlRoom from './components/ExecutionControlRoom';
+import WorkflowProgress from './components/WorkflowProgress';
 
 import {
   fetchOllamaStatus,
@@ -259,7 +260,8 @@ export default function App() {
     if (!runId) return;
     setIsExecuting(true);
     try {
-      const res = await executeCoding({ runId, modelName: selectedModel, temperature });
+      const activeModel = (ollamaStatus?.current_model === 'none' ? undefined : ollamaStatus?.current_model);
+      const res = await executeCoding({ runId, modelName: activeModel, temperature });
       setCodeChanges(res.changes || []);
       setActiveTab('coder');
     } catch (err) {
@@ -274,10 +276,18 @@ export default function App() {
     if (!runId) return;
     setIsExecuting(true);
     try {
-      const res = await executeTesting({ runId, maxRecoveryRetries });
+      const activeModel = (ollamaStatus?.current_model === 'none' ? undefined : ollamaStatus?.current_model);
+      const res = await executeTesting({ runId, maxRecoveryRetries, modelName: activeModel });
       const testRes = await fetchTestResults(runId);
       setTestResults(testRes.test_runs || []);
       setRecoveryAttempts(testRes.recovery_attempts || []);
+      const updatedRun = await fetchRunDetails(runId);
+      if (updatedRun) {
+        setCurrentRunRecord(updatedRun);
+        if (updatedRun.code_changes) setCodeChanges(updatedRun.code_changes);
+        if (updatedRun.logs) setLogs(updatedRun.logs);
+      }
+      loadRunsList();
       setActiveTab('testing');
     } catch (err) {
       alert(`Testing and recovery failed: ${err.message}`);
@@ -383,12 +393,33 @@ export default function App() {
 
       {/* Main Workspace Container */}
       <main style={{ flex: 1, maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '24px 20px' }}>
-        {error && <div role="alert" className="card-panel" style={{ padding: 16, marginBottom: 16, color: '#fda4af' }}>{error}</div>}
+        {error && (
+          <div role="alert" className="card-panel" style={{ padding: '12px 18px', marginBottom: 16, color: '#D14343', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', fontSize: '0.85rem' }}>
+            {error}
+          </div>
+        )}
         {pendingFullRunId === runId && runId && !goalModel?.is_confirmed && !isExecuting && (
-          <div role="status" className="card-panel" style={{ padding: 16, marginBottom: 16 }}>
+          <div role="status" className="card-panel" style={{ padding: '14px 18px', marginBottom: 16, color: '#B7791F', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', fontSize: '0.85rem' }}>
             Workflow paused for your review. Resolve any blocking questions and confirm the requirements to continue through stages 3–7.
           </div>
         )}
+
+        {/* Consistent Workflow Progress Indicator */}
+        <WorkflowProgress
+          runId={runId}
+          currentRunRecord={currentRunRecord}
+          goalModel={goalModel}
+          plan={plan}
+          codeChanges={codeChanges}
+          testResults={testResults}
+          recoveryAttempts={recoveryAttempts}
+          verification={verification}
+          activeTab={activeTab}
+          onNavigateTab={setActiveTab}
+          isExecuting={isExecuting}
+          loading={loading}
+        />
+
         {/* Loading Telemetry Stepper */}
         {(loading || isExecuting) && (
           <ParsingProgress modelName={ollamaStatus?.current_model} requirements={!goalModel?.is_confirmed} />
@@ -480,6 +511,8 @@ export default function App() {
           <TestingDebugView
             testResults={testResults}
             recoveryAttempts={recoveryAttempts}
+            onExecuteTesting={handleExecuteTesting}
+            isTesting={isExecuting}
             onExecuteVerification={handleVerifyCode}
             isVerifying={isExecuting}
             onNavigateToStage={setActiveTab}

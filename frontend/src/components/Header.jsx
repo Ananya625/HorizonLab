@@ -1,19 +1,18 @@
 import React from 'react';
 import { 
   Cpu, 
-  Terminal, 
   Settings, 
   RotateCcw, 
-  Play, 
+  Sparkles, 
   CheckCircle2, 
   ShieldCheck, 
   FileCode2, 
   Layers, 
-  Sparkles, 
   BarChart3, 
   FlaskConical, 
   Database,
-  ArrowRight
+  Terminal,
+  Circle
 } from 'lucide-react';
 
 const STAGES = [
@@ -43,132 +42,147 @@ export default function Header({
 }) {
   return (
     <header style={{
-      backgroundColor: '#0c101a',
-      borderBottom: '1px solid #1e293b',
+      backgroundColor: '#FFFFFF',
+      borderBottom: '1px solid var(--border-subtle, #E5E7EF)',
       position: 'sticky',
       top: 0,
       zIndex: 50,
-      backdropFilter: 'blur(12px)',
-      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+      boxShadow: '0 1px 3px rgba(16, 24, 40, 0.05)'
     }}>
-      {/* Top Telemetry & Global Controls Row */}
+      {/* Top Application Header Row */}
       <div style={{
         padding: '10px 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: '1px solid rgba(30, 41, 59, 0.6)'
+        borderBottom: '1px solid var(--border-subtle, #E5E7EF)',
+        gap: '16px',
+        flexWrap: 'wrap'
       }}>
-        {/* Logo & Platform Branding */}
+        {/* Brand & Platform Identity */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
-            width: '36px',
-            height: '36px',
+            width: '34px',
+            height: '34px',
             borderRadius: '8px',
-            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #4338ca 100%)',
+            backgroundColor: 'var(--accent-primary, #6257D9)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 0 15px rgba(2, 132, 199, 0.4)',
-            border: '1px solid rgba(56, 189, 248, 0.4)'
+            color: '#FFFFFF',
+            boxShadow: '0 2px 6px rgba(98, 87, 217, 0.3)'
           }}>
-            <Cpu size={20} color="#ffffff" />
+            <Cpu size={18} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#ffffff' }}>
-                AgentEval-X
-              </h1>
-              <span className="badge badge-cyan" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>
-                Autonomous SE Agent
+              <span style={{ 
+                fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', 
+                fontSize: '1.05rem', 
+                fontWeight: 700, 
+                color: 'var(--text-primary, #172033)',
+                letterSpacing: '-0.02em'
+              }}>
+                HorizonLab
+              </span>
+              <span className="badge badge-purple" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>
+                Autonomous Developer Platform
               </span>
             </div>
-            <p style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-              Multi-Stage Coding, Testing, Bounded Recovery & Independent Verification
+            <p style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
+              Closed-Loop Coding, Test Diagnostics, Recovery & Independent Verification
             </p>
           </div>
         </div>
 
-        {/* Global Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Run History Quick Select */}
+        {/* Global Action & Status Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Active / Previous Run Selector */}
           {runsList.length > 0 && (
-            <select
-              value={runId || ''}
-              onChange={(e) => onSelectRun && onSelectRun(e.target.value)}
-              style={{
-                backgroundColor: '#151d2e',
-                color: '#cbd5e1',
-                border: '1px solid #2a3b53',
-                borderRadius: '6px',
-                padding: '5px 10px',
-                fontSize: '0.75rem',
-                fontFamily: 'var(--font-mono)',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="">-- Recent Runs ({runsList.length}) --</option>
-              {runsList.map((r) => (
-                <option key={r.run_id} value={r.run_id}>
-                  {r.run_id} ({r.title ? r.title.slice(0, 30) : 'Run'}) [{r.status}]
-                </option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label htmlFor="run-selector" style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)', fontWeight: 500 }}>
+                Run:
+              </label>
+              <select
+                id="run-selector"
+                value={runId || ''}
+                onChange={(e) => onSelectRun && onSelectRun(e.target.value)}
+                style={{
+                  backgroundColor: '#F6F7FB',
+                  color: 'var(--text-primary, #172033)',
+                  border: '1px solid var(--border-subtle, #E5E7EF)',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-mono, monospace)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  maxWidth: '240px'
+                }}
+              >
+                <option value="">-- Recent Runs ({runsList.length}) --</option>
+                {runsList.map((r) => (
+                  <option key={r.run_id} value={r.run_id}>
+                    {r.run_id} ({r.title ? r.title.slice(0, 24) : 'Run'}) [{r.status}]
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
-          {/* Ollama Status Pill */}
-          <div 
+          {/* Ollama Connection Pill */}
+          <button 
+            type="button"
             onClick={onOpenSettings}
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              backgroundColor: ollamaStatus?.connected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-              border: `1px solid ${ollamaStatus?.connected ? 'rgba(52, 211, 153, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-              padding: '4px 10px',
+              backgroundColor: ollamaStatus?.connected ? '#ECFDF5' : '#FEF2F2',
+              border: `1px solid ${ollamaStatus?.connected ? '#A7F3D0' : '#FECACA'}`,
+              padding: '5px 10px',
               borderRadius: '9999px',
               cursor: 'pointer',
-              fontSize: '0.725rem'
+              fontSize: '0.725rem',
+              color: ollamaStatus?.connected ? '#16845B' : '#D14343',
+              fontWeight: 600
             }}
-            title="Click to configure Ollama endpoint"
+            title="Click to configure model settings"
           >
             <span style={{
               width: '7px',
               height: '7px',
               borderRadius: '50%',
-              backgroundColor: ollamaStatus?.connected ? '#10b981' : '#f43f5e',
-              boxShadow: ollamaStatus?.connected ? '0 0 6px #10b981' : 'none'
+              backgroundColor: ollamaStatus?.connected ? '#16845B' : '#D14343'
             }} />
-            <span style={{ color: ollamaStatus?.connected ? '#34d399' : '#fb7185', fontWeight: 600 }}>
-              {ollamaStatus?.connected ? `Ollama (${ollamaStatus?.current_model || 'online'})` : 'Ollama Offline'}
+            <span>
+              {ollamaStatus?.connected ? `Ollama (${ollamaStatus?.current_model || 'active'})` : 'Ollama Offline'}
             </span>
             {ollamaStatus?.latency_ms && (
-              <span style={{ color: '#64748b', fontSize: '0.65rem' }}>{ollamaStatus.latency_ms}ms</span>
+              <span style={{ color: 'var(--text-secondary, #667085)', fontSize: '0.65rem', fontWeight: 400 }}>
+                {ollamaStatus.latency_ms}ms
+              </span>
             )}
-          </div>
+          </button>
 
-          {/* Full Pipeline Action Button */}
+          {/* Primary Run Full Pipeline Button */}
           <button
+            type="button"
             className="btn btn-primary btn-sm"
             onClick={onRunFullPipeline}
             disabled={isRunning}
-            style={{
-              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-              border: '1px solid rgba(167, 139, 250, 0.4)',
-              boxShadow: '0 0 14px rgba(124, 58, 237, 0.35)',
-              fontWeight: 600
-            }}
+            style={{ fontWeight: 600 }}
           >
             <Sparkles size={14} />
-            <span>{isRunning ? 'Running Multi-Agent Engine...' : '⚡ Run Full Autonomous Pipeline'}</span>
+            <span>{isRunning ? 'Running Full Pipeline...' : 'Run Full Pipeline'}</span>
           </button>
 
-          {/* Reset / New Task Button */}
+          {/* New Task Reset Button */}
           <button
+            type="button"
             className="btn btn-secondary btn-sm"
             onClick={onReset}
-            title="Start new software task"
+            title="Start a new software engineering task"
           >
             <RotateCcw size={13} />
             <span>New Task</span>
@@ -176,58 +190,63 @@ export default function Header({
 
           {/* Settings Button */}
           <button
+            type="button"
             className="btn btn-ghost btn-sm"
             onClick={onOpenSettings}
-            title="Ollama Settings"
+            title="Configure Ollama model & inference parameters"
+            style={{ padding: '6px 8px' }}
           >
             <Settings size={15} />
           </button>
         </div>
       </div>
 
-      {/* Stage Stepper Navigation Bar */}
+      {/* Stage Navigation & Workflow Tabs Row */}
       <div style={{
         padding: '0 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         overflowX: 'auto',
-        backgroundColor: '#0a0d14'
+        backgroundColor: '#FFFFFF'
       }}>
-        <nav style={{ display: 'flex', gap: '4px', minWidth: 'max-content' }}>
-          {STAGES.map((stage, idx) => {
+        <nav aria-label="Workflow navigation" style={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
+          {STAGES.map((stage) => {
             const Icon = stage.icon;
             const isActive = activeTab === stage.id;
             return (
               <button
                 key={stage.id}
+                type="button"
                 onClick={() => setActiveTab(stage.id)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
+                  gap: '7px',
                   padding: '10px 14px',
                   fontSize: '0.8rem',
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? '#38bdf8' : '#94a3b8',
-                  background: isActive ? 'rgba(56, 189, 248, 0.08)' : 'transparent',
+                  fontFamily: 'var(--font-heading, "Plus Jakarta Sans")',
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? 'var(--accent-primary, #6257D9)' : 'var(--text-secondary, #667085)',
+                  background: isActive ? 'var(--accent-primary-subtle, #F0EEFF)' : 'transparent',
                   border: 'none',
-                  borderBottom: `2px solid ${isActive ? '#38bdf8' : 'transparent'}`,
+                  borderBottom: `2px solid ${isActive ? 'var(--accent-primary, #6257D9)' : 'transparent'}`,
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease'
+                  transition: 'all 0.15s ease',
+                  borderRadius: '4px 4px 0 0'
                 }}
               >
-                <Icon size={15} color={isActive ? '#38bdf8' : '#64748b'} />
+                <Icon size={14} color={isActive ? '#6257D9' : '#667085'} />
                 <span>{stage.label}</span>
               </button>
             );
           })}
         </nav>
 
-        {/* Active Run Telemetry Badge */}
+        {/* Compact Active Run Indicator */}
         {runId && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0' }}>
-            <span style={{ fontSize: '0.725rem', color: '#64748b' }}>Active Run:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', fontSize: '0.725rem' }}>
+            <span style={{ color: 'var(--text-secondary, #667085)' }}>Active Run:</span>
             <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>
               {runId}
             </span>

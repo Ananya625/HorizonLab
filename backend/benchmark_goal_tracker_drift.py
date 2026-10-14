@@ -26,31 +26,48 @@ async def run_goal_tracker_benchmarks():
     print("\n>>> Measuring Simple Task (3 repeated runs for median)...")
     for r in range(1, 4):
         t0 = time.time()
-        record = await orchestrator_service.run_full_pipeline(
-            request_text=simple_prompt,
-            repo_path=workspace_service.get_default_repo_path()
-        )
-        wall_sec = round(time.time() - t0, 3)
-        tracking = goal_tracker_service.get_state(record.run_id)
-        
-        telemetry = record.evaluation.telemetry if record.evaluation else {}
-        counters = telemetry.get("counters", {})
+        try:
+            record = await orchestrator_service.run_full_pipeline(
+                request_text=simple_prompt,
+                repo_path=workspace_service.get_default_repo_path(),
+                authorized_benchmark=True
+            )
+            wall_sec = round(time.time() - t0, 3)
+            tracking = goal_tracker_service.get_state(record.run_id)
+            telemetry = record.evaluation.telemetry if record.evaluation else {}
+            counters = telemetry.get("counters", {})
 
-        run_info = {
-            "run": r,
-            "run_id": record.run_id,
-            "wall_sec": wall_sec,
-            "status": record.status,
-            "verdict": record.verification.overall_verdict if record.verification else "N/A",
-            "model_calls": counters.get("model_calls", 0),
-            "tool_calls": counters.get("tool_calls", 0),
-            "retries": counters.get("retries", 0),
-            "subtasks_count": len(tracking.ordered_subtasks) if tracking else 0,
-            "action_history_len": len(tracking.action_history) if tracking else 0,
-            "criteria_verified": all(c.status == "passed" for c in tracking.acceptance_criteria) if tracking else False
-        }
+            run_info = {
+                "run": r,
+                "run_id": record.run_id,
+                "wall_sec": wall_sec,
+                "status": record.status,
+                "verdict": record.verification.overall_verdict if record.verification else "N/A",
+                "model_calls": counters.get("model_calls", 0),
+                "tool_calls": counters.get("tool_calls", 0),
+                "retries": counters.get("retries", 0),
+                "subtasks_count": len(tracking.ordered_subtasks) if tracking else 0,
+                "action_history_len": len(tracking.action_history) if tracking else 0,
+                "criteria_verified": all(c.status == "passed" for c in tracking.acceptance_criteria) if tracking else False
+            }
+        except Exception as exc:
+            wall_sec = round(time.time() - t0, 3)
+            run_info = {
+                "run": r,
+                "run_id": "failed",
+                "wall_sec": wall_sec,
+                "status": "failed",
+                "verdict": "FAILED_EXECUTION",
+                "error_detail": str(exc),
+                "model_calls": 0,
+                "tool_calls": 0,
+                "retries": 0,
+                "subtasks_count": 0,
+                "action_history_len": 0,
+                "criteria_verified": False
+            }
         simple_runs.append(run_info)
-        print(f"  Run #{r}: Latency = {wall_sec}s | Status = {record.status} | Verdict = {run_info['verdict']} | Model Calls = {run_info['model_calls']} | Tool Calls = {run_info['tool_calls']}")
+        print(f"  Run #{r}: Latency = {wall_sec}s | Status = {run_info['status']} | Verdict = {run_info['verdict']} | Model Calls = {run_info['model_calls']} | Tool Calls = {run_info['tool_calls']}")
 
     simple_latencies = [x["wall_sec"] for x in simple_runs]
     simple_median = round(statistics.median(simple_latencies), 3)
@@ -60,29 +77,46 @@ async def run_goal_tracker_benchmarks():
     complex_prompt = "Implement complete JWT authentication with user registration, login, and token verification with password hashing and expiring tokens in app/auth.py, app/routes/auth_routes.py, app/main.py, and tests/test_auth.py."
     print("\n>>> Measuring Complex Multi-File Task...")
     t0 = time.time()
-    complex_record = await orchestrator_service.run_full_pipeline(
-        request_text=complex_prompt,
-        repo_path=workspace_service.get_default_repo_path(),
-        model_name="qwen2.5-coder:7b"
-    )
-    complex_wall_sec = round(time.time() - t0, 3)
-    complex_tracking = goal_tracker_service.get_state(complex_record.run_id)
-    complex_telemetry = complex_record.evaluation.telemetry if complex_record.evaluation else {}
-    complex_counters = complex_telemetry.get("counters", {})
+    try:
+        complex_record = await orchestrator_service.run_full_pipeline(
+            request_text=complex_prompt,
+            repo_path=workspace_service.get_default_repo_path(),
+            model_name="qwen2.5-coder:7b",
+            authorized_benchmark=True
+        )
+        complex_wall_sec = round(time.time() - t0, 3)
+        complex_tracking = goal_tracker_service.get_state(complex_record.run_id)
+        complex_telemetry = complex_record.evaluation.telemetry if complex_record.evaluation else {}
+        complex_counters = complex_telemetry.get("counters", {})
 
-    complex_info = {
-        "run_id": complex_record.run_id,
-        "wall_sec": complex_wall_sec,
-        "status": complex_record.status,
-        "verdict": complex_record.verification.overall_verdict if complex_record.verification else "N/A",
-        "model_calls": complex_counters.get("model_calls", 0),
-        "tool_calls": complex_counters.get("tool_calls", 0),
-        "retries": complex_counters.get("retries", 0),
-        "subtasks_count": len(complex_tracking.ordered_subtasks) if complex_tracking else 0,
-        "action_history_len": len(complex_tracking.action_history) if complex_tracking else 0,
-        "criteria_verified": all(c.status == "passed" for c in complex_tracking.acceptance_criteria) if complex_tracking else False
-    }
-    print(f"--> Complex Task Latency: {complex_wall_sec}s | Status = {complex_record.status} | Verdict = {complex_info['verdict']} | Model Calls = {complex_info['model_calls']} | Tool Calls = {complex_info['tool_calls']}")
+        complex_info = {
+            "run_id": complex_record.run_id,
+            "wall_sec": complex_wall_sec,
+            "status": complex_record.status,
+            "verdict": complex_record.verification.overall_verdict if complex_record.verification else "N/A",
+            "model_calls": complex_counters.get("model_calls", 0),
+            "tool_calls": complex_counters.get("tool_calls", 0),
+            "retries": complex_counters.get("retries", 0),
+            "subtasks_count": len(complex_tracking.ordered_subtasks) if complex_tracking else 0,
+            "action_history_len": len(complex_tracking.action_history) if complex_tracking else 0,
+            "criteria_verified": all(c.status == "passed" for c in complex_tracking.acceptance_criteria) if complex_tracking else False
+        }
+    except Exception as exc:
+        complex_wall_sec = round(time.time() - t0, 3)
+        complex_info = {
+            "run_id": "failed",
+            "wall_sec": complex_wall_sec,
+            "status": "failed",
+            "verdict": "FAILED_EXECUTION",
+            "error_detail": str(exc),
+            "model_calls": 0,
+            "tool_calls": 0,
+            "retries": 0,
+            "subtasks_count": 0,
+            "action_history_len": 0,
+            "criteria_verified": False
+        }
+    print(f"--> Complex Task Latency: {complex_wall_sec}s | Status = {complex_info['status']} | Verdict = {complex_info['verdict']} | Model Calls = {complex_info['model_calls']} | Tool Calls = {complex_info['tool_calls']}")
 
     # 3. Micro-benchmark: Deterministic Drift Check & Goal Tracker Overhead
     print("\n>>> Measuring Micro-Benchmark Overhead of Drift Check & Goal Tracker...")

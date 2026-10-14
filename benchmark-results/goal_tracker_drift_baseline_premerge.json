@@ -1,0 +1,68 @@
+{
+  "timestamp": "2026-10-12T12:10:11.839165",
+  "simple_task": {
+    "median_runtime_seconds": 7.643,
+    "individual_runs_seconds": [
+      9.117,
+      7.643,
+      7.522
+    ],
+    "details": [
+      {
+        "run": 1,
+        "run_id": "run_b309658b",
+        "wall_sec": 9.117,
+        "status": "completed",
+        "verdict": "VERIFIED_PASSED",
+        "model_calls": 2,
+        "tool_calls": 3,
+        "retries": 0,
+        "subtasks_count": 1,
+        "action_history_len": 3,
+        "criteria_verified": true
+      },
+      {
+        "run": 2,
+        "run_id": "run_68020779",
+        "wall_sec": 7.643,
+        "status": "completed",
+        "verdict": "VERIFIED_PASSED",
+        "model_calls": 2,
+        "tool_calls": 3,
+        "retries": 0,
+        "subtasks_count": 1,
+        "action_history_len": 3,
+        "criteria_verified": true
+      },
+      {
+        "run": 3,
+        "run_id": "run_4c4da495",
+        "wall_sec": 7.522,
+        "status": "completed",
+        "verdict": "VERIFIED_PASSED",
+        "model_calls": 2,
+        "tool_calls": 3,
+        "retries": 0,
+        "subtasks_count": 1,
+        "action_history_len": 3,
+        "criteria_verified": true
+      }
+    ]
+  },
+  "complex_task": {
+    "run_id": "run_68df8a39",
+    "wall_sec": 95.294,
+    "status": "completed",
+    "verdict": "VERIFIED_PASSED",
+    "model_calls": 2,
+    "tool_calls": 5,
+    "retries": 0,
+    "subtasks_count": 3,
+    "action_history_len": 5,
+    "criteria_verified": true
+  },
+  "drift_and_tracker_overhead_ms": {
+    "median_ms": 15.759,
+    "p95_ms": 17.419
+  }
+}

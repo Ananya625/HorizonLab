@@ -45,6 +45,8 @@ backend/sandbox/*/__pycache__/
 backend/sandbox/workspace_run_*/
 sandbox/
 *.db
+*.db-shm
+*.db-wal
 backend/app.db
 backend/*benchmark_results.json
 backend/app/data/benchmark_workspaces/

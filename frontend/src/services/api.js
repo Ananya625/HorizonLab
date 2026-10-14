@@ -146,10 +146,14 @@ export async function fetchCodeChanges(runId) {
 
 // --- Stage 5: Testing & Debugging Agent ---
 
-export async function executeTesting({ runId, maxRecoveryRetries }) {
+export async function executeTesting({ runId, maxRecoveryRetries, modelName }) {
   return request('/tester/execute', {
     method: 'POST',
-    body: JSON.stringify({ run_id: runId, max_recovery_retries: maxRecoveryRetries ?? 3 }),
+    body: JSON.stringify({
+      run_id: runId,
+      max_recovery_retries: maxRecoveryRetries ?? 3,
+      model_name: modelName,
+    }),
   });
 }
 

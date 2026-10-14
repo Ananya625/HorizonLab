@@ -98,6 +98,7 @@ Goal Model Requirements:
 - Hard Constraints: {[hc.text for hc in goal_model.hard_constraints]}
 - Soft Constraints: {[sc.text for sc in goal_model.soft_constraints]}
 - Acceptance Criteria: {[sc.metric for sc in goal_model.success_criteria]}
+- Target Files Expected by Acceptance Criteria: {[sc.expected_output for sc in goal_model.success_criteria if sc.expected_output and not sc.expected_output.startswith('.')] or ['app/service.py', 'tests/test_service.py']}
 
 Generate the detailed Implementation Plan JSON for the Coding Agent."""
 
@@ -126,7 +127,26 @@ Generate the detailed Implementation Plan JSON for the Coding Agent."""
             parsed_plan = self._generate_heuristic_plan(goal_model, target_repo, inspection)
 
         planned_files = [PlannedFile(**pf) for pf in parsed_plan.get("planned_files", [])]
-        steps = [PlanStep(**s) for s in parsed_plan.get("steps", [])]
+        raw_steps = parsed_plan.get("steps", [])
+        for s in raw_steps:
+            if isinstance(s, dict) and "dependencies" in s:
+                normalized_deps = []
+                for d in s.get("dependencies", []):
+                    if isinstance(d, int):
+                        normalized_deps.append(d)
+                    elif isinstance(d, str):
+                        if d.isdigit():
+                            normalized_deps.append(int(d))
+                        else:
+                            # Map file path or title to prior step number if applicable
+                            matched = next((prev.get("step_number") for prev in raw_steps if isinstance(prev, dict) and (d in prev.get("target_files", []) or d == prev.get("title")) and prev.get("step_number") != s.get("step_number")), None)
+                            if matched is not None:
+                                normalized_deps.append(matched)
+                            else:
+                                normalized_deps.append(d)
+                s["dependencies"] = normalized_deps
+
+        steps = [PlanStep(**s) for s in raw_steps]
 
         # Guarantee at least one test file is planned for automated testing verification
         has_test_file = any(pf.action == "test" or "test" in pf.path for pf in planned_files)

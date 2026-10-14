@@ -23,13 +23,13 @@ import WorkflowAnalysis from './WorkflowAnalysis';
 
 function StatusPill({ status }) {
   const colors = {
-    measured: { bg: 'rgba(52,211,153,0.12)', text: '#34d399', border: '#1a4a3a' },
-    insufficient_evidence: { bg: 'rgba(251,191,36,0.12)', text: '#fbbf24', border: '#5a4200' },
+    measured: { bg: '#ECFDF5', text: '#16845B', border: '#A7F3D0' },
+    insufficient_evidence: { bg: '#F1F4F9', text: '#667085', border: '#E2E8F0' },
   };
   const c = colors[status] || colors.insufficient_evidence;
   return (
     <span style={{
-      fontSize: '0.65rem', padding: '2px 7px', borderRadius: '6px',
+      fontSize: '0.65rem', padding: '2px 8px', borderRadius: '9999px',
       background: c.bg, color: c.text, border: `1px solid ${c.border}`,
       fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em'
     }}>
@@ -38,13 +38,159 @@ function StatusPill({ status }) {
   );
 }
 
-function MetricCell({ label, value, color = '#f8fafc', sub, badge }) {
+function MetricCell({ label, value, color = '#172033', sub, badge }) {
   return (
-    <div style={{ background: '#0c121d', padding: '14px 16px', borderRadius: '10px', border: '1px solid #1e293b' }}>
-      <div style={{ color: '#64748b', fontSize: '0.68rem', textTransform: 'uppercase', marginBottom: '4px' }}>{label}</div>
-      <div style={{ color, fontSize: '1.3rem', fontWeight: 700 }}>{value}</div>
-      {sub && <div style={{ color: '#64748b', fontSize: '0.7rem', marginTop: '4px' }}>{sub}</div>}
+    <div style={{ background: '#FFFFFF', padding: '14px 16px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+      <div style={{ color: '#667085', fontSize: '0.68rem', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 500 }}>{label}</div>
+      <div style={{ color, fontSize: '1.25rem', fontWeight: 700 }}>{value}</div>
+      {sub && <div style={{ color: '#667085', fontSize: '0.7rem', marginTop: '4px' }}>{sub}</div>}
       {badge && <div style={{ marginTop: '6px' }}>{badge}</div>}
+    </div>
+  );
+}
+
+function TestDoughnutChart({ passed = 0, failed = 0, skipped = 0, total = 0 }) {
+  const totalCount = total > 0 ? total : (passed + failed + skipped);
+  const r = 38;
+  const c = 2 * Math.PI * r;
+  const pFraction = totalCount > 0 ? (passed / totalCount) : 0;
+  const fFraction = totalCount > 0 ? (failed / totalCount) : 0;
+  const sFraction = totalCount > 0 ? (skipped / totalCount) : 0;
+
+  const pStroke = pFraction * c;
+  const fStroke = fFraction * c;
+  const sStroke = sFraction * c;
+
+  const fOffset = -pStroke;
+  const sOffset = -(pStroke + fStroke);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+      <div style={{ position: 'relative', width: '96px', height: '96px', flexShrink: 0 }}>
+        <svg width="96" height="96" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="50" cy="50" r={r} fill="none" stroke="#E5E7EF" strokeWidth="12" />
+          {totalCount > 0 && pStroke > 0 && (
+            <circle cx="50" cy="50" r={r} fill="none" stroke="#16845B" strokeWidth="12"
+              strokeDasharray={`${pStroke} ${c}`} strokeDashoffset={0} />
+          )}
+          {totalCount > 0 && fStroke > 0 && (
+            <circle cx="50" cy="50" r={r} fill="none" stroke="#D14343" strokeWidth="12"
+              strokeDasharray={`${fStroke} ${c}`} strokeDashoffset={fOffset} />
+          )}
+          {totalCount > 0 && sStroke > 0 && (
+            <circle cx="50" cy="50" r={r} fill="none" stroke="#98A2B3" strokeWidth="12"
+              strokeDasharray={`${sStroke} ${c}`} strokeDashoffset={sOffset} />
+          )}
+        </svg>
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', pointerEvents: 'none'
+        }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#172033', lineHeight: 1.1 }}>
+            {totalCount}
+          </span>
+          <span style={{ fontSize: '0.625rem', color: '#667085', textTransform: 'uppercase', fontWeight: 500 }}>
+            Tests
+          </span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.775rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#16845B' }} />
+          <span>Passed: <strong style={{ color: '#16845B' }}>{passed}</strong></span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#D14343' }} />
+          <span>Failed: <strong style={{ color: '#D14343' }}>{failed}</strong></span>
+        </div>
+        {skipped > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#98A2B3' }} />
+            <span>Skipped: <strong>{skipped}</strong></span>
+          </div>
+        )}
+        <span style={{ fontSize: '0.72rem', color: '#667085', marginTop: '2px' }}>
+          {totalCount === 0 ? 'No test executions recorded' : `${passed} of ${totalCount} tests passed`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function CriteriaProgressBar({ successRate }) {
+  const hasRate = Number.isFinite(successRate);
+  const pct = hasRate ? Math.max(0, Math.min(100, successRate)) : null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+        <span style={{ fontWeight: 600, color: '#172033' }}>
+          Acceptance Criteria Progress
+        </span>
+        <span style={{ fontWeight: 700, color: hasRate ? '#16845B' : '#667085' }}>
+          {hasRate ? `${pct}%` : 'Unavailable'}
+        </span>
+      </div>
+      <div style={{
+        height: '10px',
+        width: '100%',
+        backgroundColor: '#E5E7EF',
+        borderRadius: '9999px',
+        overflow: 'hidden'
+      }}>
+        {hasRate && pct > 0 && (
+          <div style={{
+            height: '100%',
+            width: `${pct}%`,
+            backgroundColor: pct === 100 ? '#16845B' : '#6257D9',
+            borderRadius: '9999px',
+            transition: 'width 0.4s ease'
+          }} />
+        )}
+      </div>
+      <div style={{ fontSize: '0.725rem', color: '#667085' }}>
+        {hasRate
+          ? `${pct}% of requirement criteria verified with empirical evidence.`
+          : 'Criteria completion percentage is unavailable for this run.'}
+      </div>
+    </div>
+  );
+}
+
+function GoalDriftGauge({ driftScore }) {
+  const hasScore = Number.isFinite(driftScore);
+  const scoreVal = hasScore ? Math.max(0, Math.min(100, driftScore)) : null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+        <span style={{ fontWeight: 600, color: '#172033' }}>
+          Goal Drift Gauge
+        </span>
+        <span style={{ fontWeight: 700, color: hasScore ? (scoreVal > 25 ? '#B7791F' : '#16845B') : '#667085' }}>
+          {hasScore ? `${scoreVal}%` : 'Unavailable'}
+        </span>
+      </div>
+      <div style={{
+        height: '10px',
+        width: '100%',
+        backgroundColor: '#E5E7EF',
+        borderRadius: '9999px',
+        overflow: 'hidden'
+      }}>
+        {hasScore && (
+          <div style={{
+            height: '100%',
+            width: `${scoreVal}%`,
+            backgroundColor: scoreVal > 30 ? '#D14343' : scoreVal > 15 ? '#B7791F' : '#16845B',
+            borderRadius: '9999px',
+            transition: 'width 0.4s ease'
+          }} />
+        )}
+      </div>
+      <div style={{ fontSize: '0.725rem', color: '#667085' }}>
+        {hasScore
+          ? 'Measures semantic divergence between original user prompt and generated code.'
+          : 'Unavailable — no validated semantic alignment measurement recorded.'}
+      </div>
     </div>
   );
 }
@@ -86,8 +232,8 @@ function BinaryCapabilityCard({ profile }) {
 
   return (
     <div style={{
-      background: '#0c121d', padding: '16px 18px', borderRadius: '10px',
-      border: '1px solid #1e293b', borderLeft: `3px solid ${color}`
+      background: '#FFFFFF', padding: '16px 18px', borderRadius: '8px',
+      border: '1px solid #E5E7EF', borderLeft: `3px solid ${color}`
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
         <div>
@@ -133,7 +279,7 @@ function BinaryCapabilityCard({ profile }) {
         </div>
       )}
       {profile.note && (
-        <div style={{ color: '#475569', fontSize: '0.67rem', marginTop: '8px', borderTop: '1px solid #1e293b', paddingTop: '6px' }}>
+        <div style={{ color: '#667085', fontSize: '0.67rem', marginTop: '8px', borderTop: '1px solid #E5E7EF', paddingTop: '6px' }}>
           {profile.note}
         </div>
       )}
@@ -145,8 +291,8 @@ function EfficiencyCard({ profile }) {
   const fmt = formatDuration;
   return (
     <div style={{
-      background: '#0c121d', padding: '16px 18px', borderRadius: '10px',
-      border: '1px solid #1e293b', borderLeft: '3px solid #a78bfa'
+      background: '#FFFFFF', padding: '16px 18px', borderRadius: '8px',
+      border: '1px solid #E5E7EF', borderLeft: '3px solid #6257D9'
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
         <div>
@@ -174,7 +320,7 @@ function EfficiencyCard({ profile }) {
           ))}
         </div>
       )}
-      <div style={{ color: '#475569', fontSize: '0.67rem', marginTop: '8px', borderTop: '1px solid #1e293b', paddingTop: '6px' }}>
+      <div style={{ color: '#667085', fontSize: '0.67rem', marginTop: '8px', borderTop: '1px solid #E5E7EF', paddingTop: '6px' }}>
         {profile.n > 0
           ? `Based on ${profile.n} timestamp-verified run duration(s). ${profile.note || ''}`
           : profile.note || 'Unverifiable legacy durations are omitted.'}
@@ -235,18 +381,18 @@ function RecoveryPanel({ recovery }) {
       </div>
 
       {recovery.failure_type_breakdown && Object.keys(recovery.failure_type_breakdown).length > 0 && (
-        <div style={{ background: '#0c121d', padding: '12px 14px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-          <div style={{ color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '8px' }}>
+        <div style={{ background: '#F6F7FB', padding: '12px 14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+          <div style={{ color: '#667085', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '8px' }}>
             Failure type breakdown
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             {Object.entries(recovery.failure_type_breakdown).map(([ft, data]) => (
               <div key={ft} style={{
-                background: '#0f1928', border: '1px solid #1e293b',
+                background: '#FFFFFF', border: '1px solid #E5E7EF',
                 borderRadius: '6px', padding: '8px 12px', minWidth: '140px'
               }}>
-                <div style={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.78rem' }}>{ft}</div>
-                <div style={{ color: '#f8fafc', fontSize: '0.85rem', marginTop: '2px' }}>
+                <div style={{ color: '#667085', fontWeight: 600, fontSize: '0.78rem' }}>{ft}</div>
+                <div style={{ color: '#172033', fontSize: '0.85rem', marginTop: '2px', fontWeight: 600 }}>
                   {data.resolved}/{data.attempts} resolved
                 </div>
               </div>
@@ -259,7 +405,7 @@ function RecoveryPanel({ recovery }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b' }}>
+              <tr style={{ borderBottom: '1px solid #E5E7EF', color: '#667085' }}>
                 {(recovery.data_source === 'legacy_recovery_attempts'
                   ? ['Attempt', 'Failure', 'Duration', 'Extra Steps', 'Outcome', 'Human?']
                   : ['Episode', 'Failure Type', 'Duration', 'Extra Steps', 'Outcome', 'Human?']).map(h => (
@@ -269,14 +415,14 @@ function RecoveryPanel({ recovery }) {
             </thead>
             <tbody>
               {recovery.episodes.map((ep) => (
-                <tr key={ep.episode_id} style={{ borderBottom: '1px solid #0f1928' }}>
-                  <td style={{ padding: '8px 10px', color: '#64748b', fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                <tr key={ep.episode_id} style={{ borderBottom: '1px solid #E5E7EF' }}>
+                  <td style={{ padding: '8px 10px', color: '#667085', fontFamily: 'monospace', fontSize: '0.7rem' }}>
                     {recovery.data_source === 'legacy_recovery_attempts'
                       ? `#${ep.attempt_number} ${ep.episode_id}`
                       : ep.episode_id}
                   </td>
-                  <td style={{ padding: '8px 10px', color: '#94a3b8' }}>{ep.failure_type}</td>
-                  <td style={{ padding: '8px 10px', color: '#38bdf8' }}>
+                  <td style={{ padding: '8px 10px', color: '#172033' }}>{ep.failure_type}</td>
+                  <td style={{ padding: '8px 10px', color: '#6257D9' }}>
                     {ep.recovery_duration_seconds != null ? `${ep.recovery_duration_seconds.toFixed(1)}s` : '—'}
                   </td>
                   <td style={{ padding: '8px 10px', color: '#a78bfa' }}>{ep.extra_steps}</td>
@@ -395,19 +541,19 @@ function HierarchicalProfilingPanel({ data, loading, onRebuild, error, selectedR
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px' }}>
-          <div style={{ background: '#0c121d', padding: '14px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '10px', fontWeight: 600 }}>
+          <div style={{ background: '#FFFFFF', padding: '14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+            <div style={{ color: '#667085', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '10px', fontWeight: 600 }}>
               Root-Cause Failure Distribution
             </div>
             {Object.keys(attribution_matrix.failure_attributions || {}).length === 0 ? (
-              <div style={{ color: '#34d399', fontSize: '0.78rem', padding: '8px 0' }}>
+              <div style={{ color: '#16845B', fontSize: '0.78rem', padding: '8px 0' }}>
                 No failure events were captured for this view.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {Object.entries(attribution_matrix.failure_attributions).map(([cause, cnt]) => (
                   <div key={cause} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                    <span style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>{cause}</span>
+                    <span style={{ color: '#172033', fontFamily: 'monospace' }}>{cause}</span>
                     <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>{cnt} run(s)</span>
                   </div>
                 ))}
@@ -415,19 +561,19 @@ function HierarchicalProfilingPanel({ data, loading, onRebuild, error, selectedR
             )}
           </div>
 
-          <div style={{ background: '#0c121d', padding: '14px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '10px', fontWeight: 600 }}>
+          <div style={{ background: '#FFFFFF', padding: '14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+            <div style={{ color: '#667085', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '10px', fontWeight: 600 }}>
               Recovery Resolution Outcomes
             </div>
             {Object.keys(attribution_matrix.recovery_attributions || {}).length === 0 ? (
-              <div style={{ color: '#64748b', fontSize: '0.78rem', fontStyle: 'italic', padding: '8px 0' }}>
+              <div style={{ color: '#667085', fontSize: '0.78rem', fontStyle: 'italic', padding: '8px 0' }}>
                 No recovery episodes recorded.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {Object.entries(attribution_matrix.recovery_attributions).map(([outcome, cnt]) => (
                   <div key={outcome} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                    <span style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>{outcome}</span>
+                    <span style={{ color: '#172033', fontFamily: 'monospace' }}>{outcome}</span>
                     <span className={`badge ${outcome.includes('recovered') ? 'badge-emerald' : outcome.includes('clean') || outcome.includes('no_recovery') ? 'badge-purple' : 'badge-rose'}`} style={{ fontSize: '0.65rem' }}>
                       {cnt} episode(s)
                     </span>
@@ -441,8 +587,8 @@ function HierarchicalProfilingPanel({ data, loading, onRebuild, error, selectedR
 
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-          <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>Level 1: Micro Component Profiles</span>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+          <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>Level 1: Micro Component Profiles</span>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#172033', margin: 0 }}>
             Individual Agent Proficiencies (All 7 Pipeline Agents)
           </h3>
         </div>
@@ -454,10 +600,10 @@ function HierarchicalProfilingPanel({ data, loading, onRebuild, error, selectedR
               <div
                 key={agentId}
                 style={{
-                  background: '#0c121d',
+                  background: '#FFFFFF',
                   padding: '16px 18px',
                   borderRadius: '10px',
-                  border: '1px solid #1e293b',
+                  border: '1px solid #E5E7EF',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '12px'
@@ -468,29 +614,29 @@ function HierarchicalProfilingPanel({ data, loading, onRebuild, error, selectedR
                     <span className="badge badge-purple" style={{ fontSize: '0.6rem', marginBottom: '4px' }}>
                       Stage: {prof.stage}
                     </span>
-                    <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f1f5f9', margin: '2px 0' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#172033', margin: '2px 0' }}>
                       {prof.agent_name}
                     </h4>
-                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.3 }}>
+                    <p style={{ fontSize: '0.7rem', color: '#667085', margin: 0, lineHeight: 1.3 }}>
                       {prof.description}
                     </p>
                   </div>
                   <StatusPill status={prof.evidence_status} />
                 </div>
 
-                <div style={{ background: '#080d16', padding: '12px', borderRadius: '8px', border: '1px solid #162032' }}>
-                  <div style={{ color: '#64748b', fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '2px' }}>
+                <div style={{ background: '#F6F7FB', padding: '12px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                  <div style={{ color: '#667085', fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '2px' }}>
                     Primary: {prof.primary_metric_label}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#6257D9' }}>
                       {pct(pm.observed_rate)}
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#667085' }}>
                       {pm.successes} successes / {pm.failures} failures (n={pm.sample_size})
                     </div>
                   </div>
-                  <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '5px', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: '0.68rem', color: '#667085', marginTop: '5px', lineHeight: 1.4 }}>
                     Basis: {prof.measurement_basis}
                   </div>
                 </div>
@@ -498,11 +644,11 @@ function HierarchicalProfilingPanel({ data, loading, onRebuild, error, selectedR
                 {prof.secondary_metrics && Object.keys(prof.secondary_metrics).length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {Object.entries(prof.secondary_metrics).map(([smKey, smVal]) => (
-                      <div key={smKey} style={{ background: '#101626', padding: '6px 10px', borderRadius: '6px', border: '1px solid #1e293b', flex: '1 1 120px' }}>
-                        <div style={{ fontSize: '0.62rem', color: '#64748b', textTransform: 'uppercase' }}>
+                      <div key={smKey} style={{ background: '#F6F7FB', padding: '6px 10px', borderRadius: '6px', border: '1px solid #E5E7EF', flex: '1 1 120px' }}>
+                        <div style={{ fontSize: '0.62rem', color: '#667085', textTransform: 'uppercase' }}>
                           {smKey.replace(/_/g, ' ')}
                         </div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#cbd5e1' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#172033' }}>
                           {smVal.mean != null ? `${smVal.mean.toFixed(2)}${smVal.unit === 'seconds' ? 's' : ''}` : '—'}
                         </div>
                       </div>
@@ -663,7 +809,7 @@ export default function EvaluationDashboard({
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `agenteval_run_${currentRunRecord?.run_id ?? 'export'}.json`);
+    downloadAnchor.setAttribute('download', `horizonlab_run_${currentRunRecord?.run_id ?? 'export'}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -682,7 +828,7 @@ export default function EvaluationDashboard({
     <div className="evaluation-dashboard" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div className="card-panel" style={{
         padding: '20px 24px',
-        background: 'linear-gradient(135deg, #101626 0%, #0d121f 100%)',
+        backgroundColor: '#FFFFFF',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -691,13 +837,13 @@ export default function EvaluationDashboard({
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span className="badge badge-cyan">Stage 7: Evaluation Dashboard</span>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Persistent Run Analytics & Benchmarks</span>
+            <span className="badge badge-purple">Stage 7: Evaluation Dashboard</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)' }}>Persistent Run Analytics & Benchmarks</span>
           </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '4px' }}>
             Evaluation
           </h2>
-          <p style={{ fontSize: '0.825rem', color: '#94a3b8' }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
             Understand this run, inspect repeated work, or compare controlled benchmark trials.
           </p>
         </div>
@@ -772,71 +918,110 @@ export default function EvaluationDashboard({
           <WorkflowAnalysis runId={currentRunRecord?.run_id} refreshKey={`${currentRunRecord?.evaluation?.created_at || ''}:${workflowRefresh}`} />
 
           {currentEval && (
-            <details open>
-              <summary>Saved test and timing summary</summary>
-              {currentEval.metric_version !== '2' && <p>Historical measurements are unvalidated.</p>}
-              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>
-                Current Run Telemetry ({currentRunRecord?.run_id})
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Visual Evaluation Graphs Card */}
+              <div className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '16px' }}>
+                  Execution Visualizations & Metrics
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px', alignItems: 'center' }}>
+                  {/* Test Outcomes Doughnut Chart */}
+                  <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#172033', marginBottom: '10px' }}>
+                      Test Execution Breakdown
+                    </div>
+                    <TestDoughnutChart
+                      passed={currentEval.tests_passed ?? 0}
+                      failed={currentEval.tests_failed ?? (currentEval.tests_total != null && currentEval.tests_passed != null ? Math.max(0, currentEval.tests_total - currentEval.tests_passed) : 0)}
+                      skipped={currentEval.tests_skipped ?? 0}
+                      total={currentEval.tests_total ?? 0}
+                    />
+                  </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                <div className="card-panel" style={{ padding: '14px 16px' }}>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
-                    Criteria Coverage
-                  </span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34d399' }}>
-                    {currentEval.success_rate == null ? 'Unavailable' : `${currentEval.success_rate}%`}
-                  </span>
-                </div>
+                  {/* Criteria Progress Bar */}
+                  <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                    <CriteriaProgressBar successRate={currentEval.success_rate} />
+                  </div>
 
-                <div className="card-panel" style={{ padding: '14px 16px' }}>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
-                    Execution Time
-                  </span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>
-                    {currentEval.execution_time_seconds == null ? 'Unavailable' : `${currentEval.execution_time_seconds}s`}
-                  </span>
-                </div>
-
-                <div className="card-panel" style={{ padding: '14px 16px' }}>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
-                    Total Tool Calls
-                  </span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#a78bfa' }}>
-                    {currentEval.total_tool_calls ?? 'Unavailable'}
-                  </span>
-                </div>
-
-                <div className="card-panel" style={{ padding: '14px 16px' }}>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
-                    Recovery Attempts
-                  </span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fbbf24' }}>
-                    {currentEval.recovery_attempts_count ?? 'Unavailable'}
-                  </span>
-                </div>
-
-                <div className="card-panel" style={{ padding: '14px 16px' }}>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
-                    Tests Passing
-                  </span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34d399' }}>
-                    {currentEval.tests_passed ?? '—'} / {currentEval.tests_total ?? '—'}
-                  </span>
-                </div>
-
-                <div className="card-panel" style={{ padding: '14px 16px' }}>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
-                    Goal Drift Score
-                  </span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>
-                    {currentEval.goal_drift_score == null ? 'Unavailable' : `${currentEval.goal_drift_score}%`}
-                  </span>
+                  {/* Goal Drift Gauge */}
+                  <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                    <GoalDriftGauge driftScore={currentEval.goal_drift_score ?? currentEval.evidence_breakdown?.diagnostic_scores?.goal_drift_score} />
+                  </div>
                 </div>
               </div>
-            </details>
+
+              {/* Saved Test and Timing Telemetry (Exact spans for assertions) */}
+              <details open className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
+                <summary>Saved test and timing summary</summary>
+                {currentEval.metric_version !== '2' && <p>Historical measurements are unvalidated.</p>}
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#667085', textTransform: 'uppercase', margin: '12px 0 8px 0' }}>
+                  Current Run Telemetry ({currentRunRecord?.run_id})
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                  <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#F8F9FD' }}>
+                    <span style={{ fontSize: '0.675rem', color: '#667085', textTransform: 'uppercase', display: 'block', marginBottom: '2px', fontWeight: 500 }}>
+                      Criteria Coverage
+                    </span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#16845B' }}>
+                      {currentEval.success_rate == null ? 'Unavailable' : `${currentEval.success_rate}%`}
+                    </span>
+                  </div>
+
+                  <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#F8F9FD' }}>
+                    <span style={{ fontSize: '0.675rem', color: '#667085', textTransform: 'uppercase', display: 'block', marginBottom: '2px', fontWeight: 500 }}>
+                      Execution Time
+                    </span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#6257D9' }}>
+                      {currentEval.execution_time_seconds == null ? 'Unavailable' : `${currentEval.execution_time_seconds}s`}
+                    </span>
+                  </div>
+
+                  <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#F8F9FD' }}>
+                    <span style={{ fontSize: '0.675rem', color: '#667085', textTransform: 'uppercase', display: 'block', marginBottom: '2px', fontWeight: 500 }}>
+                      Total Tool Calls
+                    </span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#172033' }}>
+                      {currentEval.total_tool_calls ?? 'Unavailable'}
+                    </span>
+                  </div>
+
+                  <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#F8F9FD' }}>
+                    <span style={{ fontSize: '0.675rem', color: '#667085', textTransform: 'uppercase', display: 'block', marginBottom: '2px', fontWeight: 500 }}>
+                      Recovery Attempts
+                    </span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#B7791F' }}>
+                      {currentEval.recovery_attempts_count ?? 'Unavailable'}
+                    </span>
+                  </div>
+
+                  <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#F8F9FD' }}>
+                    <span style={{ fontSize: '0.675rem', color: '#667085', textTransform: 'uppercase', display: 'block', marginBottom: '2px', fontWeight: 500 }}>
+                      Tests Passing
+                    </span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#16845B' }}>
+                      {currentEval.tests_passed ?? '—'} / {currentEval.tests_total ?? '—'}
+                    </span>
+                  </div>
+
+                  <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#F8F9FD' }}>
+                    <span style={{ fontSize: '0.675rem', color: '#667085', textTransform: 'uppercase', display: 'block', marginBottom: '2px', fontWeight: 500 }}>
+                      Goal Drift Score
+                    </span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#6257D9' }}>
+                      {(() => {
+                        const score = currentEval.goal_drift_score ?? currentEval.evidence_breakdown?.diagnostic_scores?.goal_drift_score;
+                        if (score == null) return 'Unavailable';
+                        const isDiag = currentEval.goal_drift_score == null && currentEval.evidence_breakdown?.diagnostic_scores?.goal_drift_score != null;
+                        return isDiag ? `${score}% (Diagnostic)` : `${score}%`;
+                      })()}
+                    </span>
+                  </div>
+                </div>
+              </details>
+            </div>
           )}
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Unavailable means a measurement was not recorded. Unverified means the available evidence does not establish the result.</p>
+          <p style={{ color: '#667085', fontSize: '0.85rem' }}>Unavailable means a measurement was not recorded. Unverified means the available evidence does not establish the result.</p>
         </section>
       )}
 
@@ -877,12 +1062,13 @@ export default function EvaluationDashboard({
                   type="button"
                   onClick={() => setCapabilityScope(id)}
                   style={{
-                    background: capabilityScope === id ? '#1e293b' : '#0c121d',
-                    color: capabilityScope === id ? '#f8fafc' : '#64748b',
-                    border: '1px solid #1e293b',
+                    background: capabilityScope === id ? '#6257D9' : '#FFFFFF',
+                    color: capabilityScope === id ? '#FFFFFF' : '#667085',
+                    border: capabilityScope === id ? '1px solid #6257D9' : '1px solid #E5E7EF',
                     borderRadius: '6px',
-                    padding: '3px 8px',
+                    padding: '4px 10px',
                     fontSize: '0.72rem',
+                    fontWeight: 500,
                     cursor: 'pointer',
                   }}
                 >
@@ -965,28 +1151,28 @@ export default function EvaluationDashboard({
             </h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-              <div style={{ backgroundColor: '#0c121d', padding: '12px 14px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block' }}>Total Recorded Runs</span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc' }}>{aggregate.total_runs ?? 'Unavailable'}</span>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                <span style={{ fontSize: '0.7rem', color: '#667085', display: 'block' }}>Total Recorded Runs</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#172033' }}>{aggregate.total_runs ?? 'Unavailable'}</span>
               </div>
 
-              <div style={{ backgroundColor: '#0c121d', padding: '12px 14px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block' }}>Verified Task Success Rate</span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#34d399' }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                <span style={{ fontSize: '0.7rem', color: '#667085', display: 'block' }}>Verified Task Success Rate</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#16845B' }}>
                   {aggregate.avg_success_rate == null ? 'Unavailable' : `${Math.round(aggregate.avg_success_rate)}%`}
                 </span>
               </div>
 
-              <div style={{ backgroundColor: '#0c121d', padding: '12px 14px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block' }}>Average Execution Duration</span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#38bdf8' }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                <span style={{ fontSize: '0.7rem', color: '#667085', display: 'block' }}>Average Execution Duration</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#6257D9' }}>
                   {aggregate.avg_duration == null ? 'Unavailable' : `${Math.round(aggregate.avg_duration * 10) / 10}s`}
                 </span>
               </div>
 
-              <div style={{ backgroundColor: '#0c121d', padding: '12px 14px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block' }}>Recovery Attempts</span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fbbf24' }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                <span style={{ fontSize: '0.7rem', color: '#667085', display: 'block' }}>Recovery Attempts</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#B7791F' }}>
                   {aggregate.total_recoveries ?? 'Unavailable'}
                 </span>
               </div>
@@ -994,15 +1180,15 @@ export default function EvaluationDashboard({
           </div>
 
           <div className="card-panel" style={{ padding: '20px' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-              <BarChart3 size={16} color="#38bdf8" />
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#172033', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+              <BarChart3 size={16} color="#6257D9" />
               <span>Saved runs</span>
             </h3>
 
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b' }}>
+                  <tr style={{ borderBottom: '1px solid #E5E7EF', color: '#667085' }}>
                     <th style={{ padding: '10px 12px' }}>Run ID & Task</th>
                     <th style={{ padding: '10px 12px' }}>Criteria / Outcome</th>
                     <th style={{ padding: '10px 12px' }}>Duration</th>
@@ -1019,8 +1205,8 @@ export default function EvaluationDashboard({
                       <tr
                         key={r.run_id ?? idx}
                         style={{
-                          borderBottom: '1px solid #162032',
-                          backgroundColor: currentRunRecord?.run_id === r.run_id ? 'rgba(56, 189, 248, 0.05)' : 'transparent'
+                          borderBottom: '1px solid #E5E7EF',
+                          backgroundColor: currentRunRecord?.run_id === r.run_id ? '#F0EEFF' : 'transparent'
                         }}
                       >
                         <td style={{ padding: '10px 12px' }}>
@@ -1058,7 +1244,12 @@ export default function EvaluationDashboard({
                           {r.tests_passed ?? '—'} / {r.tests_total ?? '—'}
                         </td>
                         <td style={{ padding: '10px 12px', color: '#38bdf8' }}>
-                          {r.goal_drift_score == null ? 'Unavailable' : `${r.goal_drift_score}%`}
+                          {(() => {
+                            const score = r.goal_drift_score ?? r.evidence_breakdown?.diagnostic_scores?.goal_drift_score;
+                            if (score == null) return 'Unavailable';
+                            const isDiag = r.goal_drift_score == null && r.evidence_breakdown?.diagnostic_scores?.goal_drift_score != null;
+                            return isDiag ? `${score}% (Diag)` : `${score}%`;
+                          })()}
                         </td>
                         <td style={{ padding: '10px 12px' }}>
                           <button

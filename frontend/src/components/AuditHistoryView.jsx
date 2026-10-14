@@ -32,34 +32,34 @@ export default function AuditHistoryView({ runId, currentModel }) {
             width: '36px',
             height: '36px',
             borderRadius: '8px',
-            background: 'rgba(139, 92, 246, 0.1)',
-            border: '1px solid rgba(139, 92, 246, 0.3)',
+            background: '#F0EEFF',
+            border: '1px solid #E5E7EF',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <History size={20} color="#a78bfa" />
+            <History size={20} color="#6257D9" />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="badge badge-purple">State 2.E: Audit Trail</span>
-              <span className="font-mono" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Run ID: {runId}</span>
+              <span className="font-mono" style={{ fontSize: '0.75rem', color: '#667085' }}>Run ID: {runId}</span>
             </div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#172033', marginTop: '2px' }}>
               Goal Model Provenance & Version Timeline
             </h2>
           </div>
         </div>
-        <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-          AgentEval-X maintains strict provenance. Every user patch, constraint addition, and ambiguity answer creates an auditable version snapshot without erasing the original user requirement.
+        <p style={{ fontSize: '0.85rem', color: '#667085' }}>
+          HorizonLab maintains strict provenance. Every user patch, constraint addition, and ambiguity answer creates an auditable version snapshot without erasing the original user requirement.
         </p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         {/* Timeline Log */}
-        <div className="card-panel" style={{ padding: '20px', backgroundColor: '#0e1522' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#f8fafc', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <GitCommit size={16} color="#38bdf8" /> Version Change Log ({auditEntries.length} Revisions)
+        <div className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#172033', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <GitCommit size={16} color="#6257D9" /> Version Change Log ({auditEntries.length} Revisions)
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative' }}>
@@ -71,8 +71,8 @@ export default function AuditHistoryView({ runId, currentModel }) {
                   gap: '14px',
                   alignItems: 'flex-start',
                   padding: '12px',
-                  backgroundColor: '#070b12',
-                  border: '1px solid #1e293b',
+                  backgroundColor: '#F6F7FB',
+                  border: '1px solid #E5E7EF',
                   borderRadius: '8px'
                 }}
               >
@@ -80,13 +80,13 @@ export default function AuditHistoryView({ runId, currentModel }) {
                   minWidth: '28px',
                   height: '28px',
                   borderRadius: '50%',
-                  backgroundColor: entry.author === 'system' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                  border: `1px solid ${entry.author === 'system' ? '#38bdf8' : '#10b981'}`,
+                  backgroundColor: entry.author === 'system' ? '#F0EEFF' : 'rgba(22, 132, 91, 0.1)',
+                  border: `1px solid ${entry.author === 'system' ? '#6257D9' : '#16845B'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  {entry.author === 'system' ? <Cpu size={13} color="#38bdf8" /> : <User size={13} color="#10b981" />}
+                  {entry.author === 'system' ? <Cpu size={13} color="#6257D9" /> : <User size={13} color="#16845B" />}
                 </div>
 
                 <div style={{ flex: 1 }}>
@@ -95,19 +95,19 @@ export default function AuditHistoryView({ runId, currentModel }) {
                       <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>v{entry.version}</span>
                       <span className="badge badge-slate" style={{ fontSize: '0.6rem' }}>{entry.author}</span>
                     </div>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#667085' }}>
                       {new Date(entry.timestamp).toLocaleTimeString()}
                     </span>
                   </div>
 
-                  <p style={{ fontSize: '0.825rem', color: '#f1f5f9', fontWeight: 500, marginBottom: '6px' }}>
+                  <p style={{ fontSize: '0.825rem', color: '#172033', fontWeight: 500, marginBottom: '6px' }}>
                     {entry.change_summary}
                   </p>
 
                   {entry.modified_fields && entry.modified_fields.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       {entry.modified_fields.map((f) => (
-                        <span key={f} className="font-mono" style={{ fontSize: '0.65rem', backgroundColor: '#131e30', color: '#38bdf8', padding: '1px 5px', borderRadius: '3px' }}>
+                        <span key={f} className="font-mono" style={{ fontSize: '0.65rem', backgroundColor: '#F0EEFF', color: '#6257D9', padding: '1px 5px', borderRadius: '3px' }}>
                           {f}
                         </span>
                       ))}
@@ -120,25 +120,25 @@ export default function AuditHistoryView({ runId, currentModel }) {
         </div>
 
         {/* Snapshot / Original Request Comparison */}
-        <div className="card-panel" style={{ padding: '20px', backgroundColor: '#0e1522' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#f8fafc', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileDiff size={16} color="#a78bfa" /> Immutable Original Request
+        <div className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#172033', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FileDiff size={16} color="#6257D9" /> Immutable Original Request
           </h3>
 
-          <div style={{ backgroundColor: '#070b12', border: '1px solid #1e293b', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
-            <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+          <div style={{ backgroundColor: '#F6F7FB', border: '1px solid #E5E7EF', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '0.7rem', color: '#667085', textTransform: 'uppercase', marginBottom: '4px' }}>
               Original Unaltered User Prompt
             </div>
-            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.5' }}>
+            <p style={{ fontSize: '0.85rem', color: '#172033', lineHeight: '1.5' }}>
               "{currentModel?.original_request}"
             </p>
           </div>
 
-          <div style={{ backgroundColor: '#070b12', border: '1px solid #1e293b', borderRadius: '8px', padding: '14px' }}>
-            <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+          <div style={{ backgroundColor: '#F6F7FB', border: '1px solid #E5E7EF', borderRadius: '8px', padding: '14px' }}>
+            <div style={{ fontSize: '0.7rem', color: '#667085', textTransform: 'uppercase', marginBottom: '4px' }}>
               Normalized Canonical Specification
             </div>
-            <p style={{ fontSize: '0.85rem', color: '#38bdf8', lineHeight: '1.5' }}>
+            <p style={{ fontSize: '0.85rem', color: '#6257D9', lineHeight: '1.5', fontWeight: 500 }}>
               "{currentModel?.normalized_request}"
             </p>
           </div>

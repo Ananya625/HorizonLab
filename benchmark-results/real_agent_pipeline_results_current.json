@@ -1,0 +1,128 @@
+[
+  {
+    "task_id": "task_1_cold",
+    "name": "Task 1 (Cold Start): Small isolated function",
+    "total_wall_clock_seconds": 0.694,
+    "status": "in_progress",
+    "verdict": "N/A",
+    "success_rate": 0,
+    "stage_durations": {},
+    "counters": {
+      "model_calls": 0,
+      "agent_invocations": 0,
+      "repository_files_inspected": 0,
+      "tool_calls": 0,
+      "retries": 0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0
+    },
+    "model_calls_detail": [],
+    "tests_passed": 0,
+    "tests_total": 0
+  },
+  {
+    "task_id": "task_1_warm",
+    "name": "Task 1 (Warm Run): Small isolated function (repeat)",
+    "total_wall_clock_seconds": 0.537,
+    "status": "in_progress",
+    "verdict": "N/A",
+    "success_rate": 0,
+    "stage_durations": {},
+    "counters": {
+      "model_calls": 0,
+      "agent_invocations": 0,
+      "repository_files_inspected": 0,
+      "tool_calls": 0,
+      "retries": 0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0
+    },
+    "model_calls_detail": [],
+    "tests_passed": 0,
+    "tests_total": 0
+  },
+  {
+    "task_id": "task_2_bugfix",
+    "name": "Task 2: Small bug fix",
+    "total_wall_clock_seconds": 0.505,
+    "status": "in_progress",
+    "verdict": "N/A",
+    "success_rate": 0,
+    "stage_durations": {},
+    "counters": {
+      "model_calls": 0,
+      "agent_invocations": 0,
+      "repository_files_inspected": 0,
+      "tool_calls": 0,
+      "retries": 0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0
+    },
+    "model_calls_detail": [],
+    "tests_passed": 0,
+    "tests_total": 0
+  },
+  {
+    "task_id": "task_3_multifile",
+    "name": "Task 3: Multi-file change",
+    "total_wall_clock_seconds": 0.564,
+    "status": "in_progress",
+    "verdict": "N/A",
+    "success_rate": 0,
+    "stage_durations": {},
+    "counters": {
+      "model_calls": 0,
+      "agent_invocations": 0,
+      "repository_files_inspected": 0,
+      "tool_calls": 0,
+      "retries": 0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0
+    },
+    "model_calls_detail": [],
+    "tests_passed": 0,
+    "tests_total": 0
+  },
+  {
+    "task_id": "task_4_recovery",
+    "name": "Task 4: Failing-test recovery task (Escalation)",
+    "total_wall_clock_seconds": 0.648,
+    "status": "in_progress",
+    "verdict": "N/A",
+    "success_rate": 0,
+    "stage_durations": {},
+    "counters": {
+      "model_calls": 0,
+      "agent_invocations": 0,
+      "repository_files_inspected": 0,
+      "tool_calls": 0,
+      "retries": 0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0
+    },
+    "model_calls_detail": [],
+    "tests_passed": 0,
+    "tests_total": 0
+  },
+  {
+    "task_id": "task_5_complex",
+    "name": "Task 5: Complex feature (JWT Authentication Suite)",
+    "total_wall_clock_seconds": 0.522,
+    "status": "in_progress",
+    "verdict": "N/A",
+    "success_rate": 0,
+    "stage_durations": {},
+    "counters": {
+      "model_calls": 0,
+      "agent_invocations": 0,
+      "repository_files_inspected": 0,
+      "tool_calls": 0,
+      "retries": 0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0
+    },
+    "model_calls_detail": [],
+    "tests_passed": 0,
+    "tests_total": 0
+  }
+]

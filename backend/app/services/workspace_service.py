@@ -1,5 +1,6 @@
 from .workflow_service import observed, workflow
 import os
+import uuid
 import difflib
 import json
 import ast
@@ -57,6 +58,11 @@ class WorkspaceService:
         if not os.path.exists(req_file):
             with open(req_file, "w", encoding="utf-8") as f:
                 f.write("fastapi>=0.100.0\nuvicorn>=0.23.0\npyjwt>=2.8.0\npasslib[bcrypt]>=1.7.4\npytest>=7.4.0\npytest-asyncio>=0.21.0\nhttpx>=0.24.0\n")
+
+        pytest_ini = os.path.join(login_sandbox, "pytest.ini")
+        if not os.path.exists(pytest_ini):
+            with open(pytest_ini, "w", encoding="utf-8") as f:
+                f.write("[pytest]\npythonpath = . app\n")
 
         main_file = os.path.join(login_sandbox, "app", "main.py")
         if not os.path.exists(main_file):
@@ -261,10 +267,23 @@ def health():
     @observed('file_write', 'tool', reason=None)
     def write_file(self, repo_path: str, relative_file_path: str, content: str) -> bool:
         full_path = self.resolve_path(repo_path, relative_file_path)
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        return True
+        parent = full_path.parent
+        parent.mkdir(parents=True, exist_ok=True)
+        temp_file = parent / f".tmp_{full_path.name}_{uuid.uuid4().hex}"
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                f.write(content)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_file, full_path)
+            return True
+        except Exception:
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except Exception:
+                    pass
+            raise
 
     def compute_diff(self, original_content: Optional[str], new_content: str, filename: str) -> Dict[str, Any]:
         orig_lines = (original_content or "").splitlines(keepends=True)

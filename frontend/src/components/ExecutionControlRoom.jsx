@@ -5,13 +5,9 @@ import {
   ChevronDown, 
   Search, 
   Filter, 
-  Trash2, 
   Cpu, 
-  FileCode2, 
-  FlaskConical, 
-  ShieldCheck,
-  Layers,
-  Activity
+  CheckCircle2, 
+  AlertTriangle 
 } from 'lucide-react';
 import {
   fetchRunLogs,
@@ -77,7 +73,7 @@ export default function ExecutionControlRoom({
   };
 
   useEffect(() => {
-    if (autoScroll && logEndRef.current) {
+    if (autoScroll && logEndRef.current && isOpen) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [logs, isOpen]);
@@ -103,28 +99,30 @@ export default function ExecutionControlRoom({
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: '#0a0d14',
-      borderTop: '1px solid #1e293b',
-      boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.5)',
+      backgroundColor: '#FFFFFF',
+      borderTop: '1px solid var(--border-subtle, #E5E7EF)',
+      boxShadow: '0 -4px 16px rgba(16, 24, 40, 0.08)',
       zIndex: 40,
       transition: 'all 0.25s ease'
     }}>
-      {/* Control Room Bar Header */}
-      <div style={{
-        padding: '8px 20px',
-        backgroundColor: '#0c101a',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderBottom: isOpen ? '1px solid #1e293b' : 'none',
-        cursor: 'pointer'
-      }}
-      onClick={() => setIsOpen(!isOpen)}
+      {/* Control Room Bar Header (Collapsed Bar) */}
+      <div 
+        style={{
+          padding: '8px 20px',
+          backgroundColor: '#FFFFFF',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: isOpen ? '1px solid var(--border-subtle, #E5E7EF)' : 'none',
+          cursor: 'pointer',
+          userSelect: 'none'
+        }}
+        onClick={() => setIsOpen(!isOpen)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Terminal size={16} color="#38bdf8" />
-          <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#f8fafc' }}>
-            Execution Control Room & Live Agent Telemetry
+          <Terminal size={15} color="var(--accent-primary, #6257D9)" />
+          <span style={{ fontSize: '0.825rem', fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', fontWeight: 700, color: 'var(--text-primary, #172033)' }}>
+            Execution Console & Live Telemetry
           </span>
           {runId && (
             <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>
@@ -133,27 +131,28 @@ export default function ExecutionControlRoom({
           )}
           {pendingApproval && (
             <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>
-              HUMAN APPROVAL REQUIRED
+              Human Approval Required
             </span>
           )}
-          <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>
+          <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>
             {logs.length} Events Logged
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }} onClick={(e) => e.stopPropagation()}>
           {isOpen && (
             <>
               {/* Agent Filter */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Filter size={13} color="#64748b" />
+                <Filter size={12} color="var(--text-secondary, #667085)" />
                 <select
+                  aria-label="Filter by agent"
                   value={filterRole}
                   onChange={(e) => setFilterRole(e.target.value)}
                   style={{
-                    backgroundColor: '#151d2e',
-                    color: '#cbd5e1',
-                    border: '1px solid #1e293b',
+                    backgroundColor: '#F8F9FC',
+                    color: 'var(--text-primary, #172033)',
+                    border: '1px solid var(--border-subtle, #E5E7EF)',
                     borderRadius: '4px',
                     padding: '2px 8px',
                     fontSize: '0.725rem',
@@ -172,9 +171,10 @@ export default function ExecutionControlRoom({
               </div>
 
               {/* Search Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#151d2e', border: '1px solid #1e293b', borderRadius: '4px', padding: '2px 8px' }}>
-                <Search size={12} color="#64748b" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F8F9FC', border: '1px solid var(--border-subtle, #E5E7EF)', borderRadius: '4px', padding: '2px 8px' }}>
+                <Search size={12} color="var(--text-secondary, #667085)" />
                 <input
+                  aria-label="Search execution logs"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -182,10 +182,10 @@ export default function ExecutionControlRoom({
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#f8fafc',
+                    color: 'var(--text-primary, #172033)',
                     fontSize: '0.725rem',
                     outline: 'none',
-                    width: '100px'
+                    width: '110px'
                   }}
                 />
               </div>
@@ -194,17 +194,22 @@ export default function ExecutionControlRoom({
 
           {/* Toggle Expand/Collapse */}
           <button
+            type="button"
             onClick={() => setIsOpen(!isOpen)}
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-secondary, #667085)',
               cursor: 'pointer',
               display: 'flex',
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.725rem',
+              fontWeight: 500
             }}
           >
-            {isOpen ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+            <span>{isOpen ? 'Collapse' : 'Expand'}</span>
+            {isOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </button>
         </div>
       </div>
@@ -212,15 +217,16 @@ export default function ExecutionControlRoom({
       {/* Expanded Logs Body */}
       {isOpen && (
         <div style={{
-          maxHeight: '220px',
+          maxHeight: '210px',
           overflowY: 'auto',
           padding: '10px 20px',
-          backgroundColor: '#070a10',
+          backgroundColor: '#F8F9FC',
           fontFamily: 'var(--font-mono)',
           fontSize: '0.75rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '4px'
+          gap: '4px',
+          borderTop: '1px solid var(--border-subtle, #E5E7EF)'
         }}>
           {pendingApproval && (
             <div style={{
@@ -229,16 +235,17 @@ export default function ExecutionControlRoom({
               gap: '8px',
               padding: '10px',
               marginBottom: '8px',
-              border: '1px solid #f59e0b',
+              backgroundColor: '#FFFBEB',
+              border: '1px solid #FDE68A',
               borderRadius: '6px',
-              color: '#fde68a',
+              color: '#B7791F',
               fontFamily: 'var(--font-sans, sans-serif)',
             }}>
-              <span style={{ flex: 1 }}>
+              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>
                 The agent paused at step {pendingApproval.step_index} and is waiting for approval.
               </span>
               {approvalError && (
-                <span role="alert" style={{ color: '#fda4af' }}>{approvalError}</span>
+                <span role="alert" style={{ color: 'var(--danger-color, #D14343)' }}>{approvalError}</span>
               )}
               <input
                 aria-label="Approval comment"
@@ -246,25 +253,19 @@ export default function ExecutionControlRoom({
                 onChange={(event) => setApprovalComment(event.target.value)}
                 placeholder="Optional note"
                 style={{
-                  background: '#151d2e',
-                  border: '1px solid #334155',
+                  background: '#FFFFFF',
+                  border: '1px solid #E5E7EF',
                   borderRadius: '4px',
-                  color: '#f8fafc',
-                  padding: '6px',
+                  color: '#172033',
+                  padding: '5px 8px',
+                  fontSize: '0.75rem'
                 }}
               />
               <button
                 type="button"
                 disabled={isSubmittingApproval}
                 onClick={() => submitApproval(true)}
-                style={{
-                  background: '#047857',
-                  border: 0,
-                  borderRadius: '4px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  padding: '6px 10px',
-                }}
+                className="btn btn-emerald btn-sm"
               >
                 Approve
               </button>
@@ -272,27 +273,21 @@ export default function ExecutionControlRoom({
                 type="button"
                 disabled={isSubmittingApproval}
                 onClick={() => submitApproval(false)}
-                style={{
-                  background: '#be123c',
-                  border: 0,
-                  borderRadius: '4px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  padding: '6px 10px',
-                }}
+                className="btn btn-danger btn-sm"
               >
                 Reject
               </button>
             </div>
           )}
+
           {filteredLogs.length > 0 ? (
             filteredLogs.map((log) => {
-              let tagColor = '#38bdf8';
-              let badgeType = 'badge-cyan';
-              if (log.event_type === 'success') { tagColor = '#34d399'; badgeType = 'badge-emerald'; }
-              else if (log.event_type === 'error' || log.event_type === 'warning') { tagColor = '#fb7185'; badgeType = 'badge-rose'; }
-              else if (log.event_type === 'recovery') { tagColor = '#fbbf24'; badgeType = 'badge-amber'; }
-              else if (log.event_type === 'command') { tagColor = '#c084fc'; badgeType = 'badge-purple'; }
+              let tagColor = 'var(--accent-primary, #6257D9)';
+              let badgeType = 'badge-purple';
+              if (log.event_type === 'success') { tagColor = 'var(--success-color, #16845B)'; badgeType = 'badge-emerald'; }
+              else if (log.event_type === 'error' || log.event_type === 'warning') { tagColor = 'var(--danger-color, #D14343)'; badgeType = 'badge-rose'; }
+              else if (log.event_type === 'recovery') { tagColor = 'var(--warning-color, #B7791F)'; badgeType = 'badge-amber'; }
+              else if (log.event_type === 'command') { tagColor = '#6257D9'; badgeType = 'badge-slate'; }
 
               const timeStr = log.timestamp ? log.timestamp.split('T')[1]?.slice(0, 8) : '';
 
@@ -307,22 +302,24 @@ export default function ExecutionControlRoom({
                     lineHeight: '1.4'
                   }}
                 >
-                  <span style={{ color: '#475569', fontSize: '0.7rem', flexShrink: 0 }}>
+                  <span style={{ color: 'var(--text-secondary, #667085)', fontSize: '0.7rem', flexShrink: 0 }}>
                     {timeStr}
                   </span>
-                  <span className={`badge ${badgeType}`} style={{ fontSize: '0.6rem', padding: '0 4px', flexShrink: 0 }}>
+                  <span className={`badge ${badgeType}`} style={{ fontSize: '0.6rem', padding: '0 5px', flexShrink: 0 }}>
                     {log.agent_role || log.stage}
                   </span>
-                  <span style={{ color: tagColor, flexShrink: 0, fontWeight: 600 }}>
+                  <span style={{ color: tagColor, flexShrink: 0, fontWeight: 700 }}>
                     [{log.event_type}]
                   </span>
-                  <div style={{ color: '#cbd5e1', wordBreak: 'break-word', minWidth: 0 }}>
+                  <div style={{ color: 'var(--text-primary, #172033)', wordBreak: 'break-word', minWidth: 0 }}>
                     {log.message}
                     {typeof log.details?.rejected_output === 'string' && log.details.rejected_output && (
                       <details style={{ marginTop: 6 }}>
                         <summary>Show rejected model output (not written to the file)</summary>
-                        {log.details.output_excerpt_truncated && <p>Only the first 16,000 characters were retained.</p>}
-                        <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{log.details.rejected_output}</pre>
+                        {log.details.output_excerpt_truncated && <p style={{ color: 'var(--text-secondary, #667085)', margin: '4px 0' }}>Only the first 16,000 characters were retained.</p>}
+                        <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', backgroundColor: '#FFFFFF', padding: '8px', border: '1px solid #E5E7EF', borderRadius: '4px', marginTop: '4px' }}>
+                          {log.details.rejected_output}
+                        </pre>
                       </details>
                     )}
                   </div>
@@ -330,8 +327,8 @@ export default function ExecutionControlRoom({
               );
             })
           ) : (
-            <div style={{ color: '#64748b', textAlign: 'center', padding: '20px 0' }}>
-              {runId ? 'No matching logs found.' : 'Control Room ready. Start a task to stream live agent execution events.'}
+            <div style={{ color: 'var(--text-secondary, #667085)', textAlign: 'center', padding: '20px 0', fontSize: '0.8rem' }}>
+              {runId ? 'No matching logs found.' : 'Telemetry console ready. Start a task to stream live agent execution events.'}
             </div>
           )}
           <div ref={logEndRef} />

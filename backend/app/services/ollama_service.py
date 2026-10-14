@@ -43,6 +43,8 @@ class OllamaService:
                                 break
                         else:
                             current_model = models[0] if models else "none"
+                    if current_model in models:
+                        self.default_model = current_model
 
                     return {
                         "connected": True,
@@ -91,7 +93,8 @@ class OllamaService:
 
         options: Dict[str, Any] = {
             "temperature": temperature,
-            "num_ctx": num_ctx
+            "num_ctx": num_ctx,
+            "repeat_penalty": 1.15
         }
         if num_predict:
             options["num_predict"] = num_predict
@@ -121,6 +124,26 @@ class OllamaService:
         try:
             async with httpx.AsyncClient(timeout=req_timeout) as client:
                 resp = await client.post(f"{self.host}/api/chat", json=payload)
+                if resp.status_code == 404 and "not found" in resp.text:
+                    try:
+                        tags_resp = await client.get(f"{self.host}/api/tags")
+                        if tags_resp.status_code == 200:
+                            avail = [m.get("name") for m in tags_resp.json().get("models", [])]
+                            fallback = None
+                            for cand in ["qwen2.5-coder:1.5b", "qwen2.5-coder:7b"]:
+                                if cand in avail:
+                                    fallback = cand
+                                    break
+                            if not fallback and avail:
+                                fallback = avail[0]
+                            if fallback and fallback != payload.get("model"):
+                                logger.info(f"Model '{payload.get('model')}' not found; falling back to installed '{fallback}'")
+                                self.default_model = fallback
+                                active_model = fallback
+                                payload["model"] = fallback
+                                resp = await client.post(f"{self.host}/api/chat", json=payload)
+                    except Exception:
+                        pass
                 if resp.status_code != 200:
                     raise RuntimeError(f"Ollama API error {resp.status_code}: {resp.text}")
                 data = resp.json()

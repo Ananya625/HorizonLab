@@ -5,10 +5,16 @@ from pydantic import BaseModel
 
 def is_basic_addition_request(text: str) -> bool:
     """Only the fully specified small exercise; compound requests use analysis."""
+    text_clean = text.strip()
     return re.fullmatch(
-        r"(?:please\s+)?(?:write|create|implement)\s+(?:a\s+)?(?:simple\s+)?"
-        r"python\s+(?:code|program|function)\s+to\s+add\s+(?:two|2)\s+numbers[.!]?",
-        text.strip(), re.IGNORECASE,
+        r"(?:please\s+)?"
+        r"(?:write|create|implement|generate|genrate|build|code|make)\s+"
+        r"(?:a\s+|an\s+|the\s+)?(?:simple\s+)?"
+        r"(?:python\s+)?"
+        r"(?:code|program|function|script|service|method)\s+"
+        r"(?:to\s+)?(?:add|sum|find\s+the\s+sum\s+of|calculate\s+(?:the\s+)?sum\s+of)\s+"
+        r"(?:two|2)\s+numbers[.!]?",
+        text_clean, re.IGNORECASE,
     ) is not None
 
 class RoutingDecision(BaseModel):

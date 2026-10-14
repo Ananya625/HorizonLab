@@ -67,47 +67,73 @@ async def run_benchmark():
         print("="*70)
 
         t_start = time.time()
-        run_record = await orchestrator_service.run_full_pipeline(
-            request_text=t["prompt"],
-            repo_path=sandbox_repo
-        )
-        total_wall_s = round(time.time() - t_start, 3)
+        try:
+            run_record = await orchestrator_service.run_full_pipeline(
+                request_text=t["prompt"],
+                repo_path=sandbox_repo,
+                authorized_benchmark=True
+            )
+            total_wall_s = round(time.time() - t_start, 3)
 
-        evaluation = run_record.evaluation
-        telemetry = evaluation.telemetry if evaluation else {}
-        counters = telemetry.get("counters", {})
-        stage_durations = telemetry.get("stage_durations", {})
-        model_calls = telemetry.get("model_calls", [])
+            evaluation = run_record.evaluation
+            telemetry = evaluation.telemetry if evaluation else {}
+            counters = telemetry.get("counters", {})
+            stage_durations = telemetry.get("stage_durations", {})
+            model_calls = telemetry.get("model_calls", [])
 
-        bench_item = {
-            "task_id": t["id"],
-            "name": t["name"],
-            "total_wall_clock_seconds": total_wall_s,
-            "status": run_record.status,
-            "verdict": run_record.verification.overall_verdict if run_record.verification else "N/A",
-            "success_rate": evaluation.success_rate if evaluation else 0,
-            "stage_durations": stage_durations,
-            "counters": {
-                "model_calls": counters.get("model_calls", 0),
-                "agent_invocations": counters.get("agent_invocations", 0),
-                "repository_files_inspected": counters.get("repository_files_inspected", 0),
-                "tool_calls": counters.get("tool_calls", 0),
-                "retries": counters.get("retries", 0),
-                "total_tokens_in": counters.get("total_tokens_in", 0),
-                "total_tokens_out": counters.get("total_tokens_out", 0)
-            },
-            "model_calls_detail": model_calls,
-            "tests_passed": evaluation.tests_passed if evaluation else 0,
-            "tests_total": evaluation.tests_total if evaluation else 0
-        }
+            bench_item = {
+                "task_id": t["id"],
+                "name": t["name"],
+                "total_wall_clock_seconds": total_wall_s,
+                "status": run_record.status,
+                "verdict": run_record.verification.overall_verdict if run_record.verification else "N/A",
+                "success_rate": evaluation.success_rate if evaluation else 0,
+                "stage_durations": stage_durations,
+                "counters": {
+                    "model_calls": counters.get("model_calls", 0),
+                    "agent_invocations": counters.get("agent_invocations", 0),
+                    "repository_files_inspected": counters.get("repository_files_inspected", 0),
+                    "tool_calls": counters.get("tool_calls", 0),
+                    "retries": counters.get("retries", 0),
+                    "total_tokens_in": counters.get("total_tokens_in", 0),
+                    "total_tokens_out": counters.get("total_tokens_out", 0)
+                },
+                "model_calls_detail": model_calls,
+                "tests_passed": evaluation.tests_passed if evaluation else 0,
+                "tests_total": evaluation.tests_total if evaluation else 0
+            }
+        except Exception as exc:
+            total_wall_s = round(time.time() - t_start, 3)
+            bench_item = {
+                "task_id": t["id"],
+                "name": t["name"],
+                "total_wall_clock_seconds": total_wall_s,
+                "status": "failed",
+                "verdict": "FAILED_EXECUTION",
+                "error_detail": str(exc),
+                "success_rate": 0,
+                "stage_durations": {},
+                "counters": {
+                    "model_calls": 0,
+                    "agent_invocations": 0,
+                    "repository_files_inspected": 0,
+                    "tool_calls": 0,
+                    "retries": 0,
+                    "total_tokens_in": 0,
+                    "total_tokens_out": 0
+                },
+                "model_calls_detail": [],
+                "tests_passed": 0,
+                "tests_total": 0
+            }
         results.append(bench_item)
 
         print(f"\n--> Result for {t['name']}:")
-        print(f"    Wall-Clock Latency: {total_wall_s}s")
-        print(f"    Status: {run_record.status} | Verdict: {bench_item['verdict']}")
-        print(f"    Model Calls: {counters.get('model_calls', 0)} | Files Inspected: {counters.get('repository_files_inspected', 0)} | Tool Calls: {counters.get('tool_calls', 0)}")
+        print(f"    Wall-Clock Latency: {bench_item['total_wall_clock_seconds']}s")
+        print(f"    Status: {bench_item['status']} | Verdict: {bench_item['verdict']}")
+        print(f"    Model Calls: {bench_item['counters'].get('model_calls', 0)} | Files Inspected: {bench_item['counters'].get('repository_files_inspected', 0)} | Tool Calls: {bench_item['counters'].get('tool_calls', 0)}")
         print(f"    Tests Passed: {bench_item['tests_passed']}/{bench_item['tests_total']}")
-        print(f"    Stage Durations: {json.dumps(stage_durations, indent=6)}")
+        print(f"    Stage Durations: {json.dumps(bench_item['stage_durations'], indent=6)}")
 
     # Save benchmark results to disk
     out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmark_results.json")

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, model_validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 
 # --- Goal & Requirement Models ---
@@ -90,7 +90,7 @@ class PlanStep(BaseModel):
     description: str
     assigned_agent: str = "Coding Agent"
     target_files: List[str] = []
-    dependencies: List[int] = []
+    dependencies: List[Union[int, str]] = []
     expected_outcome: str
 
 class ImplementationPlan(BaseModel):
@@ -194,7 +194,7 @@ class CriterionVerification(BaseModel):
     test_evidence_ref: Optional[str] = None
 
 class ConstraintCompliance(BaseModel):
-    constraint_id: str
+    constraint_id: str = ""
     constraint_text: str = ""
     constraint: Optional[str] = None
     is_hard: bool = True
@@ -348,6 +348,7 @@ class ExecuteCodeRequest(BaseModel):
 class ExecuteTestsRequest(BaseModel):
     run_id: str
     max_recovery_retries: Optional[int] = Field(default=3, ge=0, le=20)
+    model_name: Optional[str] = None
 
 class ExecuteVerificationRequest(BaseModel):
     run_id: str

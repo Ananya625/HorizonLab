@@ -192,9 +192,14 @@ def test_model_error_stops_all_remaining_trials(database,monkeypatch):
 
 
 def test_cross_process_lock(database):
+    import os
+    from pathlib import Path
+    backend_dir = str(Path(__file__).parent.parent)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = backend_dir + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
     code = 'from app.services.benchmark_lock import experiment_lock\nimport sys\ntry:\n with experiment_lock(sys.argv[1]): pass\nexcept ValueError:\n sys.exit(23)\n'
     with experiment_lock(database.db_path):
-        process = subprocess.run([sys.executable,'-c',code,database.db_path],capture_output=True,timeout=15)
+        process = subprocess.run([sys.executable,'-c',code,database.db_path],capture_output=True,timeout=15,cwd=backend_dir,env=env)
         assert process.returncode==23, process.stderr
 
 

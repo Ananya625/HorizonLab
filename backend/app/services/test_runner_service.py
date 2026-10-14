@@ -58,10 +58,12 @@ class TestRunnerService:
         plan = db_service.get_plan(run_id)
         repo = plan.target_repo_path if plan else record.repo_path
         if test_file_target:
-            workspace_service.resolve_path(repo, test_file_target)
+            file_part = test_file_target.split('::')[0] if '::' in test_file_target else test_file_target
+            workspace_service.resolve_path(repo, file_part)
         targets = target_test_files or [test_file_target or 'tests']
         for item in targets:
-            workspace_service.resolve_path(repo, item)
+            file_part = item.split('::')[0] if '::' in item else item
+            workspace_service.resolve_path(repo, file_part)
         target = ' '.join(targets)
         cmd_target_str = 'pytest '+target
         decision = drift_controller_service.check_action(run_id=run_id, action_type='command_exec',
@@ -80,13 +82,20 @@ class TestRunnerService:
         before = workspace_service.digest(repo)
         start = time.perf_counter()
         stdout, stderr, execution_error, exit_code, items = '', '', None, -1, []
+        repo_path_resolved = str(Path(repo).resolve())
+        app_path_resolved = str((Path(repo) / 'app').resolve())
         env = os.environ.copy()
-        env['PYTHONPATH'] = os.pathsep.join([str(Path(repo).resolve()),str(Path(repo).resolve()/'app')])
+        env['PYTHONPATH'] = os.pathsep.join([repo_path_resolved, app_path_resolved])
         env['PYTEST_DISABLE_PLUGIN_AUTOLOAD'] = '1'
         env.pop('PYTEST_ADDOPTS', None)
         with tempfile.TemporaryDirectory(prefix='agenteval-results-') as directory:
             report = str(Path(directory) / 'results.xml')
-            command = [sys.executable, '-m', 'pytest', '-v', '--tb=short', '-p', 'pytest_asyncio.plugin', f'--junitxml={report}', '--', *targets]
+            command = [
+                sys.executable, '-m', 'pytest',
+                '-o', f'pythonpath={repo_path_resolved} {app_path_resolved}',
+                '-v', '--tb=short', '-p', 'pytest_asyncio.plugin',
+                f'--junitxml={report}', '--', *targets
+            ]
             db_service.add_log(run_id, 'testing', 'Test Runner', 'tool_call', 'Executing pytest', {'operation_id': uuid.uuid4().hex, 'tool': 'pytest', 'target': target})
             try:
                 process = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, timeout=30)

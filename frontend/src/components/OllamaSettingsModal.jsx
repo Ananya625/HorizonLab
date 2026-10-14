@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, RefreshCw, CheckCircle2, AlertTriangle, Server, Cpu, Sliders } from 'lucide-react';
+import { X, RefreshCw, CheckCircle2, AlertTriangle, Server, Sliders } from 'lucide-react';
 import { configureOllama } from '../services/api';
 
 export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, onStatusUpdated, temperature, setTemperature }) {
@@ -41,8 +41,8 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
       left: 0,
       width: '100vw',
       height: '100vh',
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(6px)',
+      backgroundColor: 'rgba(16, 24, 40, 0.45)',
+      backdropFilter: 'blur(4px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -52,42 +52,48 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
         width: '520px',
         maxWidth: '92vw',
         padding: '24px',
-        backgroundColor: '#111827',
-        border: '1px solid #1f293d',
-        boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+        backgroundColor: '#FFFFFF',
+        border: '1px solid var(--border-subtle, #E5E7EF)',
+        boxShadow: '0 20px 48px rgba(16, 24, 40, 0.16)',
         position: 'relative'
       }}>
         {/* Close Button */}
         <button 
+          type="button"
           onClick={onClose}
           className="btn btn-ghost btn-sm"
           style={{ position: 'absolute', top: '16px', right: '16px', padding: '4px' }}
+          title="Close settings"
         >
           <X size={18} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
           <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '6px',
-            background: 'rgba(56, 189, 248, 0.1)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            background: 'var(--accent-primary-subtle, #F0EEFF)',
+            border: '1px solid var(--accent-primary-border, #D8D2FB)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <Server size={18} color="#38bdf8" />
+            <Server size={18} color="var(--accent-primary, #6257D9)" />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc' }}>Ollama LLM Engine Settings</h3>
-            <p style={{ fontSize: '0.775rem', color: '#94a3b8' }}>Configure local inference endpoint and parameters for requirement extraction</p>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary, #172033)', margin: 0 }}>
+              Ollama LLM Engine Settings
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
+              Configure local inference endpoint and parameters
+            </p>
           </div>
         </div>
 
         {/* Host URL input */}
         <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '6px' }}>
             Ollama Host Endpoint
           </label>
           <input 
@@ -99,10 +105,10 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
             style={{
               width: '100%',
               padding: '8px 12px',
-              backgroundColor: '#0c121d',
-              border: '1px solid #24344d',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid var(--border-subtle, #E5E7EF)',
               borderRadius: '6px',
-              color: '#f8fafc',
+              color: 'var(--text-primary, #172033)',
               fontSize: '0.85rem',
               outline: 'none'
             }}
@@ -111,7 +117,7 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
 
         {/* Model Selection */}
         <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '6px' }}>
             Active Extraction Model
           </label>
           <select 
@@ -120,10 +126,10 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
             style={{
               width: '100%',
               padding: '8px 12px',
-              backgroundColor: '#0c121d',
-              border: '1px solid #24344d',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid var(--border-subtle, #E5E7EF)',
               borderRadius: '6px',
-              color: '#f8fafc',
+              color: 'var(--text-primary, #172033)',
               fontSize: '0.85rem',
               outline: 'none'
             }}
@@ -141,10 +147,12 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
         {/* Temperature Slider */}
         <div style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 500, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sliders size={14} color="#94a3b8" /> Inference Temperature
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary, #172033)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sliders size={14} color="var(--text-secondary, #667085)" /> Inference Temperature
             </label>
-            <span className="font-mono" style={{ fontSize: '0.8rem', color: '#38bdf8' }}>{temperature}</span>
+            <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--accent-primary, #6257D9)', fontWeight: 700 }}>
+              {temperature}
+            </span>
           </div>
           <input 
             type="range" 
@@ -153,10 +161,10 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
             step="0.05"
             value={temperature}
             onChange={(e) => setTemperature(parseFloat(e.target.value))}
-            style={{ width: '100%', accentColor: '#0284c7' }}
+            style={{ width: '100%', accentColor: 'var(--accent-primary, #6257D9)' }}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
-            <span>0.0 (Deterministic / Strict)</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary, #667085)', marginTop: '2px' }}>
+            <span>0.0 (Deterministic)</span>
             <span>0.2 (Recommended)</span>
             <span>1.0 (Creative)</span>
           </div>
@@ -172,9 +180,9 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            backgroundColor: feedback.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-            border: `1px solid ${feedback.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-            color: feedback.type === 'success' ? '#34d399' : '#fb7185'
+            backgroundColor: feedback.type === 'success' ? 'var(--success-subtle, #ECFDF5)' : 'var(--danger-subtle, #FEF2F2)',
+            border: `1px solid ${feedback.type === 'success' ? 'var(--success-border, #A7F3D0)' : 'var(--danger-border, #FECACA)'}`,
+            color: feedback.type === 'success' ? 'var(--success-color, #16845B)' : 'var(--danger-color, #D14343)'
           }}>
             {feedback.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
             <span>{feedback.message}</span>
@@ -183,15 +191,16 @@ export default function OllamaSettingsModal({ isOpen, onClose, currentStatus, on
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button onClick={onClose} className="btn btn-secondary">
+          <button type="button" onClick={onClose} className="btn btn-secondary">
             Cancel
           </button>
           <button 
+            type="button"
             onClick={handleTestAndSave} 
             disabled={testing}
             className="btn btn-primary"
           >
-            {testing ? <RefreshCw size={14} className="live-pulse" /> : <CheckCircle2 size={14} />}
+            {testing ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
             <span>{testing ? 'Testing Connection...' : 'Save & Test Connection'}</span>
           </button>
         </div>
