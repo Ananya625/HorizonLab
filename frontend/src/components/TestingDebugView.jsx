@@ -33,12 +33,12 @@ export default function TestingDebugView({
 
   if (!testResults || testResults.length === 0) {
     return (
-      <div className="card-panel" style={{ padding: '48px 24px', textAlign: 'center', backgroundColor: '#FFFFFF' }}>
+      <div className="card-panel" style={{ padding: '48px 24px', textAlign: 'center', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <FlaskConical size={36} color="var(--text-muted, #98A2B3)" style={{ margin: '0 auto 12px' }} />
-        <h3 style={{ fontSize: '1.15rem', color: 'var(--text-primary, #172033)', marginBottom: '8px' }}>
+        <h3 style={{ fontSize: '1.15rem', color: '#F1F5F9', marginBottom: '8px' }}>
           No Test Executions Recorded Yet
         </h3>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', maxWidth: '520px', margin: '0 auto 20px' }}>
+        <p style={{ fontSize: '0.85rem', color: '#94A3B8', maxWidth: '520px', margin: '0 auto 20px' }}>
           Execute the Test & Debugging Agent to run the automated pytest suite and trigger bounded self-healing recovery.
         </p>
         {onExecuteTesting && (
@@ -70,7 +70,8 @@ export default function TestingDebugView({
       {/* Top Banner */}
       <section className="card-panel" style={{
         padding: '20px 24px',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#0D1526',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -84,10 +85,10 @@ export default function TestingDebugView({
               {isPassed ? '✓ All Tests Passed' : 'Failures Detected — Bounded Recovery'}
             </span>
           </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '4px' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#F8FAFC', marginBottom: '4px' }}>
             Automated Pytest Execution & Diagnostic Dashboard
           </h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
+          <p style={{ fontSize: '0.85rem', color: '#94A3B8', margin: 0 }}>
             Executed {totalTests} test case(s) with {passedTests} passed, {failedTests} failed in {durationSec} across {testResults.length} test run attempt(s).
           </p>
         </div>
@@ -123,65 +124,65 @@ export default function TestingDebugView({
 
       {/* A. Test Summary Metrics Row */}
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
-        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#FFFFFF' }}>
-          <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
             Suite Status
           </span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: isPassed ? 'var(--success-color, #16845B)' : 'var(--danger-color, #D14343)' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: isPassed ? '#34D399' : '#F87171' }}>
             {latestResult.status || 'UNKNOWN'}
           </span>
         </div>
 
-        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#FFFFFF' }}>
-          <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
             Total Tests
           </span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary, #172033)' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#F1F5F9' }}>
             {totalTests}
           </span>
         </div>
 
-        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#FFFFFF' }}>
-          <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
             Passed Tests
           </span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--success-color, #16845B)' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#34D399' }}>
             {passedTests}
           </span>
         </div>
 
-        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#FFFFFF' }}>
-          <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
             Failed Tests
           </span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: failedTests > 0 ? 'var(--danger-color, #D14343)' : 'var(--text-secondary, #667085)' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: failedTests > 0 ? '#F87171' : '#94A3B8' }}>
             {failedTests}
           </span>
         </div>
 
-        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#FFFFFF' }}>
-          <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
             Skipped Tests
           </span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-secondary, #667085)' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#94A3B8' }}>
             {skippedTests}
           </span>
         </div>
 
-        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#FFFFFF' }}>
-          <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
             Execution Duration
           </span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-primary, #6257D9)' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#818CF8' }}>
             {durationSec}
           </span>
         </div>
 
-        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#FFFFFF' }}>
-          <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+        <div className="card-panel" style={{ padding: '14px 16px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '4px', fontWeight: 500 }}>
             Recovery Retries
           </span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: recoveryAttempts.length > 0 ? 'var(--warning-color, #B7791F)' : 'var(--success-color, #16845B)' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700, color: recoveryAttempts.length > 0 ? '#FBBF24' : '#34D399' }}>
             {recoveryAttempts.length}
           </span>
         </div>
@@ -191,25 +192,25 @@ export default function TestingDebugView({
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px', alignItems: 'flex-start' }}>
         
         {/* B. Test Case List */}
-        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-              <FlaskConical size={16} color="var(--accent-primary, #6257D9)" />
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#F1F5F9', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <FlaskConical size={16} color="#818CF8" />
               <span>Executed Test Cases ({latestResult.test_items?.length || 0})</span>
             </h3>
 
             {testResults.length > 1 && (
               <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)' }}>Run:</span>
+                <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>Run:</span>
                 {testResults.map((tr, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setSelectedAttemptIndex(idx)}
                     style={{
-                      background: selectedAttemptIndex === idx ? 'var(--accent-primary, #6257D9)' : '#FFFFFF',
-                      color: selectedAttemptIndex === idx ? '#FFFFFF' : 'var(--text-secondary, #667085)',
-                      border: '1px solid var(--border-subtle, #E5E7EF)',
+                      background: selectedAttemptIndex === idx ? 'var(--accent-primary, #6257D9)' : 'rgba(255, 255, 255, 0.05)',
+                      color: selectedAttemptIndex === idx ? '#FFFFFF' : '#94A3B8',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
                       borderRadius: '4px',
                       padding: '3px 8px',
                       fontSize: '0.7rem',
@@ -232,8 +233,8 @@ export default function TestingDebugView({
                 <div
                   key={idx}
                   style={{
-                    backgroundColor: isTestPassed ? 'var(--bg-page, #F6F7FB)' : '#FEF2F2',
-                    border: `1px solid ${isTestPassed ? 'var(--border-subtle, #E5E7EF)' : '#FECACA'}`,
+                    backgroundColor: isTestPassed ? 'rgba(255, 255, 255, 0.03)' : 'rgba(239, 68, 68, 0.08)',
+                    border: `1px solid ${isTestPassed ? 'rgba(255, 255, 255, 0.07)' : 'rgba(239, 68, 68, 0.25)'}`,
                     borderRadius: '6px',
                     padding: '10px 14px',
                     display: 'flex',
@@ -248,14 +249,14 @@ export default function TestingDebugView({
                       ) : (
                         <XCircle size={16} color="var(--danger-color, #D14343)" />
                       )}
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary, #172033)' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600, color: '#F1F5F9' }}>
                         {item.name}
                       </span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {item.duration_ms != null && (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>
                           {item.duration_ms}ms
                         </span>
                       )}
@@ -280,12 +281,12 @@ export default function TestingDebugView({
                     <div style={{
                       marginTop: '6px',
                       padding: '8px 10px',
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: '#060A14',
                       borderRadius: '4px',
-                      border: '1px solid #FECACA',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
                       fontSize: '0.75rem',
                       fontFamily: 'var(--font-mono)',
-                      color: 'var(--danger-color, #D14343)',
+                      color: '#F87171',
                       whiteSpace: 'pre-wrap',
                       overflowX: 'auto'
                     }}>
@@ -298,20 +299,20 @@ export default function TestingDebugView({
           </div>
 
           {/* Test Runner Terminal Output (Collapsed by default) */}
-          <details style={{ marginTop: '8px', borderTop: '1px solid var(--border-subtle, #E5E7EF)', paddingTop: '10px' }}>
-            <summary style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #667085)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <details style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '10px' }}>
+            <summary style={{ fontSize: '0.8rem', color: '#94A3B8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Terminal size={13} />
               <span>Raw Pytest Terminal Output</span>
             </summary>
             <pre style={{
               marginTop: '8px',
-              backgroundColor: 'var(--bg-page, #F6F7FB)',
-              border: '1px solid var(--border-subtle, #E5E7EF)',
+              backgroundColor: '#060A14',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '6px',
               padding: '12px',
               fontSize: '0.75rem',
               fontFamily: 'var(--font-mono)',
-              color: 'var(--text-primary, #172033)',
+              color: '#E2E8F0',
               maxHeight: '200px',
               overflowY: 'auto',
               whiteSpace: 'pre-wrap'
@@ -322,9 +323,9 @@ export default function TestingDebugView({
         </section>
 
         {/* C. Recovery Timeline */}
-        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#F1F5F9', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
               <RefreshCw size={16} color="var(--warning-color, #B7791F)" />
               <span>Bounded Recovery Timeline</span>
             </h3>
@@ -335,17 +336,17 @@ export default function TestingDebugView({
 
           {recoveryAttempts.length === 0 ? (
             <div style={{
-              backgroundColor: 'var(--success-subtle, #ECFDF5)',
-              border: '1px solid var(--success-border, #A7F3D0)',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
               borderRadius: '8px',
               padding: '24px 18px',
               textAlign: 'center'
             }}>
-              <CheckCircle2 size={28} color="var(--success-color, #16845B)" style={{ margin: '0 auto 8px' }} />
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--success-color, #16845B)', marginBottom: '4px' }}>
+              <CheckCircle2 size={28} color="#34D399" style={{ margin: '0 auto 8px' }} />
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#34D399', marginBottom: '4px' }}>
                 Zero Recovery Retries Needed
               </h4>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
+              <p style={{ fontSize: '0.8rem', color: '#94A3B8', margin: 0 }}>
                 Implementation passed test assertions on Attempt #1 with zero test failures or regressions.
               </p>
             </div>
@@ -368,8 +369,8 @@ export default function TestingDebugView({
                   <div
                     key={rec.id || idx}
                     style={{
-                      backgroundColor: 'var(--bg-page, #F6F7FB)',
-                      border: '1px solid var(--border-subtle, #E5E7EF)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
                       borderRadius: '8px',
                       padding: '14px',
                       display: 'flex',
@@ -390,18 +391,18 @@ export default function TestingDebugView({
                       Failure: {rec.failure_reason}
                     </div>
 
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.4' }}>
-                      <strong style={{ color: 'var(--text-primary, #172033)' }}>Diagnosis:</strong> {rec.diagnosis}
+                    <div style={{ fontSize: '0.8rem', color: '#94A3B8', lineHeight: '1.4' }}>
+                      <strong style={{ color: '#F1F5F9' }}>Diagnosis:</strong> {rec.diagnosis}
                     </div>
 
-                    <div style={{ fontSize: '0.8rem', color: 'var(--accent-primary, #6257D9)', lineHeight: '1.4' }}>
-                      <strong style={{ color: 'var(--text-primary, #172033)' }}>Applied Patch:</strong> {rec.proposed_fix}
+                    <div style={{ fontSize: '0.8rem', color: '#818CF8', lineHeight: '1.4' }}>
+                      <strong style={{ color: '#F1F5F9' }}>Applied Patch:</strong> {rec.proposed_fix}
                     </div>
 
                     {rec.files_modified && rec.files_modified.length > 0 && (
-                      <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ fontSize: '0.725rem', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span>Modified:</span>
-                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary, #172033)' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: '#F1F5F9' }}>
                           {rec.files_modified.join(', ')}
                         </span>
                       </div>
@@ -413,16 +414,16 @@ export default function TestingDebugView({
                       display: 'flex', 
                       gap: '8px', 
                       alignItems: 'center',
-                      borderTop: '1px solid var(--border-subtle, #E5E7EF)',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.08)',
                       paddingTop: '6px',
                       marginTop: '2px',
-                      color: 'var(--text-secondary, #667085)'
+                      color: '#94A3B8'
                     }}>
                       <span>Tests rerun: <strong>Yes</strong></span>
                       <span>·</span>
-                      <span>Outcome: <strong style={{ color: isLocalPass ? 'var(--success-color, #16845B)' : 'var(--danger-color, #D14343)' }}>{isLocalPass ? 'Passed' : 'Failed'}</strong></span>
+                      <span>Outcome: <strong style={{ color: isLocalPass ? '#34D399' : '#F87171' }}>{isLocalPass ? 'Passed' : 'Failed'}</strong></span>
                       <span>·</span>
-                      <span>Verification: <strong style={{ color: isVerified ? 'var(--success-color, #16845B)' : 'var(--warning-color, #B7791F)' }}>{isVerified ? 'Verified' : 'Unverified'}</strong></span>
+                      <span>Verification: <strong style={{ color: isVerified ? '#34D399' : '#FBBF24' }}>{isVerified ? 'Verified' : 'Unverified'}</strong></span>
                     </div>
                   </div>
                 );

@@ -44,27 +44,27 @@ export default function ClarificationCenter({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Overview Banner */}
-      <section className="card-panel" style={{ padding: '24px', backgroundColor: '#FFFFFF' }}>
+      <section className="card-panel" style={{ padding: '24px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '38px',
               height: '38px',
               borderRadius: '8px',
-              background: isAllBlockingResolved ? 'var(--success-subtle, #ECFDF5)' : 'var(--danger-subtle, #FEF2F2)',
-              border: `1px solid ${isAllBlockingResolved ? 'var(--success-border, #A7F3D0)' : 'var(--danger-border, #FECACA)'}`,
+              background: isAllBlockingResolved ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              border: `1px solid ${isAllBlockingResolved ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              {isAllBlockingResolved ? <ShieldCheck size={20} color="var(--success-color, #16845B)" /> : <AlertTriangle size={20} color="var(--danger-color, #D14343)" />}
+              {isAllBlockingResolved ? <ShieldCheck size={20} color="#34D399" /> : <AlertTriangle size={20} color="#F87171" />}
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="badge badge-purple">State 2.1: Clarifications</span>
                 <span className="badge badge-slate">Run {goalModel?.run_id}</span>
               </div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginTop: '2px', margin: 0 }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#F8FAFC', marginTop: '2px', margin: 0 }}>
                 Ambiguity Detection & Human Clarifications
               </h2>
             </div>
@@ -84,14 +84,14 @@ export default function ClarificationCenter({
           )}
         </div>
 
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.5', margin: '0 0 16px 0' }}>
+        <p style={{ fontSize: '0.85rem', color: '#94A3B8', lineHeight: '1.5', margin: '0 0 16px 0' }}>
           The requirement analyst identified ambiguous or underspecified constraints. Resolving questions injects explicit guardrails directly into the Goal Model before code generation.
         </p>
 
         {/* Progress Bar */}
         <div style={{
-          backgroundColor: 'var(--bg-page, #F6F7FB)',
-          border: '1px solid var(--border-subtle, #E5E7EF)',
+          backgroundColor: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid rgba(255, 255, 255, 0.07)',
           borderRadius: '8px',
           padding: '12px 16px',
           display: 'flex',
@@ -100,16 +100,16 @@ export default function ClarificationCenter({
         }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
-              <span style={{ color: 'var(--text-primary, #172033)', fontWeight: 600 }}>Blocking Clarifications Status:</span>
-              <span className="font-mono" style={{ color: isAllBlockingResolved ? 'var(--success-color, #16845B)' : 'var(--danger-color, #D14343)', fontWeight: 700 }}>
+              <span style={{ color: '#F1F5F9', fontWeight: 600 }}>Blocking Clarifications Status:</span>
+              <span className="font-mono" style={{ color: isAllBlockingResolved ? '#34D399' : '#F87171', fontWeight: 700 }}>
                 {resolvedBlockingCount} of {blockingCount} Resolved
               </span>
             </div>
-            <div style={{ width: '100%', height: '8px', backgroundColor: '#E5E7EF', borderRadius: '9999px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: '9999px', overflow: 'hidden' }}>
               <div style={{
                 width: `${blockingCount > 0 ? (resolvedBlockingCount / blockingCount) * 100 : 100}%`,
                 height: '100%',
-                backgroundColor: isAllBlockingResolved ? 'var(--success-color, #16845B)' : 'var(--danger-color, #D14343)',
+                backgroundColor: isAllBlockingResolved ? '#10B981' : '#EF4444',
                 borderRadius: '9999px',
                 transition: 'width 0.4s ease'
               }} />
@@ -124,12 +124,12 @@ export default function ClarificationCenter({
       {/* Ambiguity Question Cards List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {ambiguities.length === 0 ? (
-          <section className="card-panel" style={{ padding: '36px 24px', textAlign: 'center', backgroundColor: '#FFFFFF' }}>
-            <CheckCircle2 size={32} color="var(--success-color, #16845B)" style={{ margin: '0 auto 12px auto' }} />
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '6px' }}>
+          <section className="card-panel" style={{ padding: '36px 24px', textAlign: 'center', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <CheckCircle2 size={32} color="#34D399" style={{ margin: '0 auto 12px auto' }} />
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#F1F5F9', marginBottom: '6px' }}>
               No Ambiguities Detected
             </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', maxWidth: '480px', margin: '0 auto 16px auto' }}>
+            <p style={{ fontSize: '0.85rem', color: '#94A3B8', maxWidth: '480px', margin: '0 auto 16px auto' }}>
               The requirement parser found sufficient explicit parameters to proceed without blocking questions.
             </p>
             <button type="button" onClick={onProceedToConfirmation} className="btn btn-primary">
@@ -149,15 +149,15 @@ export default function ClarificationCenter({
                 className="card-panel"
                 style={{
                   padding: '20px',
-                  backgroundColor: '#FFFFFF',
-                  border: `1px solid ${amb.resolved ? 'var(--success-border, #A7F3D0)' : (isBlocking ? 'var(--danger-border, #FECACA)' : 'var(--warning-border, #FDE68A)')}`,
+                  backgroundColor: '#0D1526',
+                  border: `1px solid ${amb.resolved ? 'rgba(16, 185, 129, 0.3)' : (isBlocking ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)')}`,
                   position: 'relative'
                 }}
               >
                 {/* Card Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)', backgroundColor: 'var(--bg-page, #F6F7FB)', border: '1px solid var(--border-subtle, #E5E7EF)', padding: '2px 6px', borderRadius: '4px' }}>
+                    <span className="font-mono" style={{ fontSize: '0.75rem', color: '#94A3B8', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
                       {amb.id}
                     </span>
                     <span className={`badge ${amb.resolved ? 'badge-emerald' : (isBlocking ? 'badge-rose' : 'badge-amber')}`}>
@@ -166,7 +166,7 @@ export default function ClarificationCenter({
                   </div>
 
                   {amb.resolved && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--success-color, #16845B)', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#34D399', fontWeight: 600 }}>
                       <CheckCircle2 size={14} />
                       <span>Applied to Goal Model</span>
                     </div>
@@ -174,13 +174,13 @@ export default function ClarificationCenter({
                 </div>
 
                 {/* Question */}
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '6px', margin: '0 0 6px 0' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#F1F5F9', marginBottom: '6px', margin: '0 0 6px 0' }}>
                   {amb.question}
                 </h3>
 
                 {/* Context */}
                 {amb.context && (
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #667085)', marginBottom: '14px', fontStyle: 'italic', margin: '0 0 14px 0' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#94A3B8', marginBottom: '14px', fontStyle: 'italic', margin: '0 0 14px 0' }}>
                     Rationale: {amb.context}
                   </p>
                 )}
@@ -188,22 +188,22 @@ export default function ClarificationCenter({
                 {/* If already resolved */}
                 {amb.resolved ? (
                   <div style={{
-                    backgroundColor: 'var(--success-subtle, #ECFDF5)',
-                    border: '1px solid var(--success-border, #A7F3D0)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
                     borderRadius: '6px',
                     padding: '12px 14px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '4px'
                   }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', fontWeight: 600 }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94A3B8', textTransform: 'uppercase', fontWeight: 600 }}>
                       Confirmed Resolution:
                     </span>
-                    <div className="font-mono" style={{ fontSize: '0.85rem', color: 'var(--success-color, #16845B)', fontWeight: 600 }}>
+                    <div className="font-mono" style={{ fontSize: '0.85rem', color: '#34D399', fontWeight: 600 }}>
                       {amb.user_answer}
                     </div>
                     {amb.resolved_at && (
-                      <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', marginTop: '2px' }}>
+                      <span style={{ fontSize: '0.675rem', color: '#94A3B8', marginTop: '2px' }}>
                         Timestamp: {new Date(amb.resolved_at).toLocaleTimeString()}
                       </span>
                     )}
@@ -214,7 +214,7 @@ export default function ClarificationCenter({
                     {/* Suggested Options Pills */}
                     {amb.suggested_options && amb.suggested_options.length > 0 && (
                       <div>
-                        <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', marginBottom: '6px', fontWeight: 500 }}>
+                        <div style={{ fontSize: '0.725rem', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '6px', fontWeight: 500 }}>
                           Suggested Options (Click to select):
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -235,9 +235,9 @@ export default function ClarificationCenter({
 
                     {/* Default assumption note */}
                     {amb.default_assumption && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span>Default fallback if unspecified:</span>
-                        <span className="font-mono" style={{ color: 'var(--text-primary, #172033)', fontWeight: 600 }}>{amb.default_assumption}</span>
+                        <span className="font-mono" style={{ color: '#F1F5F9', fontWeight: 600 }}>{amb.default_assumption}</span>
                       </div>
                     )}
 
@@ -251,10 +251,10 @@ export default function ClarificationCenter({
                         style={{
                           flex: 1,
                           padding: '8px 12px',
-                          backgroundColor: '#FFFFFF',
-                          border: '1px solid var(--border-subtle, #E5E7EF)',
+                          backgroundColor: '#060A14',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
                           borderRadius: '6px',
-                          color: 'var(--text-primary, #172033)',
+                          color: '#F1F5F9',
                           fontSize: '0.85rem',
                           outline: 'none'
                         }}

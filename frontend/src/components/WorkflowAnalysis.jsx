@@ -338,10 +338,10 @@ export function WorkflowView({ state, onRefresh, onPage, onInspect, onExport }) 
                   <>
                     <div className="workflow-status-stack" role="img" aria-label={`${statusCounts.verified} verified, ${statusCounts.failed} failed, ${statusCounts.stale} stale, ${statusCounts.unverified} unverified sub-goals`}>
                       {[
-                        ['verified', '#16845B'],
-                        ['failed', '#D14343'],
-                        ['stale', '#D9A441'],
-                        ['unverified', '#CBD2E0'],
+                        ['verified', '#10B981'],
+                        ['failed', '#EF4444'],
+                        ['stale', '#F59E0B'],
+                        ['unverified', '#475569'],
                       ].map(([status, color]) => statusCounts[status] > 0 && (
                         <span key={status} style={{ width: `${(statusCounts[status] / subGoals.length) * 100}%`, background: color }} />
                       ))}

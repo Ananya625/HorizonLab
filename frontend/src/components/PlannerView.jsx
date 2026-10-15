@@ -19,12 +19,12 @@ export default function PlannerView({
 }) {
   if (!plan) {
     return (
-      <div className="card-panel" style={{ padding: '48px 24px', textAlign: 'center', backgroundColor: '#FFFFFF' }}>
+      <div className="card-panel" style={{ padding: '48px 24px', textAlign: 'center', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <Cpu size={36} color="var(--text-muted, #98A2B3)" style={{ margin: '0 auto 12px' }} />
-        <h3 style={{ fontSize: '1.15rem', color: 'var(--text-primary, #172033)', marginBottom: '8px' }}>
+        <h3 style={{ fontSize: '1.15rem', color: '#F1F5F9', marginBottom: '8px' }}>
           No Implementation Plan Generated Yet
         </h3>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', maxWidth: '520px', margin: '0 auto 16px' }}>
+        <p style={{ fontSize: '0.85rem', color: '#94A3B8', maxWidth: '520px', margin: '0 auto 16px' }}>
           Confirm the Requirement Analysis in Stage 2 to trigger codebase inspection and generate the architecture plan.
         </p>
       </div>
@@ -36,7 +36,8 @@ export default function PlannerView({
       {/* Top Banner */}
       <section className="card-panel" style={{
         padding: '20px 24px',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#0D1526',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -46,14 +47,14 @@ export default function PlannerView({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
             <span className="badge badge-purple">Stage 3: Planner</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)' }}>
-              Target: <code style={{ color: 'var(--accent-primary, #6257D9)' }}>{plan.target_repo_path}</code>
+            <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
+              Target: <code style={{ color: '#818CF8' }}>{plan.target_repo_path}</code>
             </span>
           </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '4px' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#F8FAFC', marginBottom: '4px' }}>
             Architectural Blueprint & Implementation Strategy
           </h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', maxWidth: '850px', lineHeight: '1.5', margin: 0 }}>
+          <p style={{ fontSize: '0.85rem', color: '#94A3B8', maxWidth: '850px', lineHeight: '1.5', margin: 0 }}>
             {plan.architecture_overview}
           </p>
         </div>
@@ -79,11 +80,11 @@ export default function PlannerView({
       {plan.tech_stack && Object.keys(plan.tech_stack).length > 0 && (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
           {Object.entries(plan.tech_stack).map(([key, val]) => (
-            <div key={key} className="card-panel" style={{ padding: '12px 16px', backgroundColor: '#FFFFFF' }}>
-              <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary, #667085)', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
+            <div key={key} className="card-panel" style={{ padding: '12px 16px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
                 {key.replace(/_/g, ' ')}
               </span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-primary, #6257D9)' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#818CF8' }}>
                 {String(val)}
               </span>
             </div>
@@ -92,10 +93,10 @@ export default function PlannerView({
       )}
 
       {/* Planned Files Table */}
-      <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
+      <section className="card-panel" style={{ padding: '20px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-            <FileCode2 size={16} color="var(--accent-primary, #6257D9)" />
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#F1F5F9', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <FileCode2 size={16} color="#818CF8" />
             <span>Planned Target Files ({plan.planned_files?.length || 0})</span>
           </h3>
         </div>
@@ -107,8 +108,8 @@ export default function PlannerView({
               <div 
                 key={idx}
                 style={{
-                  backgroundColor: 'var(--bg-page, #F6F7FB)',
-                  border: '1px solid var(--border-subtle, #E5E7EF)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
                   borderRadius: '6px',
                   padding: '10px 14px',
                   display: 'flex',
@@ -122,14 +123,14 @@ export default function PlannerView({
                   <span className={`badge ${actionBadge}`} style={{ fontSize: '0.65rem' }}>
                     {file.action}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary, #172033)' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', fontWeight: 600, color: '#F1F5F9' }}>
                     {file.path}
                   </span>
                 </div>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #667085)', flex: 1, minWidth: '200px' }}>
+                <span style={{ fontSize: '0.8rem', color: '#94A3B8', flex: 1, minWidth: '200px' }}>
                   {file.description}
                 </span>
-                <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)', fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontSize: '0.725rem', color: '#94A3B8', fontFamily: 'var(--font-mono)' }}>
                   ~{file.estimated_loc} loc
                 </span>
               </div>
@@ -139,9 +140,9 @@ export default function PlannerView({
       </section>
 
       {/* Sequential Execution Steps Roadmap */}
-      <section className="card-panel planner-roadmap" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
-        <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-          <Workflow size={16} color="var(--accent-primary, #6257D9)" />
+      <section className="card-panel planner-roadmap" style={{ padding: '20px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#F1F5F9', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+          <Workflow size={16} color="#818CF8" />
           <span>Planned Execution Flow ({plan.steps?.length || 0} Steps)</span>
         </h3>
 
@@ -189,22 +190,22 @@ export default function PlannerView({
 
       {/* Testing Strategy & Risk Assessment */}
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
-        <div className="card-panel" style={{ padding: '16px 20px', backgroundColor: '#FFFFFF' }}>
-          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-primary, #6257D9)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+        <div className="card-panel" style={{ padding: '16px 20px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#818CF8', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
             <FlaskConical size={15} />
             <span>Testing & Verification Strategy</span>
           </h4>
-          <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.5', margin: 0 }}>
+          <p style={{ fontSize: '0.825rem', color: '#94A3B8', lineHeight: '1.5', margin: 0 }}>
             {plan.testing_strategy}
           </p>
         </div>
 
-        <div className="card-panel" style={{ padding: '16px 20px', backgroundColor: '#FFFFFF' }}>
-          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--warning-color, #B7791F)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+        <div className="card-panel" style={{ padding: '16px 20px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#FBBF24', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
             <AlertTriangle size={15} />
             <span>Risk Assessment & Guardrails</span>
           </h4>
-          <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.5', margin: 0 }}>
+          <p style={{ fontSize: '0.825rem', color: '#94A3B8', lineHeight: '1.5', margin: 0 }}>
             {plan.risk_assessment}
           </p>
         </div>

@@ -3,22 +3,12 @@ import {
   BarChart3,
   RefreshCw,
   Download,
-  Layers,
-  ShieldCheck,
   Activity,
-  Info,
-  Target,
-  Coins,
-  CheckCircle2,
-  Clock3,
 } from 'lucide-react';
 import {
   fetchEvaluationDashboard,
   exportRun,
-  fetchCapabilityProfiles,
   fetchRunRecovery,
-  fetchHierarchicalProficiency,
-  rebuildHierarchicalProficiency,
 } from '../services/api';
 import BenchmarkPanel from './BenchmarkPanel';
 import BenchmarkStudies from './BenchmarkStudies';
@@ -26,8 +16,8 @@ import WorkflowAnalysis from './WorkflowAnalysis';
 
 function StatusPill({ status }) {
   const colors = {
-    measured: { bg: '#ECFDF5', text: '#16845B', border: '#A7F3D0' },
-    insufficient_evidence: { bg: '#F1F4F9', text: '#667085', border: '#E2E8F0' },
+    measured: { bg: 'rgba(16, 185, 129, 0.15)', text: '#34D399', border: 'rgba(16, 185, 129, 0.35)' },
+    insufficient_evidence: { bg: 'rgba(148, 163, 184, 0.12)', text: '#94A3B8', border: 'rgba(148, 163, 184, 0.25)' },
   };
   const c = colors[status] || colors.insufficient_evidence;
   return (
@@ -58,12 +48,12 @@ function PercentageMeter({ label, value, color = '#6257D9' }) {
   );
 }
 
-function MetricCell({ label, value, color = '#172033', sub, badge, visual }) {
+function MetricCell({ label, value, color = '#F1F5F9', sub, badge, visual }) {
   return (
-    <div style={{ background: '#FFFFFF', padding: '14px 16px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
-      <div style={{ color: '#667085', fontSize: '0.68rem', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 500 }}>{label}</div>
+    <div style={{ background: '#0D1526', padding: '14px 16px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+      <div style={{ color: '#94A3B8', fontSize: '0.68rem', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 500 }}>{label}</div>
       <div style={{ color, fontSize: '1.25rem', fontWeight: 700 }}>{value}</div>
-      {sub && <div style={{ color: '#667085', fontSize: '0.7rem', marginTop: '4px' }}>{sub}</div>}
+      {sub && <div style={{ color: '#94A3B8', fontSize: '0.7rem', marginTop: '4px' }}>{sub}</div>}
       {visual && <div style={{ marginTop: '10px' }}>{visual}</div>}
       {badge && <div style={{ marginTop: '6px' }}>{badge}</div>}
     </div>
@@ -216,11 +206,6 @@ function GoalDriftGauge({ driftScore }) {
   );
 }
 
-function formatTestPassRate(passed, total) {
-  if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(passed)) return '—';
-  return `${((passed / total) * 100).toFixed(1)}%`;
-}
-
 function formatDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return '—';
   if (seconds === 0) return '0s';
@@ -281,187 +266,6 @@ export function RecentRunCoverageChart({ runs = [] }) {
   );
 }
 
-function BinaryCapabilityCard({ profile }) {
-  const capColors = {
-    reliability: '#16845B',
-    coding: '#0284C7',
-    recovery: '#6257D9',
-    planning: '#9A6700',
-    debugging: '#C2410C',
-    orchestrator: '#16845B',
-    requirement_analyst: '#BE185D',
-    planner: '#9A6700',
-    coder: '#0284C7',
-    test_runner: '#0284C7',
-    debugger: '#C2410C',
-    verifier: '#6257D9',
-  };
-  const color = capColors[profile.capability] || '#667085';
-  const pct = (v) => v != null ? `${Math.round(v * 100)}%` : '—';
-  const outcomeLabel = profile.capability === 'coding'
-    ? 'Completed test suites (all passed / at least one failed)'
-    : 'Observed outcomes (successful / unsuccessful)';
-  const successRate = Number.isFinite(profile.observed_rate)
-    ? `${Math.round(profile.observed_rate * 100)}%`
-    : 'Unavailable';
-
-  return (
-    <div style={{
-      background: '#FFFFFF', padding: '16px 18px', borderRadius: '8px',
-      border: '1px solid #E5E7EF', borderLeft: `3px solid ${color}`
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-        <div>
-          <div style={{ color, fontWeight: 700, textTransform: 'capitalize', fontSize: '0.95rem' }}>
-            {profile.display_name || profile.capability.replace(/_/g, ' ')}
-          </div>
-          <div style={{ color: '#475569', fontSize: '0.7rem', marginTop: '1px' }}>
-            {profile.model_name}
-          </div>
-        </div>
-        <StatusPill status={profile.evidence_status} />
-      </div>
-
-      <div className="capability-resource-strip" aria-label={`${profile.display_name || profile.capability} resource and outcome summary`}>
-        <div className="capability-resource-metric">
-          <span><Coins size={13} aria-hidden="true" /> Tokens used</span>
-          <strong>Unavailable</strong>
-          <small>Not recorded per agent</small>
-        </div>
-        <div className="capability-resource-metric">
-          <span><CheckCircle2 size={13} aria-hidden="true" /> Success</span>
-          <strong className={profile.evidence_status === 'measured' ? 'is-measured' : ''}>
-            {successRate}
-          </strong>
-          <small>{profile.sample_size > 0 ? `${profile.sample_size} observed outcomes` : 'No outcomes recorded'}</small>
-        </div>
-        <div className="capability-resource-metric">
-          <span><Clock3 size={13} aria-hidden="true" /> Runtime</span>
-          <strong>Unavailable</strong>
-          <small>Not measured per agent</small>
-        </div>
-      </div>
-
-      {profile.evidence_status === 'insufficient_evidence' ? (
-        <div style={{ color: '#64748b', fontSize: '0.78rem', marginTop: '8px', fontStyle: 'italic' }}>
-          No valid recorded outcomes are available for this metric.
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '8px' }}>
-          <div>
-            <div style={{ color: '#64748b', fontSize: '0.65rem', textTransform: 'uppercase' }}>Observed rate</div>
-            <div style={{ color: '#9A6700', fontWeight: 700, fontSize: '1.1rem' }}>
-              {pct(profile.observed_rate)}
-            </div>
-            <PercentageMeter
-              label={`${profile.display_name || profile.capability} observed rate`}
-              value={profile.observed_rate == null ? null : profile.observed_rate * 100}
-              color={color}
-            />
-            <div style={{ color: '#475569', fontSize: '0.65rem' }}>
-              {profile.successes}S / {profile.failures}F (n={profile.sample_size})
-            </div>
-          </div>
-          <div>
-            <div style={{ color: '#64748b', fontSize: '0.65rem', textTransform: 'uppercase' }}>
-              {profile.metric_label || outcomeLabel}
-            </div>
-            <div style={{ color, fontWeight: 700, fontSize: '1.1rem' }}>
-              {profile.successes} / {profile.failures}
-            </div>
-            <div style={{ color: '#475569', fontSize: '0.65rem' }}>n = {profile.sample_size} measured outcomes</div>
-          </div>
-        </div>
-      )}
-      {profile.evidence_status !== 'insufficient_evidence' && profile.sample_size > 0 && (
-        <div
-          className="evaluation-stacked-meter"
-          role="img"
-          aria-label={`${profile.successes} successful and ${profile.failures} unsuccessful outcomes out of ${profile.sample_size}`}
-          style={{ marginTop: '12px' }}
-        >
-          <span style={{ width: `${Math.max(0, Math.min(100, (profile.successes / profile.sample_size) * 100))}%`, background: '#16845B' }} />
-          <span style={{ width: `${Math.max(0, Math.min(100, (profile.failures / profile.sample_size) * 100))}%`, background: '#D14343' }} />
-        </div>
-      )}
-      {profile.measurement_basis && (
-        <div style={{ color: '#64748b', fontSize: '0.67rem', marginTop: '8px' }}>
-          Basis: {profile.measurement_basis}
-        </div>
-      )}
-      {profile.note && (
-        <div style={{ color: '#667085', fontSize: '0.67rem', marginTop: '8px', borderTop: '1px solid #E5E7EF', paddingTop: '6px' }}>
-          {profile.note}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EfficiencyCard({ profile }) {
-  const fmt = formatDuration;
-  return (
-    <div style={{
-      background: '#FFFFFF', padding: '16px 18px', borderRadius: '8px',
-      border: '1px solid #E5E7EF', borderLeft: '3px solid #6257D9'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-        <div>
-          <div style={{ color: '#6257D9', fontWeight: 700, fontSize: '0.95rem' }}>efficiency</div>
-          <div style={{ color: '#475569', fontSize: '0.7rem' }}>Task duration (continuous)</div>
-        </div>
-        <StatusPill status={profile.evidence_status || (profile.n > 0 ? 'measured' : 'insufficient_evidence')} />
-      </div>
-      {profile.n === 0 ? (
-        <div style={{ color: '#64748b', fontSize: '0.78rem', fontStyle: 'italic' }}>
-          No verifiable task durations recorded yet.
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-          {[
-            { label: 'Mean', value: fmt(profile.mean) },
-            { label: 'Min', value: fmt(profile.min) },
-            { label: 'Max', value: fmt(profile.max) },
-            { label: 'Std Dev', value: fmt(profile.stdev) },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <div style={{ color: '#64748b', fontSize: '0.65rem', textTransform: 'uppercase' }}>{label}</div>
-              <div style={{ color: '#6257D9', fontWeight: 700, fontSize: '1.1rem' }}>{value}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      {profile.n > 0
-        && Number.isFinite(profile.min)
-        && Number.isFinite(profile.mean)
-        && Number.isFinite(profile.max)
-        && profile.max >= profile.min && (
-          <div className="efficiency-range" role="img" aria-label={`Task duration range: minimum ${fmt(profile.min)}, mean ${fmt(profile.mean)}, maximum ${fmt(profile.max)}`}>
-            <div className="efficiency-range-labels">
-              <span>Fastest <strong>{fmt(profile.min)}</strong></span>
-              <span>Mean <strong>{fmt(profile.mean)}</strong></span>
-              <span>Slowest <strong>{fmt(profile.max)}</strong></span>
-            </div>
-            <div className="efficiency-range-track">
-              <span
-                className="efficiency-range-marker"
-                style={{
-                  left: `${profile.max === profile.min ? 50 : Math.max(0, Math.min(100, ((profile.mean - profile.min) / (profile.max - profile.min)) * 100))}%`
-                }}
-              />
-            </div>
-            <span className="efficiency-range-caption">Mean position within the observed duration range</span>
-          </div>
-        )}
-      <div style={{ color: '#667085', fontSize: '0.67rem', marginTop: '8px', borderTop: '1px solid #E5E7EF', paddingTop: '6px' }}>
-        {profile.n > 0
-          ? `Based on ${profile.n} timestamp-verified run duration(s). ${profile.note || ''}`
-          : profile.note || 'Unverifiable legacy durations are omitted.'}
-      </div>
-    </div>
-  );
-}
-
 function RecoveryPanel({ recovery }) {
   if (!recovery || recovery.evidence_status === 'insufficient_evidence'
     || (recovery.evidence_status === 'no_recovery_needed' && !recovery.total_episodes)) {
@@ -514,18 +318,18 @@ function RecoveryPanel({ recovery }) {
       </div>
 
       {recovery.failure_type_breakdown && Object.keys(recovery.failure_type_breakdown).length > 0 && (
-        <div style={{ background: '#F6F7FB', padding: '12px 14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
-          <div style={{ color: '#667085', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '8px' }}>
+        <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ color: '#94A3B8', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '8px' }}>
             Failure type breakdown
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             {Object.entries(recovery.failure_type_breakdown).map(([ft, data]) => (
               <div key={ft} style={{
-                background: '#FFFFFF', border: '1px solid #E5E7EF',
+                background: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)',
                 borderRadius: '6px', padding: '8px 12px', minWidth: '140px'
               }}>
-                <div style={{ color: '#667085', fontWeight: 600, fontSize: '0.78rem' }}>{ft}</div>
-                <div style={{ color: '#172033', fontSize: '0.85rem', marginTop: '2px', fontWeight: 600 }}>
+                <div style={{ color: '#94A3B8', fontWeight: 600, fontSize: '0.78rem' }}>{ft}</div>
+                <div style={{ color: '#F1F5F9', fontSize: '0.85rem', marginTop: '2px', fontWeight: 600 }}>
                   {data.resolved}/{data.attempts} resolved
                 </div>
               </div>
@@ -585,243 +389,10 @@ function RecoveryPanel({ recovery }) {
   );
 }
 
-function HierarchicalProfilingPanel({ data, loading, onRebuild, error, selectedRunId }) {
-  if (loading && !data) {
-    return (
-      <div style={{ color: '#64748b', fontSize: '0.85rem', padding: '32px', textAlign: 'center' }}>
-        <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 8px', display: 'block' }} />
-        Loading observed agent outcome rates...
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div style={{ color: '#64748b', fontSize: '0.82rem', fontStyle: 'italic', padding: '16px 0' }}>
-        {error || 'No observed profile data is available for this run yet.'}
-      </div>
-    );
-  }
-
-  const { system_profile, agent_profiles = {}, attribution_matrix = {}, total_runs_analyzed = 0 } = data;
-  const pct = (v) => v != null ? `${Math.round(v * 100)}%` : '—';
-  const failureAttributions = Object.entries(attribution_matrix.failure_attributions || {});
-  const recoveryAttributions = Object.entries(attribution_matrix.recovery_attributions || {});
-  const maxFailureCount = Math.max(0, ...failureAttributions.map(([, count]) => Number(count)).filter(Number.isFinite));
-  const maxRecoveryCount = Math.max(0, ...recoveryAttributions.map(([, count]) => Number(count)).filter(Number.isFinite));
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div className="card-panel" style={{
-        padding: '20px 24px',
-        background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-subtle) 100%)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: '12px'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>Level 2: Macro System Profile</span>
-              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{selectedRunId ? `Selected run: ${selectedRunId}` : 'All observed runs'}</span>
-            </div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-              End-to-End Verified System Proficiency
-            </h3>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <StatusPill status={system_profile?.evidence_status || 'insufficient_evidence'} />
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={onRebuild}
-              style={{ fontSize: '0.72rem', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <RefreshCw size={12} /><span>Re-sync DB Runs</span>
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-          <MetricCell
-            label="Total Runs Analyzed"
-            value={total_runs_analyzed}
-            color="#172033"
-            sub="empirical runs in SQLite"
-          />
-          <MetricCell
-            label="Observed Verified Run Rate"
-            value={pct(system_profile?.verified_success_rate?.observed_rate)}
-            color="#16845B"
-            sub={`${system_profile?.verified_success_rate?.successes ?? 0} passed / ${system_profile?.verified_success_rate?.failures ?? 0} failed (n=${system_profile?.verified_success_rate?.sample_size ?? 0})`}
-            visual={<PercentageMeter
-              label="Observed verified run rate"
-              value={Number.isFinite(system_profile?.verified_success_rate?.observed_rate)
-                ? system_profile.verified_success_rate.observed_rate * 100
-                : null}
-              color="#16845B"
-            />}
-          />
-          <MetricCell
-            label="Mean Pipeline Latency"
-            value={formatDuration(system_profile?.duration_summary?.mean)}
-            color="#0284C7"
-            sub={system_profile?.duration_summary?.n ? `across ${system_profile.duration_summary.n} completed executions` : 'no duration data'}
-          />
-          <MetricCell
-            label="Failures Identified"
-            value={attribution_matrix.total_failures_observed || 0}
-            color={attribution_matrix.total_failures_observed > 0 ? '#9A6700' : '#16845B'}
-            sub="from captured execution events"
-          />
-        </div>
-      </div>
-
-      <div className="card-panel" style={{ padding: '20px', borderRadius: '12px' }}>
-        <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#172033', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-          <ShieldCheck size={16} color="var(--info-color)" />
-          <span>Failure & Recovery Attribution Matrix</span>
-        </h3>
-        <p style={{ fontSize: '0.75rem', color: '#667085', marginBottom: '14px' }}>
-          Rates and counts are calculated from captured files, test outcomes, recovery attempts, and verification records. Missing evidence is shown as unavailable.
-        </p>
-
-        <div className="evaluation-attribution-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
-          <div style={{ background: '#FFFFFF', padding: '14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
-            <div style={{ color: '#667085', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '10px', fontWeight: 600 }}>
-              Root-Cause Failure Distribution
-            </div>
-            {Object.keys(attribution_matrix.failure_attributions || {}).length === 0 ? (
-              <div style={{ color: '#16845B', fontSize: '0.78rem', padding: '8px 0' }}>
-                No failure events were captured for this view.
-              </div>
-            ) : (
-              <div className="evaluation-category-bars">
-                {failureAttributions.map(([cause, cnt]) => (
-                  <div key={cause} className="evaluation-category-row">
-                    <div className="evaluation-category-heading">
-                      <span>{cause}</span>
-                      <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>{cnt} run(s)</span>
-                    </div>
-                    <div className="evaluation-category-track" role="img" aria-label={`${cause}: ${cnt} runs, relative to most frequent cause`}>
-                      <span style={{ width: `${maxFailureCount > 0 && Number.isFinite(Number(cnt)) ? Math.max(0, Math.min(100, (Number(cnt) / maxFailureCount) * 100)) : 0}%`, background: '#D9A441' }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ background: '#FFFFFF', padding: '14px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
-            <div style={{ color: '#667085', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '10px', fontWeight: 600 }}>
-              Recovery Resolution Outcomes
-            </div>
-            {Object.keys(attribution_matrix.recovery_attributions || {}).length === 0 ? (
-              <div style={{ color: '#667085', fontSize: '0.78rem', fontStyle: 'italic', padding: '8px 0' }}>
-                No recovery episodes recorded.
-              </div>
-            ) : (
-              <div className="evaluation-category-bars">
-                {recoveryAttributions.map(([outcome, cnt]) => (
-                  <div key={outcome} className="evaluation-category-row">
-                    <div className="evaluation-category-heading">
-                      <span>{outcome}</span>
-                      <span className={`badge ${outcome.includes('recovered') ? 'badge-emerald' : outcome.includes('clean') || outcome.includes('no_recovery') ? 'badge-purple' : 'badge-rose'}`} style={{ fontSize: '0.65rem' }}>
-                        {cnt} episode(s)
-                      </span>
-                    </div>
-                    <div className="evaluation-category-track" role="img" aria-label={`${outcome}: ${cnt} episodes, relative to most frequent outcome`}>
-                      <span style={{ width: `${maxRecoveryCount > 0 && Number.isFinite(Number(cnt)) ? Math.max(0, Math.min(100, (Number(cnt) / maxRecoveryCount) * 100)) : 0}%`, background: outcome.includes('recovered') ? '#16845B' : '#6257D9' }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-          <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>Level 1: Micro Component Profiles</span>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#172033', margin: 0 }}>
-            Individual Agent Proficiencies (All 7 Pipeline Agents)
-          </h3>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-          {Object.entries(agent_profiles).map(([agentId, prof]) => {
-            const pm = prof.primary_metric || {};
-            return (
-              <div
-                key={agentId}
-                style={{
-                  background: '#FFFFFF',
-                  padding: '16px 18px',
-                  borderRadius: '10px',
-                  border: '1px solid #E5E7EF',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <span className="badge badge-purple" style={{ fontSize: '0.6rem', marginBottom: '4px' }}>
-                      Stage: {prof.stage}
-                    </span>
-                    <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#172033', margin: '2px 0' }}>
-                      {prof.agent_name}
-                    </h4>
-                    <p style={{ fontSize: '0.7rem', color: '#667085', margin: 0, lineHeight: 1.3 }}>
-                      {prof.description}
-                    </p>
-                  </div>
-                  <StatusPill status={prof.evidence_status} />
-                </div>
-
-                <div style={{ background: '#F6F7FB', padding: '12px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
-                  <div style={{ color: '#667085', fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '2px' }}>
-                    Primary: {prof.primary_metric_label}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#6257D9' }}>
-                      {pct(pm.observed_rate)}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: '#667085' }}>
-                      {pm.successes} successes / {pm.failures} failures (n={pm.sample_size})
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '0.68rem', color: '#667085', marginTop: '5px', lineHeight: 1.4 }}>
-                    Basis: {prof.measurement_basis}
-                  </div>
-                </div>
-
-                {prof.secondary_metrics && Object.keys(prof.secondary_metrics).length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {Object.entries(prof.secondary_metrics).map(([smKey, smVal]) => (
-                      <div key={smKey} style={{ background: '#F6F7FB', padding: '6px 10px', borderRadius: '6px', border: '1px solid #E5E7EF', flex: '1 1 120px' }}>
-                        <div style={{ fontSize: '0.62rem', color: '#667085', textTransform: 'uppercase' }}>
-                          {smKey.replace(/_/g, ' ')}
-                        </div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#172033' }}>
-                          {smVal.mean != null ? `${smVal.mean.toFixed(2)}${smVal.unit === 'seconds' ? 's' : ''}` : '—'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function EvaluationDashboard({
   currentRunRecord,
   onSelectRun,
-  onReset
+  onReset: _onReset
 }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -831,16 +402,7 @@ export default function EvaluationDashboard({
   const [workflowRefresh, setWorkflowRefresh] = useState(0);
   const requestId = useRef(0);
 
-  const [capabilityProfiles, setCapabilityProfiles] = useState(null);
-  const [capabilityError, setCapabilityError] = useState(null);
-  const [capabilityLoading, setCapabilityLoading] = useState(false);
   const [recoveryData, setRecoveryData] = useState(null);
-  const [hierarchicalData, setHierarchicalData] = useState(null);
-  const [hierarchicalLoading, setHierarchicalLoading] = useState(false);
-  const [hierarchicalError, setHierarchicalError] = useState(null);
-  const [capabilityScope, setCapabilityScope] = useState('all');
-  const hierarchicalRequestId = useRef(0);
-  const capabilityRequestId = useRef(0);
 
   const loadDashboard = () => {
     const id = ++requestId.current;
@@ -853,73 +415,10 @@ export default function EvaluationDashboard({
       .finally(() => { if (id === requestId.current) setLoading(false); });
   };
 
-  const loadHierarchical = () => {
-    const id = ++hierarchicalRequestId.current;
-    setHierarchicalLoading(true);
-    setHierarchicalError(null);
-    setHierarchicalData(null);
-    return fetchHierarchicalProficiency(undefined, currentRunRecord?.run_id)
-      .then((data) => {
-        if (id === hierarchicalRequestId.current) setHierarchicalData(data);
-      })
-      .catch((e) => {
-        if (id === hierarchicalRequestId.current) {
-          setHierarchicalError(e.message);
-          console.warn('Hierarchical proficiency error:', e);
-        }
-      })
-      .finally(() => {
-        if (id === hierarchicalRequestId.current) setHierarchicalLoading(false);
-      });
-  };
-
-  const loadCapabilityProfiles = () => {
-    const id = ++capabilityRequestId.current;
-    setCapabilityLoading(true);
-    setCapabilityError(null);
-    setCapabilityProfiles(null);
-    const runId = capabilityScope === 'selected' ? currentRunRecord?.run_id : undefined;
-    if (capabilityScope === 'selected' && !runId) {
-      setCapabilityProfiles({ profiles: [] });
-      setCapabilityLoading(false);
-      return;
-    }
-    fetchCapabilityProfiles({ runId })
-      .then((data) => {
-        if (id === capabilityRequestId.current) setCapabilityProfiles(data);
-      })
-      .catch((e) => {
-        if (id === capabilityRequestId.current) {
-          setCapabilityError(e.message);
-          console.warn('Capability profiles error:', e);
-        }
-      })
-      .finally(() => {
-        if (id === capabilityRequestId.current) setCapabilityLoading(false);
-      });
-  };
-
-  const handleRebuildHierarchical = async () => {
-    setHierarchicalLoading(true);
-    try {
-      await rebuildHierarchicalProficiency();
-      await loadHierarchical();
-    } catch (e) {
-      console.warn('Rebuild error:', e);
-    } finally {
-      setHierarchicalLoading(false);
-    }
-  };
-
   useEffect(() => {
     loadDashboard();
     return () => { requestId.current += 1; };
   }, [currentRunRecord?.run_id, currentRunRecord?.evaluation?.created_at]);
-
-  useEffect(() => {
-    loadHierarchical();
-    loadCapabilityProfiles();
-  }, [currentRunRecord?.run_id, capabilityScope]);
 
   useEffect(() => {
     if (!currentRunRecord?.run_id) {
@@ -942,19 +441,10 @@ export default function EvaluationDashboard({
     .map(run => run.execution_time_seconds)
     .filter(value => Number.isFinite(value) && value >= 0));
 
-  const profilesByModel = (capabilityProfiles?.profiles || []).reduce((groups, profile) => {
-    const modelProfiles = groups.get(profile.model_name) || [];
-    modelProfiles.push(profile);
-    groups.set(profile.model_name, modelProfiles);
-    return groups;
-  }, new Map());
-
   const handleExportJSON = async () => {
     let payload = {
       dashboard: dashboardData,
       run: currentRunRecord,
-      hierarchical_proficiency: hierarchicalData,
-      capability_profiles: capabilityProfiles,
       recovery: recoveryData,
     };
     try {
@@ -975,8 +465,6 @@ export default function EvaluationDashboard({
 
   const sections = [
     ['run', 'This run'],
-    ['hierarchical', 'Hierarchical Profiling'],
-    ['capabilities', 'Capability Profiles'],
     ['recovery', 'Recovery Episodes'],
     ['benchmarks', 'Benchmarks'],
     ['history', 'Run history'],
@@ -986,7 +474,8 @@ export default function EvaluationDashboard({
     <div className="evaluation-dashboard" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div className="card-panel" style={{
         padding: '20px 24px',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#0D1526',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -996,12 +485,12 @@ export default function EvaluationDashboard({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
             <span className="badge badge-purple">Stage 7: Evaluation Dashboard</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)' }}>Persistent Run Analytics & Benchmarks</span>
+            <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>Persistent Run Analytics & Benchmarks</span>
           </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '4px' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#F8FAFC', marginBottom: '4px' }}>
             Evaluation
           </h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
+          <p style={{ fontSize: '0.85rem', color: '#94A3B8', margin: 0 }}>
             Understand this run, inspect repeated work, or compare controlled benchmark trials.
           </p>
         </div>
@@ -1011,8 +500,6 @@ export default function EvaluationDashboard({
             className="btn btn-secondary"
             onClick={() => {
               loadDashboard();
-              loadHierarchical();
-              loadCapabilityProfiles();
               setWorkflowRefresh(value => value + 1);
             }}
             style={{ padding: '8px 14px', fontSize: '0.8rem' }}
@@ -1078,14 +565,14 @@ export default function EvaluationDashboard({
           {currentEval && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Visual Evaluation Graphs Card */}
-              <div className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '16px' }}>
+              <div className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#F1F5F9', marginBottom: '16px' }}>
                   Execution Visualizations & Metrics
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px', alignItems: 'center' }}>
                   {/* Test Outcomes Doughnut Chart */}
-                  <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#172033', marginBottom: '10px' }}>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.07)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#F1F5F9', marginBottom: '10px' }}>
                       Test Execution Breakdown
                     </div>
                     <TestDoughnutChart
@@ -1097,28 +584,28 @@ export default function EvaluationDashboard({
                   </div>
 
                   {/* Criteria Progress Bar */}
-                  <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.07)' }}>
                     <CriteriaProgressBar successRate={currentEval.success_rate} />
                   </div>
 
                   {/* Goal Drift Gauge */}
-                  <div style={{ background: 'var(--bg-page, #F6F7FB)', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EF' }}>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.07)' }}>
                     <GoalDriftGauge driftScore={currentEval.goal_drift_score ?? currentEval.evidence_breakdown?.diagnostic_scores?.goal_drift_score} />
                   </div>
                 </div>
               </div>
 
               {/* Saved Test and Timing Telemetry (Exact spans for assertions) */}
-              <details open className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
+              <details open className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
                 <summary>Saved test and timing summary</summary>
                 {currentEval.metric_version !== '2' && <p>Historical measurements are unvalidated.</p>}
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#667085', textTransform: 'uppercase', margin: '12px 0 8px 0' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', margin: '12px 0 8px 0' }}>
                   Current Run Telemetry ({currentRunRecord?.run_id})
                 </div>
 
                 <div className="evaluation-telemetry-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                  <div className="card-panel evaluation-telemetry-stat" style={{ padding: '14px 16px', backgroundColor: '#F8F9FD' }}>
-                    <span style={{ fontSize: '0.675rem', color: '#667085', textTransform: 'uppercase', display: 'block', marginBottom: '2px', fontWeight: 500 }}>
+                  <div className="card-panel evaluation-telemetry-stat" style={{ padding: '14px 16px', backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.07)' }}>
+                    <span style={{ fontSize: '0.675rem', color: '#94A3B8', textTransform: 'uppercase', display: 'block', marginBottom: '2px', fontWeight: 500 }}>
                       Criteria Coverage
                     </span>
                     <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#16845B' }}>
@@ -1200,86 +687,6 @@ export default function EvaluationDashboard({
         </section>
       )}
 
-      {section === 'hierarchical' && (
-        <HierarchicalProfilingPanel
-          data={hierarchicalData}
-          loading={hierarchicalLoading}
-          onRebuild={handleRebuildHierarchical}
-          error={hierarchicalError}
-          selectedRunId={currentRunRecord?.run_id}
-        />
-      )}
-
-      {section === 'capabilities' && (
-        <div className="card-panel" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <span style={{ color: capabilityError ? '#D14343' : '#667085', fontSize: '0.78rem' }}>
-              {capabilityLoading ? 'Loading observed capability data…' : capabilityError || ''}
-            </span>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={loadCapabilityProfiles} disabled={capabilityLoading}>
-              <RefreshCw size={12} /><span>{capabilityError ? 'Retry' : 'Refresh data'}</span>
-            </button>
-          </div>
-          <div style={{ marginBottom: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-              <span className="badge badge-cyan">Feature 1</span>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#172033', margin: 0 }}>
-                Evidence-Grounded Capability Profiles
-              </h3>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '8px 0' }}>
-              {[
-                { id: 'all', label: 'All recorded runs' },
-                { id: 'selected', label: 'Selected run' },
-              ].map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setCapabilityScope(id)}
-                  style={{
-                    background: capabilityScope === id ? '#6257D9' : '#FFFFFF',
-                    color: capabilityScope === id ? '#FFFFFF' : '#667085',
-                    border: capabilityScope === id ? '1px solid #6257D9' : '1px solid #E5E7EF',
-                    borderRadius: '6px',
-                    padding: '4px 10px',
-                    fontSize: '0.72rem',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {!capabilityProfiles || capabilityProfiles.profiles?.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: '0.8rem', fontStyle: 'italic', padding: '16px 0' }}>
-              {capabilityScope === 'selected'
-                ? currentRunRecord?.run_id
-                  ? 'No capability observations have been recorded for this run yet.'
-                  : 'Select a run to inspect its capability observations.'
-                : 'No capability observations have been recorded for any run yet.'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[...profilesByModel.entries()].map(([modelName, profiles]) => (
-                <div key={modelName} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ color: '#cbd5e1', fontSize: '0.78rem', fontWeight: 700 }}>
-                    Model: {modelName}
-                  </div>
-                  {profiles.filter(p => p.measurement_type === 'binary').map(p => (
-                    <BinaryCapabilityCard key={`${p.model_name}-${p.capability}`} profile={p} />
-                  ))}
-                  {profiles.filter(p => p.measurement_type === 'continuous').map(p => (
-                    <EfficiencyCard key={`${p.model_name}-${p.capability}`} profile={p} />
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {section === 'recovery' && (
         <div className="card-panel" style={{ padding: '20px' }}>

@@ -12,6 +12,7 @@ import CodingAgentView from './components/CodingAgentView';
 import TestingDebugView from './components/TestingDebugView';
 import VerificationView from './components/VerificationView';
 import EvaluationDashboard from './components/EvaluationDashboard';
+import AgentPerformanceView from './components/AgentPerformanceView';
 import ExecutionControlRoom from './components/ExecutionControlRoom';
 import WorkflowProgress from './components/WorkflowProgress';
 import GuidedTour from './components/GuidedTour';
@@ -38,14 +39,14 @@ import {
 
 export default function App() {
   const [theme, setTheme] = useState(() => (
-    typeof window !== 'undefined' && window.localStorage.getItem('horizonlab-theme') === 'dark'
-      ? 'dark'
-      : 'light'
+    typeof window !== 'undefined' && window.localStorage.getItem('horizonlab-theme-v2') === 'light'
+      ? 'light'
+      : 'dark'
   ));
   const [isTourOpen, setIsTourOpen] = useState(false);
 
   useEffect(() => {
-    window.localStorage.setItem('horizonlab-theme', theme);
+    window.localStorage.setItem('horizonlab-theme-v2', theme);
   }, [theme]);
 
   // Workspace & Input State
@@ -459,6 +460,17 @@ export default function App() {
             maxRecoveryRetries={maxRecoveryRetries}
             setMaxRecoveryRetries={setMaxRecoveryRetries}
             goalModel={goalModel}
+            currentRunRecord={currentRunRecord}
+            runId={runId}
+            logs={logs}
+            runsList={runsList}
+            onSelectRun={handleSelectRun}
+            onNavigateTab={setActiveTab}
+            plan={plan}
+            codeChanges={codeChanges}
+            testResults={testResults}
+            recoveryAttempts={recoveryAttempts}
+            verification={verification}
           />
         )}
 
@@ -550,6 +562,14 @@ export default function App() {
             currentRunRecord={currentRunRecord}
             onSelectRun={handleSelectRun}
             onReset={handleReset}
+          />
+        )}
+
+        {/* State 8: Agent Performance */}
+        {!loading && !isExecuting && (activeTab === 'performance' || activeTab === 'agent_performance') && (
+          <AgentPerformanceView
+            currentRunRecord={currentRunRecord}
+            onSelectRun={handleSelectRun}
           />
         )}
       </main>

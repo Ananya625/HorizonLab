@@ -127,9 +127,25 @@ test('evaluation starts with the selected run and keeps benchmark controls out o
   assert.match(html, /aria-label="Evaluation sections"/);
   assert.match(html, /aria-pressed="true"[^>]*>This run/);
   assert.match(html, /Run history/);
+  assert.doesNotMatch(html, />Hierarchical Profiling</);
+  assert.doesNotMatch(html, />Capability Profiles</);
   assert.doesNotMatch(html, /aria-label="Vertical bar chart of criteria coverage/);
   assert.doesNotMatch(html, /Run deterministic studies/);
   assert.doesNotMatch(html, /Historical Run Benchmark Comparisons/);
+});
+
+test('agent performance view provides dedicated hierarchical profiling and capability profiles navigation', async () => {
+  const {default: Header} = await loadComponent('./src/components/Header.jsx');
+  const headerHtml = renderToStaticMarkup(React.createElement(Header, {}));
+  assert.match(headerHtml, /8\. Agent Performance/);
+
+  const {default: AgentPerformanceView} = await loadComponent('./src/components/AgentPerformanceView.jsx');
+  const viewHtml = renderToStaticMarkup(React.createElement(AgentPerformanceView, {currentRunRecord:{run_id:'test-run'}}));
+  assert.match(viewHtml, />Agent Performance<\/h2>/);
+  assert.match(viewHtml, /Analyze agent capabilities, execution proficiency, and performance across runs\./);
+  assert.match(viewHtml, /aria-label="Agent Performance sections"/);
+  assert.match(viewHtml, /aria-pressed="true"[^>]*>Hierarchical Profiling/);
+  assert.match(viewHtml, />Capability Profiles</);
 });
 
 test('review distinguishes failed checks from unknown evidence and tolerates missing ratings', async () => {

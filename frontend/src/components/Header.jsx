@@ -4,18 +4,16 @@ import {
   Settings, 
   RotateCcw, 
   Sparkles, 
-  CheckCircle2, 
   ShieldCheck, 
   FileCode2, 
   Layers, 
   BarChart3, 
   FlaskConical, 
   Database,
-  Terminal,
-  Circle,
   Sun,
   Moon,
-  Route
+  Route,
+  Activity
 } from 'lucide-react';
 
 const STAGES = [
@@ -26,6 +24,7 @@ const STAGES = [
   { id: 'testing', label: '5. Test & Debug', icon: FlaskConical },
   { id: 'verifier', label: '6. Code Review', icon: ShieldCheck },
   { id: 'evaluations', label: '7. Evaluation', icon: BarChart3 },
+  { id: 'performance', label: '8. Agent Performance', icon: Activity },
 ];
 
 export default function Header({
@@ -42,60 +41,69 @@ export default function Header({
   hasRun,
   runsList = [],
   onSelectRun,
-  theme = 'light',
+  theme = 'dark',
   onToggleTheme,
   onOpenTour
 }) {
   return (
     <header className="app-header" style={{
-      backgroundColor: '#FFFFFF',
-      borderBottom: '1px solid var(--border-subtle, #E5E7EF)',
+      backgroundColor: 'rgba(10, 15, 29, 0.88)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
       position: 'sticky',
       top: 0,
       zIndex: 50,
-      boxShadow: '0 1px 3px rgba(16, 24, 40, 0.05)'
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
     }}>
       {/* Top Application Header Row */}
       <div className="app-header-top" style={{
-        padding: '10px 24px',
+        padding: '12px 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: '1px solid var(--border-subtle, #E5E7EF)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
         gap: '16px',
         flexWrap: 'wrap'
       }}>
         {/* Brand & Platform Identity */}
         <div className="app-header-brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div className="app-header-brand-mark" style={{
-            width: '34px',
-            height: '34px',
-            borderRadius: '8px',
-            backgroundColor: 'var(--accent-primary, #6257D9)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#FFFFFF',
-            boxShadow: '0 2px 6px rgba(98, 87, 217, 0.3)'
+            boxShadow: '0 0 16px rgba(99, 102, 241, 0.45)',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
           }}>
-            <Cpu size={18} />
+            <Cpu size={19} />
           </div>
           <div className="app-header-brand-copy">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ 
                 fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', 
-                fontSize: '1.05rem', 
+                fontSize: '1.1rem', 
                 fontWeight: 700, 
-                color: 'var(--text-primary, #172033)',
+                color: '#F8FAFC',
                 letterSpacing: '-0.02em'
               }}>
                 HorizonLab
               </span>
-              <span className="badge badge-purple" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>
+              <span className="badge badge-purple" style={{ 
+                fontSize: '0.65rem', 
+                padding: '2px 8px',
+                background: 'rgba(99, 102, 241, 0.15)',
+                color: '#A5B4FC',
+                border: '1px solid rgba(99, 102, 241, 0.3)'
+              }}>
                 Autonomous Developer Platform
               </span>
             </div>
-            <p style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
+            <p style={{ fontSize: '0.72rem', color: '#94A3B8', margin: 0 }}>
               Closed-Loop Coding, Test Diagnostics, Recovery & Independent Verification
             </p>
           </div>
@@ -106,7 +114,7 @@ export default function Header({
           {/* Active / Previous Run Selector */}
           {runsList.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label htmlFor="run-selector" style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)', fontWeight: 500 }}>
+              <label htmlFor="run-selector" style={{ fontSize: '0.75rem', color: '#94A3B8', fontWeight: 500 }}>
                 Run:
               </label>
               <select
@@ -114,22 +122,22 @@ export default function Header({
                 value={runId || ''}
                 onChange={(e) => onSelectRun && onSelectRun(e.target.value)}
                 style={{
-                  backgroundColor: '#F6F7FB',
-                  color: 'var(--text-primary, #172033)',
-                  border: '1px solid var(--border-subtle, #E5E7EF)',
+                  backgroundColor: '#0F172A',
+                  color: '#F1F5F9',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: '6px',
                   padding: '5px 10px',
                   fontSize: '0.75rem',
                   fontFamily: 'var(--font-mono, monospace)',
                   outline: 'none',
                   cursor: 'pointer',
-                  maxWidth: '240px'
+                  maxWidth: '220px'
                 }}
               >
                 <option value="">-- Recent Runs ({runsList.length}) --</option>
                 {runsList.map((r) => (
                   <option key={r.run_id} value={r.run_id}>
-                    {r.run_id} ({r.title ? r.title.slice(0, 24) : 'Run'}) [{r.status}]
+                    {r.run_id} ({r.title ? r.title.slice(0, 20) : 'Run'}) [{r.status}]
                   </option>
                 ))}
               </select>
@@ -145,14 +153,15 @@ export default function Header({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              backgroundColor: ollamaStatus?.connected ? '#ECFDF5' : '#FEF2F2',
-              border: `1px solid ${ollamaStatus?.connected ? '#A7F3D0' : '#FECACA'}`,
+              backgroundColor: ollamaStatus?.connected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+              border: `1px solid ${ollamaStatus?.connected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
               padding: '5px 10px',
               borderRadius: '9999px',
               cursor: 'pointer',
               fontSize: '0.725rem',
-              color: ollamaStatus?.connected ? '#16845B' : '#D14343',
-              fontWeight: 600
+              color: ollamaStatus?.connected ? '#34D399' : '#F87171',
+              fontWeight: 600,
+              transition: 'all 0.15s ease'
             }}
             title="Click to configure model settings"
           >
@@ -160,13 +169,14 @@ export default function Header({
               width: '7px',
               height: '7px',
               borderRadius: '50%',
-              backgroundColor: ollamaStatus?.connected ? '#16845B' : '#D14343'
+              backgroundColor: ollamaStatus?.connected ? '#10B981' : '#EF4444',
+              boxShadow: ollamaStatus?.connected ? '0 0 8px #10B981' : '0 0 8px #EF4444'
             }} />
             <span>
               {ollamaStatus?.connected ? `Ollama (${ollamaStatus?.current_model || 'active'})` : 'Ollama Offline'}
             </span>
             {ollamaStatus?.latency_ms && (
-              <span style={{ color: 'var(--text-secondary, #667085)', fontSize: '0.65rem', fontWeight: 400 }}>
+              <span style={{ color: '#94A3B8', fontSize: '0.65rem', fontWeight: 400 }}>
                 {ollamaStatus.latency_ms}ms
               </span>
             )}
@@ -178,7 +188,13 @@ export default function Header({
             className="btn btn-primary btn-sm"
             onClick={onRunFullPipeline}
             disabled={isRunning}
-            style={{ fontWeight: 600 }}
+            style={{ 
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              boxShadow: '0 0 16px rgba(99, 102, 241, 0.45)',
+              color: '#FFFFFF'
+            }}
           >
             <Sparkles size={14} />
             <span>{isRunning ? 'Running Full Pipeline...' : 'Run Full Pipeline'}</span>
@@ -191,6 +207,11 @@ export default function Header({
             onClick={onReset}
             disabled={isRunning}
             title="Start a new software engineering task"
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              borderColor: 'rgba(255, 255, 255, 0.12)',
+              color: '#F1F5F9'
+            }}
           >
             <RotateCcw size={13} />
             <span>New Task</span>
@@ -201,6 +222,11 @@ export default function Header({
             className="btn btn-secondary btn-sm header-tour-button"
             onClick={onOpenTour}
             title="Walk through the existing workflow and its evidence"
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              borderColor: 'rgba(255, 255, 255, 0.12)',
+              color: '#F1F5F9'
+            }}
           >
             <Route size={14} />
             <span>Guided Tour</span>
@@ -212,6 +238,7 @@ export default function Header({
             onClick={onToggleTheme}
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            style={{ color: '#94A3B8' }}
           >
             {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
@@ -223,7 +250,7 @@ export default function Header({
             className="btn btn-ghost btn-sm"
             onClick={onOpenSettings}
             title="Configure Ollama model & inference parameters"
-            style={{ padding: '6px 8px' }}
+            style={{ padding: '6px 8px', color: '#94A3B8' }}
           >
             <Settings size={15} />
           </button>
@@ -237,9 +264,9 @@ export default function Header({
         alignItems: 'center',
         justifyContent: 'space-between',
         overflowX: 'auto',
-        backgroundColor: '#FFFFFF'
+        backgroundColor: 'rgba(10, 15, 29, 0.6)'
       }}>
-        <nav className="app-stage-navigation" aria-label="Workflow navigation" style={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
+        <nav className="app-stage-navigation" aria-label="Workflow navigation" style={{ display: 'flex', gap: '4px', minWidth: 'max-content' }}>
           {STAGES.map((stage) => {
             const Icon = stage.icon;
             const isActive = activeTab === stage.id;
@@ -254,20 +281,21 @@ export default function Header({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '7px',
-                  padding: '10px 14px',
+                  padding: '9px 14px',
                   fontSize: '0.8rem',
                   fontFamily: 'var(--font-heading, "Plus Jakarta Sans")',
                   fontWeight: isActive ? 700 : 500,
-                  color: isActive ? 'var(--accent-primary, #6257D9)' : 'var(--text-secondary, #667085)',
-                  background: isActive ? 'var(--accent-primary-subtle, #F0EEFF)' : 'transparent',
+                  color: isActive ? '#FFFFFF' : '#94A3B8',
+                  background: isActive ? 'rgba(99, 102, 241, 0.16)' : 'transparent',
                   border: 'none',
-                  borderBottom: `2px solid ${isActive ? 'var(--accent-primary, #6257D9)' : 'transparent'}`,
+                  borderBottom: `2px solid ${isActive ? '#6366F1' : 'transparent'}`,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
-                  borderRadius: '4px 4px 0 0'
+                  borderRadius: '6px 6px 0 0',
+                  boxShadow: isActive ? 'inset 0 1px 0 rgba(255, 255, 255, 0.1)' : 'none'
                 }}
               >
-                <Icon size={14} color={isActive ? '#6257D9' : '#667085'} />
+                <Icon size={14} color={isActive ? '#818CF8' : '#64748B'} />
                 <span>{stage.label}</span>
               </button>
             );
@@ -277,8 +305,13 @@ export default function Header({
         {/* Compact Active Run Indicator */}
         {runId && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', fontSize: '0.725rem' }}>
-            <span style={{ color: 'var(--text-secondary, #667085)' }}>Active Run:</span>
-            <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>
+            <span style={{ color: '#94A3B8' }}>Active Run:</span>
+            <span className="badge badge-purple" style={{ 
+              fontSize: '0.7rem',
+              background: 'rgba(99, 102, 241, 0.15)',
+              color: '#A5B4FC',
+              borderColor: 'rgba(99, 102, 241, 0.3)'
+            }}>
               {runId}
             </span>
           </div>

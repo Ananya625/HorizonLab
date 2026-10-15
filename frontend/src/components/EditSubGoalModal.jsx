@@ -41,8 +41,8 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
       left: 0,
       width: '100vw',
       height: '100vh',
-      backgroundColor: 'rgba(15, 23, 42, 0.45)',
-      backdropFilter: 'blur(4px)',
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      backdropFilter: 'blur(6px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -52,9 +52,9 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
         width: '560px',
         maxWidth: '92vw',
         padding: '24px',
-        backgroundColor: '#FFFFFF',
-        border: '1px solid #E5E7EF',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+        backgroundColor: '#0D1526',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
         position: 'relative'
       }}>
         <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ position: 'absolute', top: '16px', right: '16px', padding: '4px' }}>
@@ -66,19 +66,19 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
             width: '32px',
             height: '32px',
             borderRadius: '6px',
-            background: '#F0EEFF',
-            border: '1px solid #E5E7EF',
+            background: 'rgba(99, 102, 241, 0.15)',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <Layers size={18} color="#6257D9" />
+            <Layers size={18} color="#818CF8" />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#172033' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#F1F5F9' }}>
               {isNew ? 'Add Hierarchical Sub-Goal' : `Edit Sub-Goal (${id})`}
             </h3>
-            <p style={{ fontSize: '0.775rem', color: '#667085' }}>
+            <p style={{ fontSize: '0.775rem', color: '#94A3B8' }}>
               Define explicit, verifiable sub-goal parameters and agent role allocation
             </p>
           </div>
@@ -87,7 +87,7 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Sub-Goal ID</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#94A3B8', fontWeight: 500, marginBottom: '4px' }}>Sub-Goal ID</label>
               <input 
                 type="text" 
                 value={id} 
@@ -97,27 +97,28 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: isNew ? '#FFFFFF' : '#F6F7FB',
-                  border: '1px solid #E5E7EF',
+                  backgroundColor: isNew ? '#070B16' : '#0A1020',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: '6px',
-                  color: '#172033',
+                  color: '#F1F5F9',
                   fontSize: '0.825rem',
-                  outline: 'none'
+                  outline: 'none',
+                  opacity: isNew ? 1 : 0.7
                 }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Priority Level</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#94A3B8', fontWeight: 500, marginBottom: '4px' }}>Priority Level</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E5E7EF',
+                  backgroundColor: '#070B16',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: '6px',
-                  color: '#172033',
+                  color: '#F1F5F9',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
@@ -130,7 +131,7 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Title</label>
+            <label style={{ display: 'block', fontSize: '0.775rem', color: '#94A3B8', fontWeight: 500, marginBottom: '4px' }}>Title</label>
             <input 
               type="text" 
               value={title} 
@@ -140,10 +141,10 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
               style={{
                 width: '100%',
                 padding: '8px 12px',
-                backgroundColor: '#FFFFFF',
-                border: '1px solid #E5E7EF',
+                backgroundColor: '#070B16',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
                 borderRadius: '6px',
-                color: '#172033',
+                color: '#F1F5F9',
                 fontSize: '0.85rem',
                 outline: 'none'
               }}
@@ -151,7 +152,7 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Description & Scope</label>
+            <label style={{ display: 'block', fontSize: '0.775rem', color: '#94A3B8', fontWeight: 500, marginBottom: '4px' }}>Description & Scope</label>
             <textarea 
               value={description} 
               onChange={(e) => setDescription(e.target.value)}
@@ -160,10 +161,10 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
               style={{
                 width: '100%',
                 padding: '8px 12px',
-                backgroundColor: '#FFFFFF',
-                border: '1px solid #E5E7EF',
+                backgroundColor: '#070B16',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
                 borderRadius: '6px',
-                color: '#172033',
+                color: '#F1F5F9',
                 fontSize: '0.85rem',
                 outline: 'none',
                 resize: 'vertical'
@@ -173,7 +174,7 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Target Agent Role</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#94A3B8', fontWeight: 500, marginBottom: '4px' }}>Target Agent Role</label>
               <input 
                 type="text" 
                 value={assignedRole} 
@@ -182,17 +183,17 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E5E7EF',
+                  backgroundColor: '#070B16',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: '6px',
-                  color: '#172033',
+                  color: '#F1F5F9',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.775rem', color: '#172033', fontWeight: 500, marginBottom: '4px' }}>Dependencies (comma separated IDs)</label>
+              <label style={{ display: 'block', fontSize: '0.775rem', color: '#94A3B8', fontWeight: 500, marginBottom: '4px' }}>Dependencies (comma separated IDs)</label>
               <input 
                 type="text" 
                 value={dependenciesStr} 
@@ -202,10 +203,10 @@ export default function EditSubGoalModal({ isOpen, onClose, subGoal, onSave, exi
                 style={{
                   width: '100%',
                   padding: '8px 10px',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E5E7EF',
+                  backgroundColor: '#070B16',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: '6px',
-                  color: '#172033',
+                  color: '#F1F5F9',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}

@@ -5,10 +5,10 @@ import {
   ChevronDown, 
   Search, 
   Filter, 
-  Cpu, 
   Copy,
   Check,
-  XCircle
+  XCircle,
+  AlertTriangle
 } from 'lucide-react';
 import {
   fetchPendingPolicyApproval,
@@ -20,8 +20,10 @@ export default function ExecutionControlRoom({
   logs = [],
   onRefreshLogs
 }) {
-  const [isOpen, setIsOpen] = useState(true);
+  // Default collapsed state as specified in requirements
+  const [isOpen, setIsOpen] = useState(false);
   const [filterRole, setFilterRole] = useState('ALL');
+  const [filterType, setFilterType] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
   const [copiedLogs, setCopiedLogs] = useState(false);
@@ -83,6 +85,12 @@ export default function ExecutionControlRoom({
     if (filterRole !== 'ALL' && !log.agent_role?.toLowerCase().includes(filterRole.toLowerCase())) {
       return false;
     }
+    if (filterType !== 'ALL') {
+      if (filterType === 'error' && log.event_type !== 'error' && log.event_type !== 'warning') return false;
+      if (filterType === 'success' && log.event_type !== 'success') return false;
+      if (filterType === 'recovery' && log.event_type !== 'recovery') return false;
+      if (filterType === 'command' && log.event_type !== 'command') return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -101,37 +109,30 @@ export default function ExecutionControlRoom({
     setTimeout(() => setCopiedLogs(false), 2000);
   };
 
-  const agentActivity = [...filteredLogs.reduce((activity, log) => {
-    const name = log.agent_role || log.stage || 'Unattributed';
-    const current = activity.get(name) || { name, eventCount: 0, attentionCount: 0, latestEvent: null };
-    current.eventCount += 1;
-    if (log.event_type === 'error' || log.event_type === 'warning') current.attentionCount += 1;
-    current.latestEvent = log;
-    activity.set(name, current);
-    return activity;
-  }, new Map()).values()];
-
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      backgroundColor: 'var(--bg-card, #FFFFFF)',
-      borderTop: '1px solid var(--border-subtle, #E5E7EF)',
-      boxShadow: '0 -6px 20px rgba(16, 24, 40, 0.1)',
-      zIndex: 40,
-      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
-    }}>
-      {/* Control Room Bar Header */}
+    <div 
+      className="execution-dock"
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#090E1A',
+        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 -8px 30px rgba(0, 0, 0, 0.6)',
+        zIndex: 40,
+        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+      }}
+    >
+      {/* Control Room Slim Bar Header */}
       <div 
         style={{
-          padding: '10px 20px',
-          backgroundColor: 'var(--bg-card, #FFFFFF)',
+          padding: '8px 20px',
+          backgroundColor: '#090E1A',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: isOpen ? '1px solid var(--border-subtle, #E5E7EF)' : 'none',
+          borderBottom: isOpen ? '1px solid rgba(255, 255, 255, 0.08)' : 'none',
           cursor: 'pointer',
           userSelect: 'none',
           gap: '12px',
@@ -139,44 +140,92 @@ export default function ExecutionControlRoom({
         }}
         onClick={() => setIsOpen(!isOpen)}
       >
+        {/* Left identity & indicators */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span className="live-pulse-dot" title="Live stream active" />
-          <Terminal size={16} color="var(--accent-primary, #315B40)" />
-          <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', fontWeight: 700, color: 'var(--text-primary, #172033)' }}>
-            Execution Console & Live Telemetry
+          <span 
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#38BDF8',
+              boxShadow: '0 0 8px #38BDF8',
+              display: 'inline-block'
+            }} 
+            title="Live telemetry active" 
+          />
+          <Terminal size={15} color="#818CF8" />
+          <span style={{ 
+            fontSize: '0.825rem', 
+            fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', 
+            fontWeight: 700, 
+            color: '#F1F5F9' 
+          }}>
+            Execution Console
           </span>
+
           {runId && (
-            <span className="wf-pill-badge wf-mono" style={{ fontSize: '0.7rem', background: 'var(--accent-primary-subtle)', color: 'var(--accent-primary)', borderColor: 'var(--accent-primary-border)' }}>
+            <span style={{ 
+              fontSize: '0.7rem', 
+              fontFamily: 'var(--font-mono, monospace)',
+              background: 'rgba(99, 102, 241, 0.15)', 
+              color: '#A5B4FC', 
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              padding: '1px 8px',
+              borderRadius: '9999px'
+            }}>
               {runId}
             </span>
           )}
+
           {pendingApproval && (
-            <span className="badge badge-amber" style={{ fontSize: '0.68rem', animation: 'live-pulse-anim 1.5s infinite' }}>
-              ⚠ Human Approval Required
+            <span style={{ 
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              background: 'rgba(245, 158, 11, 0.15)',
+              color: '#FCD34D',
+              border: '1px solid rgba(245, 158, 11, 0.4)',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <AlertTriangle size={12} />
+              Human Approval Required
             </span>
           )}
-          <span className="wf-pill-badge" style={{ fontSize: '0.68rem' }}>
-            {logs.length} Events Logged
+
+          <span style={{ 
+            fontSize: '0.7rem',
+            color: '#94A3B8',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '1px 8px',
+            borderRadius: '9999px'
+          }}>
+            {logs.length} Recorded Events
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }} onClick={(e) => e.stopPropagation()}>
+        {/* Right controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+          {/* Controls visible when expanded */}
           {isOpen && (
             <>
               {/* Agent Filter */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Filter size={13} color="var(--text-secondary, #667085)" />
+                <Filter size={12} color="#94A3B8" />
                 <select
                   aria-label="Filter by agent"
                   value={filterRole}
                   onChange={(e) => setFilterRole(e.target.value)}
                   style={{
-                    backgroundColor: 'var(--bg-card-subtle, #F8F9FC)',
-                    color: 'var(--text-primary, #172033)',
-                    border: '1px solid var(--border-subtle, #E5E7EF)',
+                    backgroundColor: '#111827',
+                    color: '#F1F5F9',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                     borderRadius: '6px',
                     padding: '3px 8px',
-                    fontSize: '0.74rem',
+                    fontSize: '0.72rem',
                     outline: 'none',
                     fontFamily: 'var(--font-sans)'
                   }}
@@ -192,22 +241,53 @@ export default function ExecutionControlRoom({
                 </select>
               </div>
 
+              {/* Event Type Filter */}
+              <select
+                aria-label="Filter by event type"
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                style={{
+                  backgroundColor: '#111827',
+                  color: '#F1F5F9',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '0.72rem',
+                  outline: 'none',
+                  fontFamily: 'var(--font-sans)'
+                }}
+              >
+                <option value="ALL">All Types</option>
+                <option value="success">Success</option>
+                <option value="error">Errors & Warnings</option>
+                <option value="recovery">Recovery</option>
+                <option value="command">Commands</option>
+              </select>
+
               {/* Search Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-card-subtle, #F8F9FC)', border: '1px solid var(--border-subtle, #E5E7EF)', borderRadius: '6px', padding: '3px 8px' }}>
-                <Search size={13} color="var(--text-secondary, #667085)" />
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '4px', 
+                backgroundColor: '#111827', 
+                border: '1px solid rgba(255, 255, 255, 0.12)', 
+                borderRadius: '6px', 
+                padding: '3px 8px' 
+              }}>
+                <Search size={12} color="#94A3B8" />
                 <input
                   aria-label="Search execution logs"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter logs..."
+                  placeholder="Search logs..."
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: 'var(--text-primary, #172033)',
-                    fontSize: '0.74rem',
+                    color: '#F1F5F9',
+                    fontSize: '0.72rem',
                     outline: 'none',
-                    width: '120px',
+                    width: '110px',
                     fontFamily: 'var(--font-sans)'
                   }}
                 />
@@ -215,9 +295,9 @@ export default function ExecutionControlRoom({
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 0 }}
                   >
-                    <XCircle size={12} />
+                    <XCircle size={11} />
                   </button>
                 )}
               </div>
@@ -228,12 +308,12 @@ export default function ExecutionControlRoom({
                 onClick={() => setAutoScroll(!autoScroll)}
                 title={autoScroll ? 'Auto-scroll is ON' : 'Auto-scroll is PAUSED'}
                 style={{
-                  background: autoScroll ? 'var(--accent-primary-subtle)' : 'var(--bg-card-subtle)',
-                  border: `1px solid ${autoScroll ? 'var(--accent-primary-border)' : 'var(--border-subtle)'}`,
-                  color: autoScroll ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  background: autoScroll ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${autoScroll ? 'rgba(99, 102, 241, 0.35)' : 'rgba(255, 255, 255, 0.1)'}`,
+                  color: autoScroll ? '#A5B4FC' : '#94A3B8',
                   borderRadius: '6px',
                   padding: '3px 8px',
-                  fontSize: '0.7rem',
+                  fontSize: '0.68rem',
                   fontWeight: 600,
                   cursor: 'pointer'
                 }}
@@ -247,12 +327,12 @@ export default function ExecutionControlRoom({
                 onClick={copyAllLogs}
                 title="Copy all filtered logs to clipboard"
                 style={{
-                  background: 'var(--bg-card-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  color: 'var(--text-secondary)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#F1F5F9',
                   borderRadius: '6px',
                   padding: '3px 8px',
-                  fontSize: '0.7rem',
+                  fontSize: '0.68rem',
                   fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
@@ -260,7 +340,7 @@ export default function ExecutionControlRoom({
                   gap: 4
                 }}
               >
-                {copiedLogs ? <Check size={12} color="var(--success-color)" /> : <Copy size={12} />}
+                {copiedLogs ? <Check size={11} color="#34D399" /> : <Copy size={11} />}
                 <span>{copiedLogs ? 'Copied' : 'Copy'}</span>
               </button>
             </>
@@ -271,216 +351,189 @@ export default function ExecutionControlRoom({
             type="button"
             onClick={() => setIsOpen(!isOpen)}
             style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-secondary, #667085)',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '6px',
+              padding: '3px 8px',
+              color: '#F1F5F9',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
-              fontSize: '0.75rem',
+              fontSize: '0.72rem',
               fontWeight: 600
             }}
           >
             <span>{isOpen ? 'Collapse' : 'Expand'}</span>
-            {isOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            {isOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
           </button>
         </div>
       </div>
 
-      {/* Expanded Logs Body */}
-      {isOpen && (
-        <div style={{
-          maxHeight: '320px',
-          overflowY: 'auto',
-          padding: '12px 20px',
-          backgroundColor: '#0B0F19',
+      {/* Expanded Logs Body (Retained in DOM for tests with height control) */}
+      <div 
+        className={`execution-console-body ${isOpen ? 'is-open' : 'is-collapsed'}`}
+        style={{
+          maxHeight: isOpen ? 'min(36vh, 320px)' : '0px',
+          height: isOpen ? 'min(36vh, 320px)' : '0px',
+          overflowY: isOpen ? 'auto' : 'hidden',
+          padding: isOpen ? '12px 20px' : '0 20px',
+          opacity: isOpen ? 1 : 0,
+          backgroundColor: '#070B14',
           color: '#E2E8F0',
           fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)',
-          fontSize: '0.75rem',
+          fontSize: '0.74rem',
           display: 'flex',
           flexDirection: 'column',
           gap: '4px',
-          borderTop: '1px solid #1E293B'
-        }}>
-          {pendingApproval && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 14px',
-              marginBottom: '8px',
-              backgroundColor: '#1E1B13',
-              border: '1px solid #D97706',
-              borderRadius: '6px',
-              color: '#FCD34D',
-              fontFamily: 'var(--font-sans, sans-serif)',
-            }}>
-              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600 }}>
-                ⚠️ The agent paused at step {pendingApproval.step_index} and is waiting for approval.
-              </span>
-              {approvalError && (
-                <span role="alert" style={{ color: '#F87171', fontWeight: 600 }}>{approvalError}</span>
-              )}
-              <input
-                aria-label="Approval comment"
-                value={approvalComment}
-                onChange={(event) => setApprovalComment(event.target.value)}
-                placeholder="Optional note"
-                style={{
-                  background: '#0B0F19',
-                  border: '1px solid #4B5563',
+          borderTop: isOpen ? '1px solid #1E293B' : 'none',
+          transition: 'all 0.22s ease-in-out'
+        }}
+      >
+        {pendingApproval && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 14px',
+            marginBottom: '8px',
+            backgroundColor: '#1E1B13',
+            border: '1px solid #D97706',
+            borderRadius: '6px',
+            color: '#FCD34D',
+            fontFamily: 'var(--font-sans, sans-serif)',
+          }}>
+            <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600 }}>
+              ⚠️ The agent paused at step {pendingApproval.step_index} and is waiting for approval.
+            </span>
+            {approvalError && (
+              <span role="alert" style={{ color: '#F87171', fontWeight: 600 }}>{approvalError}</span>
+            )}
+            <input
+              aria-label="Approval comment"
+              value={approvalComment}
+              onChange={(event) => setApprovalComment(event.target.value)}
+              placeholder="Optional note"
+              style={{
+                background: '#0B0F19',
+                border: '1px solid #4B5563',
+                borderRadius: '4px',
+                color: '#FFFFFF',
+                padding: '5px 8px',
+                fontSize: '0.75rem'
+              }}
+            />
+            <button
+              type="button"
+              disabled={isSubmittingApproval}
+              onClick={() => submitApproval(true)}
+              className="btn btn-emerald btn-sm"
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              disabled={isSubmittingApproval}
+              onClick={() => submitApproval(false)}
+              className="btn btn-danger btn-sm"
+            >
+              Reject
+            </button>
+          </div>
+        )}
+
+        {filteredLogs.length > 0 ? (
+          filteredLogs.map((log) => {
+            let tagColor = '#38BDF8';
+            let badgeColor = '#0F172A';
+            let badgeBorder = 'rgba(255, 255, 255, 0.1)';
+            let badgeTextColor = '#94A3B8';
+
+            if (log.event_type === 'success') {
+              tagColor = '#34D399';
+              badgeTextColor = '#34D399';
+              badgeColor = 'rgba(16, 185, 129, 0.1)';
+              badgeBorder = 'rgba(16, 185, 129, 0.25)';
+            } else if (log.event_type === 'error' || log.event_type === 'warning') {
+              tagColor = '#F87171';
+              badgeTextColor = '#F87171';
+              badgeColor = 'rgba(239, 68, 68, 0.1)';
+              badgeBorder = 'rgba(239, 68, 68, 0.25)';
+            } else if (log.event_type === 'recovery') {
+              tagColor = '#FBBF24';
+              badgeTextColor = '#FBBF24';
+              badgeColor = 'rgba(245, 158, 11, 0.1)';
+              badgeBorder = 'rgba(245, 158, 11, 0.25)';
+            } else if (log.event_type === 'command') {
+              tagColor = '#A78BFA';
+              badgeTextColor = '#A78BFA';
+              badgeColor = 'rgba(139, 92, 246, 0.1)';
+              badgeBorder = 'rgba(139, 92, 246, 0.25)';
+            }
+
+            const timeStr = log.timestamp ? log.timestamp.split('T')[1]?.slice(0, 8) : '';
+
+            return (
+              <div 
+                key={log.id} 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'flex-start', 
+                  gap: '10px', 
+                  padding: '3px 8px',
                   borderRadius: '4px',
-                  color: '#FFFFFF',
-                  padding: '5px 8px',
-                  fontSize: '0.75rem'
+                  lineHeight: '1.45',
+                  transition: 'background 0.15s ease'
                 }}
-              />
-              <button
-                type="button"
-                disabled={isSubmittingApproval}
-                onClick={() => submitApproval(true)}
-                className="btn btn-emerald btn-sm"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
-                Approve
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingApproval}
-                onClick={() => submitApproval(false)}
-                className="btn btn-danger btn-sm"
-              >
-                Reject
-              </button>
-            </div>
-          )}
-
-          {agentActivity.length > 0 && (
-            <section className="observed-agent-activity" aria-label="Observed agent activity from execution logs" style={{ background: '#111827', borderColor: '#1F2937', color: '#E5E7EB' }}>
-              <div className="observed-agent-heading">
-                <div>
-                  <strong style={{ color: '#F9FAFB' }}>Observed agent activity</strong>
-                  <span style={{ color: '#9CA3AF' }}>From {filteredLogs.length} matching recorded event{filteredLogs.length === 1 ? '' : 's'}</span>
-                </div>
-                <span className="observed-agent-count" style={{ background: '#1F2937', color: '#D1D5DB', borderColor: '#374151' }}>
-                  {agentActivity.length} observed
+                <span style={{ color: '#64748B', fontSize: '0.7rem', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>
+                  {timeStr}
                 </span>
-              </div>
-              <div className="observed-agent-track">
-                {agentActivity.map((agent) => {
-                  const latestType = agent.latestEvent?.event_type || 'event';
-                  const tone = agent.attentionCount > 0
-                    ? 'attention'
-                    : latestType === 'success'
-                      ? 'success'
-                      : 'neutral';
-                  return (
-                    <article className={`observed-agent-card is-${tone}`} key={agent.name} style={{ background: '#1F2937', borderColor: '#374151' }}>
-                      <div className="observed-agent-card-top">
-                        <span className="observed-agent-icon" style={{ background: '#111827', borderColor: '#374151', color: '#60A5FA' }}><Cpu size={14} /></span>
-                        <span className={`observed-agent-status is-${tone}`}>
-                          {agent.attentionCount > 0 ? `${agent.attentionCount} attention` : latestType}
-                        </span>
-                      </div>
-                      <strong className="observed-agent-name" style={{ color: '#F9FAFB' }}>{agent.name}</strong>
-                      <span className="observed-agent-events" style={{ color: '#9CA3AF' }}>{agent.eventCount} recorded event{agent.eventCount === 1 ? '' : 's'}</span>
-                      {agent.latestEvent?.message && (
-                        <span className="observed-agent-latest" title={agent.latestEvent.message} style={{ color: '#CBD5E1' }}>
-                          {agent.latestEvent.message}
-                        </span>
+                <span style={{
+                  fontSize: '0.62rem',
+                  padding: '1px 6px',
+                  flexShrink: 0,
+                  borderRadius: '3px',
+                  background: badgeColor,
+                  border: `1px solid ${badgeBorder}`,
+                  color: badgeTextColor,
+                  fontWeight: 600
+                }}>
+                  {log.agent_role || log.stage}
+                </span>
+                <span style={{ color: tagColor, flexShrink: 0, fontWeight: 700 }}>
+                  [{log.event_type}]
+                </span>
+                <div style={{ color: '#E2E8F0', wordBreak: 'break-word', minWidth: 0, flex: 1 }}>
+                  {log.message}
+                  {typeof log.details?.rejected_output === 'string' && log.details.rejected_output && (
+                    <details style={{ marginTop: 6 }}>
+                      <summary style={{ color: '#F87171', cursor: 'pointer', fontWeight: 600 }}>
+                        Show rejected model output (not written to the file)
+                      </summary>
+                      {log.details.output_excerpt_truncated && (
+                        <p style={{ color: '#94A3B8', margin: '4px 0' }}>
+                          Only the first 16,000 characters were retained.
+                        </p>
                       )}
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {filteredLogs.length > 0 ? (
-            filteredLogs.map((log) => {
-              let tagColor = '#38BDF8';
-              let badgeColor = '#1E293B';
-              let badgeBorder = '#334155';
-              let badgeTextColor = '#94A3B8';
-
-              if (log.event_type === 'success') {
-                tagColor = '#34D399';
-                badgeTextColor = '#34D399';
-              } else if (log.event_type === 'error' || log.event_type === 'warning') {
-                tagColor = '#F87171';
-                badgeTextColor = '#F87171';
-              } else if (log.event_type === 'recovery') {
-                tagColor = '#FBBF24';
-                badgeTextColor = '#FBBF24';
-              } else if (log.event_type === 'command') {
-                tagColor = '#A78BFA';
-                badgeTextColor = '#A78BFA';
-              }
-
-              const timeStr = log.timestamp ? log.timestamp.split('T')[1]?.slice(0, 8) : '';
-
-              return (
-                <div 
-                  key={log.id} 
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'flex-start', 
-                    gap: '10px', 
-                    padding: '3px 6px',
-                    borderRadius: '4px',
-                    lineHeight: '1.45',
-                    transition: 'background 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  <span style={{ color: '#64748B', fontSize: '0.7rem', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>
-                    {timeStr}
-                  </span>
-                  <span style={{
-                    fontSize: '0.62rem',
-                    padding: '1px 6px',
-                    flexShrink: 0,
-                    borderRadius: '3px',
-                    background: badgeColor,
-                    border: `1px solid ${badgeBorder}`,
-                    color: badgeTextColor,
-                    fontWeight: 600
-                  }}>
-                    {log.agent_role || log.stage}
-                  </span>
-                  <span style={{ color: tagColor, flexShrink: 0, fontWeight: 700 }}>
-                    [{log.event_type}]
-                  </span>
-                  <div style={{ color: '#E2E8F0', wordBreak: 'break-word', minWidth: 0, flex: 1 }}>
-                    {log.message}
-                    {typeof log.details?.rejected_output === 'string' && log.details.rejected_output && (
-                      <details style={{ marginTop: 6 }}>
-                        <summary style={{ color: '#F87171', cursor: 'pointer', fontWeight: 600 }}>
-                          Show rejected model output (not written to the file)
-                        </summary>
-                        {log.details.output_excerpt_truncated && (
-                          <p style={{ color: '#94A3B8', margin: '4px 0' }}>
-                            Only the first 16,000 characters were retained.
-                          </p>
-                        )}
-                        <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', backgroundColor: '#1E293B', padding: '8px', border: '1px solid #334155', borderRadius: '4px', marginTop: '4px', color: '#F1F5F9' }}>
-                          {log.details.rejected_output}
-                        </pre>
-                      </details>
-                    )}
-                  </div>
+                      <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', backgroundColor: '#111827', padding: '8px', border: '1px solid #1F2937', borderRadius: '4px', marginTop: '4px', color: '#F1F5F9' }}>
+                        {log.details.rejected_output}
+                      </pre>
+                    </details>
+                  )}
                 </div>
-              );
-            })
-          ) : (
-            <div style={{ color: '#64748B', textAlign: 'center', padding: '24px 0', fontSize: '0.8rem' }}>
-              {runId ? 'No matching logs found.' : 'Telemetry console ready. Start a task to stream live agent execution events.'}
-            </div>
-          )}
-          <div ref={logEndRef} />
-        </div>
-      )}
+              </div>
+            );
+          })
+        ) : (
+          <div style={{ color: '#64748B', textAlign: 'center', padding: '24px 0', fontSize: '0.8rem' }}>
+            {runId ? 'No matching logs found.' : 'Telemetry console ready. Start a task to stream live agent execution events.'}
+          </div>
+        )}
+        <div ref={logEndRef} />
+      </div>
     </div>
   );
 }

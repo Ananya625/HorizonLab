@@ -1,18 +1,18 @@
 import React from 'react';
 import { ArrowRight, ShieldCheck, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 
-const cardStyle = { padding: '20px 24px', backgroundColor: '#FFFFFF' };
+const cardStyle = { padding: '20px 24px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' };
 const badge = verdict => verdict === 'PASS' ? 'badge-emerald' : verdict === 'FAIL' ? 'badge-rose' : 'badge-amber';
 
 export default function VerificationView({ verification, onNavigateToEvaluations }) {
   if (!verification) {
     return (
-      <section className="card-panel" style={{ padding: '48px 24px', textAlign: 'center', backgroundColor: '#FFFFFF' }}>
+      <section className="card-panel" style={{ padding: '48px 24px', textAlign: 'center', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <ShieldCheck size={36} color="var(--text-muted, #98A2B3)" style={{ margin: '0 auto 12px' }} />
-        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary, #172033)', marginBottom: '8px' }}>
+        <h2 style={{ fontSize: '1.25rem', color: '#F8FAFC', marginBottom: '8px' }}>
           No code review yet
         </h2>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', maxWidth: '500px', margin: '0 auto' }}>
+        <p style={{ fontSize: '0.85rem', color: '#94A3B8', maxWidth: '500px', margin: '0 auto' }}>
           Run verification after code generation and testing to see which requirements have supporting evidence.
         </p>
       </section>
@@ -36,7 +36,7 @@ export default function VerificationView({ verification, onNavigateToEvaluations
             <span className={`badge ${complete ? 'badge-emerald' : failed && current ? 'badge-rose' : 'badge-amber'}`} style={{ marginBottom: '6px' }}>
               {current ? (verification.overall_verdict || 'UNVERIFIED').replaceAll('_', ' ') : 'Legacy / unvalidated'}
             </span>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginTop: '2px', marginBottom: '6px' }}>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#F8FAFC', marginTop: '2px', marginBottom: '6px' }}>
               {title}
             </h2>
           </div>
@@ -52,12 +52,12 @@ export default function VerificationView({ verification, onNavigateToEvaluations
           </button>
         </div>
 
-        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.5', margin: '0 0 10px 0' }}>
+        <p style={{ fontSize: '0.875rem', color: '#94A3B8', lineHeight: '1.5', margin: '0 0 10px 0' }}>
           {verification.review_summary || 'A passing test suite alone does not verify every task requirement.'}
         </p>
 
         {!current && (
-          <p style={{ fontSize: '0.8rem', color: 'var(--warning-color, #B7791F)', margin: '0 0 10px 0' }}>
+          <p style={{ fontSize: '0.8rem', color: '#FBBF24', margin: '0 0 10px 0' }}>
             These saved results have not been independently revalidated.
           </p>
         )}
@@ -65,11 +65,11 @@ export default function VerificationView({ verification, onNavigateToEvaluations
         <div style={{ 
           fontSize: '0.85rem', 
           fontWeight: 600, 
-          color: 'var(--text-primary, #172033)',
-          background: 'var(--bg-page, #F6F7FB)',
+          color: '#F1F5F9',
+          background: 'rgba(255, 255, 255, 0.04)',
           padding: '8px 12px',
           borderRadius: '6px',
-          border: '1px solid var(--border-subtle, #E5E7EF)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
           display: 'inline-block'
         }}>
           {passed} passed · {failed} failed · {unknown} unverified {current ? 'requirements' : 'in the historical report'}
@@ -78,11 +78,11 @@ export default function VerificationView({ verification, onNavigateToEvaluations
 
       {/* Requirement Checks */}
       <section className="card-panel" style={cardStyle}>
-        <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '12px' }}>
+        <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#F1F5F9', marginBottom: '12px' }}>
           Requirement checks
         </h3>
         {!criteria.length && (
-          <p style={{ color: 'var(--text-secondary, #667085)', fontSize: '0.85rem' }}>
+          <p style={{ color: '#94A3B8', fontSize: '0.85rem' }}>
             No acceptance criteria were checked. Define criteria before evaluating task completion.
           </p>
         )}
@@ -91,7 +91,7 @@ export default function VerificationView({ verification, onNavigateToEvaluations
             <article 
               key={criterion.criterion_id || index} 
               style={{ 
-                borderTop: index === 0 ? 'none' : '1px solid var(--border-subtle, #E5E7EF)', 
+                borderTop: index === 0 ? 'none' : '1px solid rgba(255, 255, 255, 0.07)', 
                 padding: '14px 0' 
               }}
             >
@@ -99,12 +99,12 @@ export default function VerificationView({ verification, onNavigateToEvaluations
                 <span className={`badge ${current ? badge(criterion.verdict) : 'badge-amber'}`}>
                   {criterion.verdict || 'UNVERIFIED'}
                 </span>
-                <strong style={{ color: 'var(--text-primary, #172033)', fontSize: '0.9rem' }}>
+                <strong style={{ color: '#F1F5F9', fontSize: '0.9rem' }}>
                   {criterion.criterion_description || criterion.criterion_id}
                 </strong>
               </div>
-              <p style={{ overflowWrap: 'anywhere', fontSize: '0.825rem', color: 'var(--text-secondary, #667085)', margin: 0, lineHeight: '1.5' }}>
-                <strong style={{ color: 'var(--text-primary, #172033)' }}>
+              <p style={{ overflowWrap: 'anywhere', fontSize: '0.825rem', color: '#94A3B8', margin: 0, lineHeight: '1.5' }}>
+                <strong style={{ color: '#F1F5F9' }}>
                   {criterion.verdict === 'UNVERIFIED' ? 'Missing evidence: ' : 'Evidence: '}
                 </strong>
                 {criterion.evidence || 'No evidence supplied.'}

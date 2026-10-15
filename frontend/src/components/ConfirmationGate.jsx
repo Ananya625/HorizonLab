@@ -71,63 +71,63 @@ export default function ConfirmationGate({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Top Banner */}
-      <section className="card-panel" style={{ padding: '24px', backgroundColor: '#FFFFFF' }}>
+      <section className="card-panel" style={{ padding: '24px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
           <div style={{
             width: '38px',
             height: '38px',
             borderRadius: '8px',
-            background: goalModel?.is_confirmed ? 'var(--success-subtle, #ECFDF5)' : 'var(--accent-primary-subtle, #F0EEFF)',
-            border: `1px solid ${goalModel?.is_confirmed ? 'var(--success-border, #A7F3D0)' : 'var(--accent-primary-border, #D8D2FB)'}`,
+            background: goalModel?.is_confirmed ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+            border: `1px solid ${goalModel?.is_confirmed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(99, 102, 241, 0.3)'}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            {goalModel?.is_confirmed ? <Lock size={20} color="var(--success-color, #16845B)" /> : <ShieldCheck size={20} color="var(--accent-primary, #6257D9)" />}
+            {goalModel?.is_confirmed ? <Lock size={20} color="#34D399" /> : <ShieldCheck size={20} color="#818CF8" />}
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className={`badge ${goalModel?.is_confirmed ? 'badge-emerald' : 'badge-purple'}`}>
                 {goalModel?.is_confirmed ? 'Goal Model Confirmed' : 'Confirmation Gate'}
               </span>
-              <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)' }}>
+              <span className="font-mono" style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
                 v{goalModel?.goal_model_version || goalModel?.version || '1.0'}
               </span>
             </div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginTop: '2px', margin: 0 }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#F8FAFC', marginTop: '2px', margin: 0 }}>
               {goalModel?.is_confirmed 
                 ? 'Goal Model Confirmed & Locked — Ready for Codebase Planner' 
                 : 'Review & Confirm Requirements Before Execution'}
             </h2>
           </div>
         </div>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', margin: 0 }}>
+        <p style={{ fontSize: '0.85rem', color: '#94A3B8', margin: 0 }}>
           Confirming locks the requirement specification as the reference benchmark for code generation, test assertions, and independent verification.
         </p>
       </section>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
         {/* Verification Readiness Checklist */}
-        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '14px' }}>
+        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#F1F5F9', marginBottom: '14px' }}>
             Pre-Execution Verification Checklist
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {/* Check 1: Main Goal */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'var(--bg-page, #F6F7FB)', border: '1px solid var(--border-subtle, #E5E7EF)', borderRadius: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <CheckCircle2 size={16} color="var(--success-color, #16845B)" />
-                <span style={{ fontSize: '0.825rem', color: 'var(--text-primary, #172033)', fontWeight: 500 }}>Main Objective Defined</span>
+                <span style={{ fontSize: '0.825rem', color: '#F1F5F9', fontWeight: 500 }}>Main Objective Defined</span>
               </div>
               <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>Ready</span>
             </div>
 
             {/* Check 2: Sub-Goals */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'var(--bg-page, #F6F7FB)', border: '1px solid var(--border-subtle, #E5E7EF)', borderRadius: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {subGoalsCount > 0 ? <CheckCircle2 size={16} color="var(--success-color, #16845B)" /> : <XCircle size={16} color="var(--danger-color, #D14343)" />}
-                <span style={{ fontSize: '0.825rem', color: 'var(--text-primary, #172033)', fontWeight: 500 }}>Hierarchical Sub-Goals</span>
+                <span style={{ fontSize: '0.825rem', color: '#F1F5F9', fontWeight: 500 }}>Hierarchical Sub-Goals</span>
               </div>
               <span className={`badge ${subGoalsCount > 0 ? 'badge-emerald' : 'badge-rose'}`} style={{ fontSize: '0.65rem' }}>
                 {subGoalsCount} Sub-Goals
@@ -135,10 +135,10 @@ export default function ConfirmationGate({
             </div>
 
             {/* Check 3: Success Criteria */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'var(--bg-page, #F6F7FB)', border: '1px solid var(--border-subtle, #E5E7EF)', borderRadius: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {criteriaCount > 0 ? <CheckCircle2 size={16} color="var(--success-color, #16845B)" /> : <XCircle size={16} color="var(--danger-color, #D14343)" />}
-                <span style={{ fontSize: '0.825rem', color: 'var(--text-primary, #172033)', fontWeight: 500 }}>Measurable Success Criteria</span>
+                <span style={{ fontSize: '0.825rem', color: '#F1F5F9', fontWeight: 500 }}>Measurable Success Criteria</span>
               </div>
               <span className={`badge ${criteriaCount > 0 ? 'badge-emerald' : 'badge-rose'}`} style={{ fontSize: '0.65rem' }}>
                 {criteriaCount} Criteria
@@ -146,10 +146,10 @@ export default function ConfirmationGate({
             </div>
 
             {/* Check 4: Hard Constraints */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'var(--bg-page, #F6F7FB)', border: '1px solid var(--border-subtle, #E5E7EF)', borderRadius: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <CheckCircle2 size={16} color="var(--success-color, #16845B)" />
-                <span style={{ fontSize: '0.825rem', color: 'var(--text-primary, #172033)', fontWeight: 500 }}>Hard Constraint Guardrails</span>
+                <span style={{ fontSize: '0.825rem', color: '#F1F5F9', fontWeight: 500 }}>Hard Constraint Guardrails</span>
               </div>
               <span className="badge badge-rose" style={{ fontSize: '0.65rem' }}>
                 {hardConstraintsCount} Invariants
@@ -157,10 +157,10 @@ export default function ConfirmationGate({
             </div>
 
             {/* Check 5: Blocking Ambiguities */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'var(--bg-page, #F6F7FB)', border: `1px solid ${unresolvedBlocking.length === 0 ? 'var(--border-subtle, #E5E7EF)' : '#FECACA'}`, borderRadius: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'rgba(255, 255, 255, 0.03)', border: `1px solid ${unresolvedBlocking.length === 0 ? 'rgba(255, 255, 255, 0.07)' : '#FECACA'}`, borderRadius: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {unresolvedBlocking.length === 0 ? <CheckCircle2 size={16} color="var(--success-color, #16845B)" /> : <AlertTriangle size={16} color="var(--danger-color, #D14343)" />}
-                <span style={{ fontSize: '0.825rem', color: 'var(--text-primary, #172033)', fontWeight: 500 }}>Blocking Clarifications Resolved</span>
+                <span style={{ fontSize: '0.825rem', color: '#F1F5F9', fontWeight: 500 }}>Blocking Clarifications Resolved</span>
               </div>
               {unresolvedBlocking.length === 0 ? (
                 <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>100% Cleared</span>
@@ -179,30 +179,30 @@ export default function ConfirmationGate({
         </section>
 
         {/* Action Panel & Next Stage Advance */}
-        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary, #172033)', marginBottom: '10px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#F1F5F9', marginBottom: '10px' }}>
               {goalModel?.is_confirmed ? 'Requirements Status' : 'Execute Requirement Confirmation'}
             </h3>
 
             {goalModel?.is_confirmed ? (
               <div style={{
-                backgroundColor: 'var(--success-subtle, #ECFDF5)',
-                border: '1px solid var(--success-border, #A7F3D0)',
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
                 borderRadius: '8px',
                 padding: '16px',
                 marginBottom: '16px'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--success-color, #16845B)', fontWeight: 600, marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34D399', fontWeight: 600, marginBottom: '6px' }}>
                   <ShieldCheck size={18} />
                   <span>Requirements Confirmed & Immutable</span>
                 </div>
-                <p style={{ fontSize: '0.825rem', color: 'var(--text-primary, #172033)', lineHeight: '1.4', margin: 0 }}>
-                  Confirmed on {new Date(goalModel.confirmed_at || Date.now()).toLocaleString()}. Run ID: <span className="font-mono" style={{ color: 'var(--accent-primary, #6257D9)' }}>{goalModel.run_id}</span>.
+                <p style={{ fontSize: '0.825rem', color: '#F1F5F9', lineHeight: '1.4', margin: 0 }}>
+                  Confirmed on {new Date(goalModel.confirmed_at || Date.now()).toLocaleString()}. Run ID: <span className="font-mono" style={{ color: '#818CF8' }}>{goalModel.run_id}</span>.
                 </p>
               </div>
             ) : (
-              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.5', marginBottom: '16px' }}>
+              <p style={{ fontSize: '0.825rem', color: '#94A3B8', lineHeight: '1.5', marginBottom: '16px' }}>
                 Confirmation records the requirements into the run ledger and allows the autonomous multi-agent pipeline to advance to architecture planning.
               </p>
             )}

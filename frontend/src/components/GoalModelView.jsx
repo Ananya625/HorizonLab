@@ -166,7 +166,7 @@ export default function GoalModelView({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Top Banner & Primary Navigation */}
-      <section className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
+      <section className="card-panel" style={{ padding: '20px 24px', backgroundColor: '#0D1526', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -181,7 +181,7 @@ export default function GoalModelView({
               <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>
                 v{goalModel?.version || '1.0'}
               </span>
-              <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary, #667085)' }}>
+              <span style={{ fontSize: '0.725rem', color: '#94A3B8' }}>
                 {goalModel?.is_confirmed ? '✓ Confirmed by Engineer' : 'Pending Formal Confirmation'}
               </span>
             </div>
@@ -189,7 +189,7 @@ export default function GoalModelView({
               fontSize: '1.35rem', 
               fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', 
               fontWeight: 700, 
-              color: 'var(--text-primary, #172033)' 
+              color: '#F8FAFC' 
             }}>
               Interpreted Requirements & Goal Model
             </h2>
@@ -212,7 +212,7 @@ export default function GoalModelView({
             {goalModel?.ambiguities && goalModel.ambiguities.length > 0 && (
               <button 
                 type="button"
-                onClick={onNavigateToClarifications}
+                onClick={onNavigateToClarifications} 
                 className={`btn btn-sm ${unresolvedBlockingCount > 0 ? 'btn-danger' : 'btn-secondary'}`}
               >
                 <HelpCircle size={14} />
@@ -229,14 +229,14 @@ export default function GoalModelView({
 
         {/* Section A: Task Understanding (Main Objective) */}
         <div style={{
-          backgroundColor: 'var(--bg-page, #F6F7FB)',
-          border: '1px solid var(--border-subtle, #E5E7EF)',
+          backgroundColor: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid rgba(255, 255, 255, 0.07)',
           borderRadius: '8px',
           padding: '16px',
           marginBottom: '16px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--accent-primary, #6257D9)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#818CF8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Task Understanding & Executive Summary
             </span>
             <button 
@@ -259,10 +259,10 @@ export default function GoalModelView({
                 style={{
                   width: '100%',
                   padding: '8px 12px',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid var(--accent-primary, #6257D9)',
+                  backgroundColor: '#060A14',
+                  border: '1px solid #6366F1',
                   borderRadius: '6px',
-                  color: 'var(--text-primary, #172033)',
+                  color: '#F1F5F9',
                   fontSize: '0.95rem',
                   fontWeight: 600,
                   outline: 'none'
@@ -276,10 +276,10 @@ export default function GoalModelView({
                 style={{
                   width: '100%',
                   padding: '8px 12px',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid var(--border-subtle, #E5E7EF)',
+                  backgroundColor: '#060A14',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
                   borderRadius: '6px',
-                  color: 'var(--text-primary, #172033)',
+                  color: '#F1F5F9',
                   fontSize: '0.825rem',
                   outline: 'none'
                 }}
@@ -287,10 +287,10 @@ export default function GoalModelView({
             </div>
           ) : (
             <div>
-              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary, #172033)', marginBottom: '4px' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 600, color: '#F1F5F9', marginBottom: '4px' }}>
                 {mainGoal}
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #667085)', lineHeight: '1.5' }}>
+              <div style={{ fontSize: '0.85rem', color: '#94A3B8', lineHeight: '1.5' }}>
                 {summary}
               </div>
             </div>
@@ -410,7 +410,8 @@ export default function GoalModelView({
               className="card-panel"
               style={{
                 padding: '16px',
-                backgroundColor: '#FFFFFF',
+                backgroundColor: 'var(--bg-card, #0D1526)',
+                border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
                 display: 'flex',
                 gap: '16px',
                 alignItems: 'flex-start'
@@ -448,7 +449,7 @@ export default function GoalModelView({
               {/* Sub-Goal Body */}
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                  <span className="font-mono" style={{ fontSize: '0.725rem', color: '#172033', backgroundColor: '#F1F4F9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                  <span className="font-mono" style={{ fontSize: '0.725rem', color: '#A5B4FC', backgroundColor: 'rgba(99, 102, 241, 0.18)', border: '1px solid rgba(99, 102, 241, 0.35)', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
                     {sg.id}
                   </span>
                   <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary, #172033)', margin: 0 }}>
@@ -469,7 +470,7 @@ export default function GoalModelView({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #667085)' }}>Depends on:</span>
                     {sg.dependencies.map((dep) => (
-                      <span key={dep} className="font-mono" style={{ fontSize: '0.675rem', backgroundColor: '#F1F4F9', color: 'var(--accent-primary, #6257D9)', padding: '1px 6px', borderRadius: '3px' }}>
+                      <span key={dep} className="font-mono" style={{ fontSize: '0.675rem', backgroundColor: 'rgba(99, 102, 241, 0.14)', color: '#C7D2FE', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '1px 6px', borderRadius: '4px' }}>
                         {dep}
                       </span>
                     ))}
@@ -531,7 +532,8 @@ export default function GoalModelView({
                 className="card-panel"
                 style={{
                   padding: '16px',
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: 'var(--bg-card, #0D1526)',
+                  border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
@@ -580,8 +582,8 @@ export default function GoalModelView({
                   </p>
 
                   <div style={{
-                    backgroundColor: 'var(--bg-page, #F6F7FB)',
-                    border: '1px solid var(--border-subtle, #E5E7EF)',
+                    backgroundColor: 'var(--bg-card-subtle, rgba(255, 255, 255, 0.03))',
+                    border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
                     borderRadius: '6px',
                     padding: '8px 10px',
                     marginBottom: '8px'
@@ -595,7 +597,7 @@ export default function GoalModelView({
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.725rem', borderTop: '1px solid var(--border-subtle, #E5E7EF)', paddingTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.725rem', borderTop: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))', paddingTop: '8px' }}>
                   <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>
                     {sc.verification_method}
                   </span>
@@ -613,7 +615,7 @@ export default function GoalModelView({
       {activeSubTab === 'constraints' && (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
           {/* Hard Constraints Column */}
-          <div className="card-panel" style={{ padding: '18px', backgroundColor: '#FFFFFF', border: '1px solid #FECACA' }}>
+          <div className="card-panel" style={{ padding: '18px', backgroundColor: 'var(--bg-card, #0D1526)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <ShieldAlert size={18} color="var(--danger-color, #D14343)" />
@@ -642,8 +644,8 @@ export default function GoalModelView({
                 <div 
                   key={hc.id}
                   style={{
-                    backgroundColor: '#FEF2F2',
-                    border: '1px solid #FECACA',
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
                     borderRadius: '6px',
                     padding: '10px 12px',
                     display: 'flex',
@@ -653,10 +655,10 @@ export default function GoalModelView({
                 >
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <span className="font-mono" style={{ fontSize: '0.7rem', color: '#D14343', fontWeight: 700 }}>{hc.id}</span>
+                      <span className="font-mono" style={{ fontSize: '0.7rem', color: '#F87171', fontWeight: 700 }}>{hc.id}</span>
                       <span className="badge badge-rose" style={{ fontSize: '0.6rem' }}>{hc.category}</span>
                     </div>
-                    <p style={{ fontSize: '0.8rem', color: '#172033', lineHeight: '1.4', margin: 0 }}>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-primary, #F1F5F9)', lineHeight: '1.4', margin: 0 }}>
                       {hc.text}
                     </p>
                   </div>
@@ -688,7 +690,7 @@ export default function GoalModelView({
           </div>
 
           {/* Soft Constraints Column */}
-          <div className="card-panel" style={{ padding: '18px', backgroundColor: '#FFFFFF', border: '1px solid #FDE68A' }}>
+          <div className="card-panel" style={{ padding: '18px', backgroundColor: 'var(--bg-card, #0D1526)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Shield size={18} color="var(--warning-color, #B7791F)" />
@@ -717,8 +719,8 @@ export default function GoalModelView({
                 <div 
                   key={sc.id}
                   style={{
-                    backgroundColor: '#FFFBEB',
-                    border: '1px solid #FDE68A',
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
                     borderRadius: '6px',
                     padding: '10px 12px',
                     display: 'flex',
@@ -728,10 +730,10 @@ export default function GoalModelView({
                 >
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <span className="font-mono" style={{ fontSize: '0.7rem', color: '#B7791F', fontWeight: 700 }}>{sc.id}</span>
+                      <span className="font-mono" style={{ fontSize: '0.7rem', color: '#FBBF24', fontWeight: 700 }}>{sc.id}</span>
                       <span className="badge badge-amber" style={{ fontSize: '0.6rem' }}>{sc.category}</span>
                     </div>
-                    <p style={{ fontSize: '0.8rem', color: '#172033', lineHeight: '1.4', margin: 0 }}>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-primary, #F1F5F9)', lineHeight: '1.4', margin: 0 }}>
                       {sc.text}
                     </p>
                   </div>
@@ -805,7 +807,7 @@ export default function GoalModelView({
 
       {/* Tab 5: Technical Details (Raw JSON) */}
       {activeSubTab === 'raw_json' && (
-        <section className="card-panel" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
+        <section className="card-panel" style={{ padding: '20px', backgroundColor: 'var(--bg-card, #0D1526)', border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #667085)' }}>
               Canonical JSON Manifest (Task ID: {goalModel?.task_id})
@@ -820,11 +822,11 @@ export default function GoalModelView({
           </div>
           <pre style={{
             fontSize: '0.775rem',
-            color: '#172033',
-            backgroundColor: 'var(--bg-page, #F6F7FB)',
+            color: '#E2E8F0',
+            backgroundColor: '#070B16',
             padding: '16px',
             borderRadius: '6px',
-            border: '1px solid var(--border-subtle, #E5E7EF)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
             overflowX: 'auto',
             maxHeight: '420px'
           }}>
@@ -837,18 +839,18 @@ export default function GoalModelView({
       <div style={{
         position: 'sticky',
         bottom: '44px',
-        backgroundColor: '#FFFFFF',
-        border: '1px solid var(--border-subtle, #E5E7EF)',
+        backgroundColor: '#0D1526',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
         borderRadius: '10px',
         padding: '12px 20px',
-        boxShadow: 'var(--shadow-md)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         zIndex: 35
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, marginRight: '16px' }}>
-          <span style={{ fontSize: '0.775rem', fontWeight: 600, color: 'var(--text-secondary, #667085)', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '0.775rem', fontWeight: 600, color: 'var(--text-secondary, #94A3B8)', whiteSpace: 'nowrap' }}>
             Revision Note:
           </span>
           <input 
@@ -859,10 +861,10 @@ export default function GoalModelView({
             style={{
               flex: 1,
               padding: '6px 12px',
-              backgroundColor: 'var(--bg-page, #F6F7FB)',
-              border: '1px solid var(--border-subtle, #E5E7EF)',
+              backgroundColor: '#070B16',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: '6px',
-              color: 'var(--text-primary, #172033)',
+              color: 'var(--text-primary, #F1F5F9)',
               fontSize: '0.8rem',
               outline: 'none'
             }}
