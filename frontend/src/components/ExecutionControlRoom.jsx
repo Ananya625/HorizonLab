@@ -6,11 +6,11 @@ import {
   Search, 
   Filter, 
   Cpu, 
-  CheckCircle2, 
-  AlertTriangle 
+  Copy,
+  Check,
+  XCircle
 } from 'lucide-react';
 import {
-  fetchRunLogs,
   fetchPendingPolicyApproval,
   respondToPolicyApproval,
 } from '../services/api';
@@ -24,6 +24,7 @@ export default function ExecutionControlRoom({
   const [filterRole, setFilterRole] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
+  const [copiedLogs, setCopiedLogs] = useState(false);
   const [pendingApproval, setPendingApproval] = useState(null);
   const [approvalComment, setApprovalComment] = useState('');
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
@@ -76,7 +77,7 @@ export default function ExecutionControlRoom({
     if (autoScroll && logEndRef.current && isOpen) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [logs, isOpen]);
+  }, [logs, isOpen, autoScroll]);
 
   const filteredLogs = logs.filter((log) => {
     if (filterRole !== 'ALL' && !log.agent_role?.toLowerCase().includes(filterRole.toLowerCase())) {
@@ -92,6 +93,13 @@ export default function ExecutionControlRoom({
     }
     return true;
   });
+
+  const copyAllLogs = () => {
+    const text = filteredLogs.map(l => `[${l.timestamp || ''}] [${l.agent_role || l.stage}] [${l.event_type}] ${l.message}`).join('\n');
+    navigator.clipboard?.writeText(text);
+    setCopiedLogs(true);
+    setTimeout(() => setCopiedLogs(false), 2000);
+  };
 
   const agentActivity = [...filteredLogs.reduce((activity, log) => {
     const name = log.agent_role || log.stage || 'Unattributed';
@@ -109,42 +117,45 @@ export default function ExecutionControlRoom({
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: 'var(--bg-card, #FFFFFF)',
       borderTop: '1px solid var(--border-subtle, #E5E7EF)',
-      boxShadow: '0 -4px 16px rgba(16, 24, 40, 0.08)',
+      boxShadow: '0 -6px 20px rgba(16, 24, 40, 0.1)',
       zIndex: 40,
-      transition: 'all 0.25s ease'
+      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
     }}>
-      {/* Control Room Bar Header (Collapsed Bar) */}
+      {/* Control Room Bar Header */}
       <div 
         style={{
-          padding: '8px 20px',
-          backgroundColor: '#FFFFFF',
+          padding: '10px 20px',
+          backgroundColor: 'var(--bg-card, #FFFFFF)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           borderBottom: isOpen ? '1px solid var(--border-subtle, #E5E7EF)' : 'none',
           cursor: 'pointer',
-          userSelect: 'none'
+          userSelect: 'none',
+          gap: '12px',
+          flexWrap: 'wrap'
         }}
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Terminal size={15} color="var(--accent-primary, #6257D9)" />
-          <span style={{ fontSize: '0.825rem', fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', fontWeight: 700, color: 'var(--text-primary, #172033)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span className="live-pulse-dot" title="Live stream active" />
+          <Terminal size={16} color="var(--accent-primary, #315B40)" />
+          <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-heading, "Plus Jakarta Sans")', fontWeight: 700, color: 'var(--text-primary, #172033)' }}>
             Execution Console & Live Telemetry
           </span>
           {runId && (
-            <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>
+            <span className="wf-pill-badge wf-mono" style={{ fontSize: '0.7rem', background: 'var(--accent-primary-subtle)', color: 'var(--accent-primary)', borderColor: 'var(--accent-primary-border)' }}>
               {runId}
             </span>
           )}
           {pendingApproval && (
-            <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>
-              Human Approval Required
+            <span className="badge badge-amber" style={{ fontSize: '0.68rem', animation: 'live-pulse-anim 1.5s infinite' }}>
+              ⚠ Human Approval Required
             </span>
           )}
-          <span className="badge badge-slate" style={{ fontSize: '0.65rem' }}>
+          <span className="wf-pill-badge" style={{ fontSize: '0.68rem' }}>
             {logs.length} Events Logged
           </span>
         </div>
@@ -154,19 +165,20 @@ export default function ExecutionControlRoom({
             <>
               {/* Agent Filter */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Filter size={12} color="var(--text-secondary, #667085)" />
+                <Filter size={13} color="var(--text-secondary, #667085)" />
                 <select
                   aria-label="Filter by agent"
                   value={filterRole}
                   onChange={(e) => setFilterRole(e.target.value)}
                   style={{
-                    backgroundColor: '#F8F9FC',
+                    backgroundColor: 'var(--bg-card-subtle, #F8F9FC)',
                     color: 'var(--text-primary, #172033)',
                     border: '1px solid var(--border-subtle, #E5E7EF)',
-                    borderRadius: '4px',
-                    padding: '2px 8px',
-                    fontSize: '0.725rem',
-                    outline: 'none'
+                    borderRadius: '6px',
+                    padding: '3px 8px',
+                    fontSize: '0.74rem',
+                    outline: 'none',
+                    fontFamily: 'var(--font-sans)'
                   }}
                 >
                   <option value="ALL">All Agents</option>
@@ -181,8 +193,8 @@ export default function ExecutionControlRoom({
               </div>
 
               {/* Search Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F8F9FC', border: '1px solid var(--border-subtle, #E5E7EF)', borderRadius: '4px', padding: '2px 8px' }}>
-                <Search size={12} color="var(--text-secondary, #667085)" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-card-subtle, #F8F9FC)', border: '1px solid var(--border-subtle, #E5E7EF)', borderRadius: '6px', padding: '3px 8px' }}>
+                <Search size={13} color="var(--text-secondary, #667085)" />
                 <input
                   aria-label="Search execution logs"
                   type="text"
@@ -193,12 +205,64 @@ export default function ExecutionControlRoom({
                     background: 'transparent',
                     border: 'none',
                     color: 'var(--text-primary, #172033)',
-                    fontSize: '0.725rem',
+                    fontSize: '0.74rem',
                     outline: 'none',
-                    width: '110px'
+                    width: '120px',
+                    fontFamily: 'var(--font-sans)'
                   }}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}
+                  >
+                    <XCircle size={12} />
+                  </button>
+                )}
               </div>
+
+              {/* Auto Scroll Toggle */}
+              <button
+                type="button"
+                onClick={() => setAutoScroll(!autoScroll)}
+                title={autoScroll ? 'Auto-scroll is ON' : 'Auto-scroll is PAUSED'}
+                style={{
+                  background: autoScroll ? 'var(--accent-primary-subtle)' : 'var(--bg-card-subtle)',
+                  border: `1px solid ${autoScroll ? 'var(--accent-primary-border)' : 'var(--border-subtle)'}`,
+                  color: autoScroll ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
+              </button>
+
+              {/* Copy Logs */}
+              <button
+                type="button"
+                onClick={copyAllLogs}
+                title="Copy all filtered logs to clipboard"
+                style={{
+                  background: 'var(--bg-card-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-secondary)',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                {copiedLogs ? <Check size={12} color="var(--success-color)" /> : <Copy size={12} />}
+                <span>{copiedLogs ? 'Copied' : 'Copy'}</span>
+              </button>
             </>
           )}
 
@@ -214,8 +278,8 @@ export default function ExecutionControlRoom({
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
-              fontSize: '0.725rem',
-              fontWeight: 500
+              fontSize: '0.75rem',
+              fontWeight: 600
             }}
           >
             <span>{isOpen ? 'Collapse' : 'Expand'}</span>
@@ -227,35 +291,36 @@ export default function ExecutionControlRoom({
       {/* Expanded Logs Body */}
       {isOpen && (
         <div style={{
-          maxHeight: '300px',
+          maxHeight: '320px',
           overflowY: 'auto',
-          padding: '10px 20px',
-          backgroundColor: '#F8F9FC',
-          fontFamily: 'var(--font-mono)',
+          padding: '12px 20px',
+          backgroundColor: '#0B0F19',
+          color: '#E2E8F0',
+          fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)',
           fontSize: '0.75rem',
           display: 'flex',
           flexDirection: 'column',
           gap: '4px',
-          borderTop: '1px solid var(--border-subtle, #E5E7EF)'
+          borderTop: '1px solid #1E293B'
         }}>
           {pendingApproval && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '10px',
+              padding: '10px 14px',
               marginBottom: '8px',
-              backgroundColor: '#FFFBEB',
-              border: '1px solid #FDE68A',
+              backgroundColor: '#1E1B13',
+              border: '1px solid #D97706',
               borderRadius: '6px',
-              color: '#B7791F',
+              color: '#FCD34D',
               fontFamily: 'var(--font-sans, sans-serif)',
             }}>
-              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>
-                The agent paused at step {pendingApproval.step_index} and is waiting for approval.
+              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600 }}>
+                ⚠️ The agent paused at step {pendingApproval.step_index} and is waiting for approval.
               </span>
               {approvalError && (
-                <span role="alert" style={{ color: 'var(--danger-color, #D14343)' }}>{approvalError}</span>
+                <span role="alert" style={{ color: '#F87171', fontWeight: 600 }}>{approvalError}</span>
               )}
               <input
                 aria-label="Approval comment"
@@ -263,10 +328,10 @@ export default function ExecutionControlRoom({
                 onChange={(event) => setApprovalComment(event.target.value)}
                 placeholder="Optional note"
                 style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E5E7EF',
+                  background: '#0B0F19',
+                  border: '1px solid #4B5563',
                   borderRadius: '4px',
-                  color: '#172033',
+                  color: '#FFFFFF',
                   padding: '5px 8px',
                   fontSize: '0.75rem'
                 }}
@@ -291,13 +356,15 @@ export default function ExecutionControlRoom({
           )}
 
           {agentActivity.length > 0 && (
-            <section className="observed-agent-activity" aria-label="Observed agent activity from execution logs">
+            <section className="observed-agent-activity" aria-label="Observed agent activity from execution logs" style={{ background: '#111827', borderColor: '#1F2937', color: '#E5E7EB' }}>
               <div className="observed-agent-heading">
                 <div>
-                  <strong>Observed agent activity</strong>
-                  <span>From {filteredLogs.length} matching recorded event{filteredLogs.length === 1 ? '' : 's'}</span>
+                  <strong style={{ color: '#F9FAFB' }}>Observed agent activity</strong>
+                  <span style={{ color: '#9CA3AF' }}>From {filteredLogs.length} matching recorded event{filteredLogs.length === 1 ? '' : 's'}</span>
                 </div>
-                <span className="observed-agent-count">{agentActivity.length} observed</span>
+                <span className="observed-agent-count" style={{ background: '#1F2937', color: '#D1D5DB', borderColor: '#374151' }}>
+                  {agentActivity.length} observed
+                </span>
               </div>
               <div className="observed-agent-track">
                 {agentActivity.map((agent) => {
@@ -308,17 +375,17 @@ export default function ExecutionControlRoom({
                       ? 'success'
                       : 'neutral';
                   return (
-                    <article className={`observed-agent-card is-${tone}`} key={agent.name}>
+                    <article className={`observed-agent-card is-${tone}`} key={agent.name} style={{ background: '#1F2937', borderColor: '#374151' }}>
                       <div className="observed-agent-card-top">
-                        <span className="observed-agent-icon"><Cpu size={14} /></span>
+                        <span className="observed-agent-icon" style={{ background: '#111827', borderColor: '#374151', color: '#60A5FA' }}><Cpu size={14} /></span>
                         <span className={`observed-agent-status is-${tone}`}>
                           {agent.attentionCount > 0 ? `${agent.attentionCount} attention` : latestType}
                         </span>
                       </div>
-                      <strong className="observed-agent-name">{agent.name}</strong>
-                      <span className="observed-agent-events">{agent.eventCount} recorded event{agent.eventCount === 1 ? '' : 's'}</span>
+                      <strong className="observed-agent-name" style={{ color: '#F9FAFB' }}>{agent.name}</strong>
+                      <span className="observed-agent-events" style={{ color: '#9CA3AF' }}>{agent.eventCount} recorded event{agent.eventCount === 1 ? '' : 's'}</span>
                       {agent.latestEvent?.message && (
-                        <span className="observed-agent-latest" title={agent.latestEvent.message}>
+                        <span className="observed-agent-latest" title={agent.latestEvent.message} style={{ color: '#CBD5E1' }}>
                           {agent.latestEvent.message}
                         </span>
                       )}
@@ -331,12 +398,24 @@ export default function ExecutionControlRoom({
 
           {filteredLogs.length > 0 ? (
             filteredLogs.map((log) => {
-              let tagColor = 'var(--accent-primary, #6257D9)';
-              let badgeType = 'badge-purple';
-              if (log.event_type === 'success') { tagColor = 'var(--success-color, #16845B)'; badgeType = 'badge-emerald'; }
-              else if (log.event_type === 'error' || log.event_type === 'warning') { tagColor = 'var(--danger-color, #D14343)'; badgeType = 'badge-rose'; }
-              else if (log.event_type === 'recovery') { tagColor = 'var(--warning-color, #B7791F)'; badgeType = 'badge-amber'; }
-              else if (log.event_type === 'command') { tagColor = '#6257D9'; badgeType = 'badge-slate'; }
+              let tagColor = '#38BDF8';
+              let badgeColor = '#1E293B';
+              let badgeBorder = '#334155';
+              let badgeTextColor = '#94A3B8';
+
+              if (log.event_type === 'success') {
+                tagColor = '#34D399';
+                badgeTextColor = '#34D399';
+              } else if (log.event_type === 'error' || log.event_type === 'warning') {
+                tagColor = '#F87171';
+                badgeTextColor = '#F87171';
+              } else if (log.event_type === 'recovery') {
+                tagColor = '#FBBF24';
+                badgeTextColor = '#FBBF24';
+              } else if (log.event_type === 'command') {
+                tagColor = '#A78BFA';
+                badgeTextColor = '#A78BFA';
+              }
 
               const timeStr = log.timestamp ? log.timestamp.split('T')[1]?.slice(0, 8) : '';
 
@@ -347,26 +426,45 @@ export default function ExecutionControlRoom({
                     display: 'flex', 
                     alignItems: 'flex-start', 
                     gap: '10px', 
-                    padding: '2px 0',
-                    lineHeight: '1.4'
+                    padding: '3px 6px',
+                    borderRadius: '4px',
+                    lineHeight: '1.45',
+                    transition: 'background 0.15s ease'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
-                  <span style={{ color: 'var(--text-secondary, #667085)', fontSize: '0.7rem', flexShrink: 0 }}>
+                  <span style={{ color: '#64748B', fontSize: '0.7rem', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>
                     {timeStr}
                   </span>
-                  <span className={`badge ${badgeType}`} style={{ fontSize: '0.6rem', padding: '0 5px', flexShrink: 0 }}>
+                  <span style={{
+                    fontSize: '0.62rem',
+                    padding: '1px 6px',
+                    flexShrink: 0,
+                    borderRadius: '3px',
+                    background: badgeColor,
+                    border: `1px solid ${badgeBorder}`,
+                    color: badgeTextColor,
+                    fontWeight: 600
+                  }}>
                     {log.agent_role || log.stage}
                   </span>
                   <span style={{ color: tagColor, flexShrink: 0, fontWeight: 700 }}>
                     [{log.event_type}]
                   </span>
-                  <div style={{ color: 'var(--text-primary, #172033)', wordBreak: 'break-word', minWidth: 0 }}>
+                  <div style={{ color: '#E2E8F0', wordBreak: 'break-word', minWidth: 0, flex: 1 }}>
                     {log.message}
                     {typeof log.details?.rejected_output === 'string' && log.details.rejected_output && (
                       <details style={{ marginTop: 6 }}>
-                        <summary>Show rejected model output (not written to the file)</summary>
-                        {log.details.output_excerpt_truncated && <p style={{ color: 'var(--text-secondary, #667085)', margin: '4px 0' }}>Only the first 16,000 characters were retained.</p>}
-                        <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', backgroundColor: '#FFFFFF', padding: '8px', border: '1px solid #E5E7EF', borderRadius: '4px', marginTop: '4px' }}>
+                        <summary style={{ color: '#F87171', cursor: 'pointer', fontWeight: 600 }}>
+                          Show rejected model output (not written to the file)
+                        </summary>
+                        {log.details.output_excerpt_truncated && (
+                          <p style={{ color: '#94A3B8', margin: '4px 0' }}>
+                            Only the first 16,000 characters were retained.
+                          </p>
+                        )}
+                        <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', backgroundColor: '#1E293B', padding: '8px', border: '1px solid #334155', borderRadius: '4px', marginTop: '4px', color: '#F1F5F9' }}>
                           {log.details.rejected_output}
                         </pre>
                       </details>
@@ -376,7 +474,7 @@ export default function ExecutionControlRoom({
               );
             })
           ) : (
-            <div style={{ color: 'var(--text-secondary, #667085)', textAlign: 'center', padding: '20px 0', fontSize: '0.8rem' }}>
+            <div style={{ color: '#64748B', textAlign: 'center', padding: '24px 0', fontSize: '0.8rem' }}>
               {runId ? 'No matching logs found.' : 'Telemetry console ready. Start a task to stream live agent execution events.'}
             </div>
           )}

@@ -132,11 +132,13 @@ class WorkflowService:
             goal = db_service.get_goal_model(run_id)
         except Exception:
             goal = None
-        if sub_goal_id and (not goal or sub_goal_id not in {s.id for s in goal.sub_goals}):
-            sub_goal_id = None  # Invalid attribution remains unmapped, not guessed.
         parent = _context.get()
         if parent.get('run_id') != run_id:
             parent = {}
+        if sub_goal_id is None and parent.get('sub_goal_id'):
+            sub_goal_id = parent.get('sub_goal_id')
+        if sub_goal_id and (not goal or sub_goal_id not in {s.id for s in goal.sub_goals}):
+            sub_goal_id = None  # Invalid attribution remains unmapped, not guessed.
         fields = dict(attempt_id=uuid.uuid4().hex, sub_goal_id=sub_goal_id, recovery_id=recovery_id,
                       goal_revision=goal_revision(goal), reason=reason)
         self.emit(run_id, 'attempt_start', **fields)

@@ -39,31 +39,67 @@ def compute_evaluation_scores(
         0.40 * goal_misalignment_penalty
       + 0.35 * criteria_gap_penalty
       + 0.25 * execution_failure_penalty
+
+    METRIC INTERPRETATION AND EVIDENCE SEPARATION:
+    1. goal_drift_score:
+       Measures QUANTIFIED OBSERVED DIVERGENCE based strictly on verifiable evidence:
+       - Observed Misalignment Penalty: Derived from observed out-of-scope actions and confirmed constraint violations.
+         Missing or unavailable semantic evaluation is NOT evidence of drift and does NOT add a false penalty.
+       - Criteria Gap Penalty: Derived strictly from confirmed failed acceptance criteria.
+         Unverified criteria reflect partial evidence gaps, not proven failures.
+       - Execution Failure Penalty: Derived strictly from test runner results (100.0 - test_pass_rate).
+       Range: [0.0, 100.0]. 0.0 means no drift was observed across available evidence.
+
+    2. goal_alignment_score:
+       Measures VERIFIED POSITIVE ALIGNMENT across all required dimensions.
+       CRITICAL: goal_alignment_score cannot be certified or assigned a perfect 100.0 when evidence is missing.
+       - When all evidence channels are conclusive (score_status == "computed"):
+           goal_alignment_score = round(max(0.0, min(100.0, 100.0 - goal_drift_score)), 2)
+       - When required evidence is missing or unverified (score_status in ("unknown_semantic", "partial_evidence", "unavailable_tests", "missing_criteria")):
+           goal_alignment_score is None.
+         Missing evidence cannot be credited as verified alignment.
+       NOTE: goal_alignment_score must NEVER be mistaken for verified task correctness. Full task correctness is
+       determined strictly by the independent verification report (overall_verdict).
+
+    3. criteria_completion_rate vs criteria_evidence_coverage:
+       - criteria_completion_rate: (passed_criteria / total_criteria) * 100.0
+       - criteria_evidence_coverage: ((passed_criteria + failed_criteria) / total_criteria) * 100.0
+       - criteria_passed, criteria_failed, criteria_unverified: reported separately.
     """
     summary = audit_summary or {}
     unrelated_count = summary.get("unrelated_action_count", 0)
 
-    # 1. Criteria Gap Penalty & Criteria Completion Rate (Weight: 0.35)
+    # 1. Acceptance Criteria Accounting (Weight: 0.35)
     total_crit = len(criteria_evaluations)
-    passed_crit_count = sum(1 for c in criteria_evaluations if getattr(c, "verdict", "") == "PASS")
-    failed_crit_count = sum(1 for c in criteria_evaluations if getattr(c, "verdict", "") == "FAIL")
-    unverified_crit_count = sum(1 for c in criteria_evaluations if getattr(c, "verdict", "") not in ("PASS", "FAIL"))
+    norm_verdicts = [((getattr(c, "verdict", None) or "").strip().upper()) for c in criteria_evaluations]
+    passed_crit_count = sum(1 for v in norm_verdicts if v == "PASS")
+    failed_crit_count = sum(1 for v in norm_verdicts if v == "FAIL")
+    unverified_crit_count = sum(1 for v in norm_verdicts if v not in ("PASS", "FAIL"))
 
     if total_crit == 0:
         criteria_completion_rate = 0.0
+        criteria_evidence_coverage = 0.0
         criteria_gap_penalty = 100.0
         criteria_missing = True
         criteria_evidence = "Zero acceptance criteria defined for task; criteria gap cannot be evaluated as successful."
     else:
         criteria_missing = False
         criteria_completion_rate = round((passed_crit_count / total_crit) * 100.0, 2)
+        criteria_evidence_coverage = round(((passed_crit_count + failed_crit_count) / total_crit) * 100.0, 2)
         # Unverified criteria reflect evidence gap, not proven goal drift.
         # Only explicitly failed criteria induce a criteria gap penalty.
         criteria_gap_penalty = round(100.0 * (failed_crit_count / total_crit), 2)
         if unverified_crit_count > 0:
-            criteria_evidence = f"{passed_crit_count}/{total_crit} required criteria verified, {unverified_crit_count} unverified (partial evidence)."
+            criteria_evidence = (
+                f"{passed_crit_count}/{total_crit} criteria verified passed, {failed_crit_count} failed, "
+                f"{unverified_crit_count} unverified/unresolved "
+                f"({criteria_completion_rate}% verified completion, {criteria_evidence_coverage}% evidence coverage)."
+            )
         else:
-            criteria_evidence = f"{passed_crit_count}/{total_crit} required acceptance criteria verified ({criteria_completion_rate}%)."
+            criteria_evidence = (
+                f"{passed_crit_count}/{total_crit} acceptance criteria verified passed "
+                f"({criteria_completion_rate}%, {failed_crit_count} failed)."
+            )
 
     # 2. Execution Failure Penalty & Test Pass Rate (Weight: 0.25)
     if latest_test is None:
@@ -90,44 +126,51 @@ def compute_evaluation_scores(
             else:
                 test_pass_rate = 0.0
                 execution_failure_penalty = 100.0
-                exec_evidence = f"Test execution failed (exit code {t_exit})."
+                exec_evidence = f"Test execution failed (exit code {t_exit}, status {t_status})."
 
-    # Constraint violations contribute directly to goal misalignment
+    # Constraint violations contribute directly to observed goal misalignment
     hard_violations = sum(
         1 for c in (constraint_compliances or [])
         if getattr(c, "compliant", None) is False and getattr(c, "is_hard", True)
-    )
+    ) + summary.get("hard_violations_count", 0)
     soft_violations = sum(
         1 for c in (constraint_compliances or [])
         if getattr(c, "compliant", None) is False and not getattr(c, "is_hard", True)
-    )
-    constraint_penalty = min(100.0, float(hard_violations * 50.0 + soft_violations * 20.0))
+    ) + summary.get("soft_violations_count", 0)
 
-    # 3. Goal Misalignment Penalty (Weight: 0.40)
-    if semantic_alignment == "unknown":
-        goal_misalignment_penalty = 50.0
-        semantic_status = "unknown"
-        misalignment_evidence = "Semantic goal alignment cannot be determined reliably without explicit ground-truth specification; recorded as unknown."
-    elif semantic_alignment == "misaligned":
+    observed_misalignment_penalty = min(100.0, float(unrelated_count * 50.0 + hard_violations * 50.0 + soft_violations * 20.0))
+
+    # 3. Goal Misalignment Penalty & Semantic Status (Weight: 0.40)
+    if semantic_alignment == "misaligned":
         goal_misalignment_penalty = 100.0
         semantic_status = "misaligned"
         misalignment_evidence = "Output actions demonstrably deviate from the active user-approved goal."
     elif semantic_alignment == "aligned":
-        if unrelated_count > 0 or constraint_penalty > 0:
-            goal_misalignment_penalty = min(100.0, float(unrelated_count * 50.0) + constraint_penalty)
+        if observed_misalignment_penalty > 0:
+            goal_misalignment_penalty = observed_misalignment_penalty
             semantic_status = "unrelated_actions" if unrelated_count > 0 else "constraint_violation"
-            misalignment_evidence = f"Output is declared aligned, but {unrelated_count} unrelated action(s) and {hard_violations + soft_violations} constraint violation(s) detected."
+            misalignment_evidence = f"Declared aligned, but {unrelated_count} unrelated action(s) and {hard_violations + soft_violations} constraint violation(s) detected."
         else:
             goal_misalignment_penalty = 0.0
             semantic_status = "aligned"
             misalignment_evidence = "Executed actions and generated code fully align with the active user-approved goal."
+    elif semantic_alignment == "unknown":
+        # Separate observed goal misalignment from unavailable semantic evaluation:
+        # Missing semantic evaluation does NOT manufacture drift (no default 50 penalty).
+        goal_misalignment_penalty = observed_misalignment_penalty
+        semantic_status = "unknown"
+        if observed_misalignment_penalty > 0:
+            misalignment_evidence = f"Semantic alignment is unknown; {unrelated_count} unrelated action(s) and {hard_violations + soft_violations} constraint violation(s) observed."
+        else:
+            misalignment_evidence = "Semantic goal alignment evaluation is unavailable; no observed misalignment detected."
     else:
-        if unrelated_count > 0 or constraint_penalty > 0:
-            goal_misalignment_penalty = min(100.0, float(unrelated_count * 50.0) + constraint_penalty)
-            if unrelated_count > 0 and constraint_penalty > 0:
+        # None: infer deterministically from actions/code
+        if observed_misalignment_penalty > 0:
+            goal_misalignment_penalty = observed_misalignment_penalty
+            if unrelated_count > 0 and (hard_violations + soft_violations) > 0:
                 semantic_status = "unrelated_actions_and_constraint_violation"
                 misalignment_evidence = f"{unrelated_count} unrelated action(s) and {hard_violations + soft_violations} constraint violation(s) detected."
-            elif constraint_penalty > 0:
+            elif (hard_violations + soft_violations) > 0:
                 semantic_status = "constraint_violation"
                 misalignment_evidence = f"{hard_violations + soft_violations} confirmed constraint violation(s) detected against active goal."
             else:
@@ -138,9 +181,11 @@ def compute_evaluation_scores(
             semantic_status = "aligned"
             misalignment_evidence = f"All {len(code_changes)} code modifications match planned targets for the active goal."
         elif (code_changes is None or len(code_changes) == 0) and not summary:
-            goal_misalignment_penalty = 50.0
+            # Insufficient evidence to determine semantic alignment:
+            # Do NOT treat missing evidence as proof of misalignment!
+            goal_misalignment_penalty = 0.0
             semantic_status = "unknown"
-            misalignment_evidence = "Insufficient evidence to determine semantic alignment; recorded as unknown."
+            misalignment_evidence = "Insufficient evidence to determine semantic alignment; recorded as unknown (no observed misalignment)."
         else:
             goal_misalignment_penalty = 0.0
             semantic_status = "aligned"
@@ -151,14 +196,13 @@ def compute_evaluation_scores(
     criteria_gap_penalty = max(0.0, min(100.0, float(criteria_gap_penalty)))
     execution_failure_penalty = max(0.0, min(100.0, float(execution_failure_penalty)))
 
-    # Composite Drift Score Calculation
+    # Composite Observed Drift Score Calculation
     raw_drift = (
         0.40 * goal_misalignment_penalty
       + 0.35 * criteria_gap_penalty
       + 0.25 * execution_failure_penalty
     )
     goal_drift_score = round(max(0.0, min(100.0, raw_drift)), 2)
-    goal_alignment_score = round(max(0.0, min(100.0, 100.0 - goal_drift_score)), 2)
 
     # Determine score_status
     if criteria_missing:
@@ -172,13 +216,31 @@ def compute_evaluation_scores(
     else:
         score_status = "computed"
 
+    # Goal Alignment Score Policy:
+    # A perfect or verified alignment score must NEVER be assigned when evidence is missing or unverified.
+    # When semantic evidence is unknown or criteria are unresolved/unverified:
+    #   goal_alignment_score is None (uncertified). Missing evidence cannot be credited as verified alignment.
+    # When all evidence channels have definitive evaluation (computed, or penalized for missing tests/criteria):
+    #   goal_alignment_score = round(max(0.0, min(100.0, 100.0 - goal_drift_score)), 2)
+    if semantic_status == "unknown" or unverified_crit_count > 0:
+        goal_alignment_score = None
+    else:
+        goal_alignment_score = round(max(0.0, min(100.0, 100.0 - goal_drift_score)), 2)
+
     return {
         "goal_drift_score": goal_drift_score,
         "goal_alignment_score": goal_alignment_score,
         "criteria_completion_rate": criteria_completion_rate,
+        "criteria_evidence_coverage": criteria_evidence_coverage,
+        "evidence_coverage_percent": criteria_evidence_coverage,
+        "criteria_passed": passed_crit_count,
+        "criteria_failed": failed_crit_count,
+        "criteria_unverified": unverified_crit_count,
+        "criteria_total": total_crit,
         "test_pass_rate": test_pass_rate,
         "component_penalties": {
             "goal_misalignment_penalty": goal_misalignment_penalty,
+            "observed_misalignment_penalty": observed_misalignment_penalty,
             "criteria_gap_penalty": criteria_gap_penalty,
             "execution_failure_penalty": execution_failure_penalty
         },
@@ -187,7 +249,8 @@ def compute_evaluation_scores(
         "evidence": {
             "goal_misalignment": misalignment_evidence,
             "criteria_gap": criteria_evidence,
-            "execution_failure": exec_evidence
+            "execution_failure": exec_evidence,
+            "provisional_alignment_upper_bound": round(max(0.0, min(100.0, 100.0 - goal_drift_score)), 2)
         }
     }
 
@@ -263,11 +326,77 @@ class VerifierService:
                     )
                 )
 
-        failed = any(c.verdict == 'FAIL' for c in criteria)
-        complete = bool(criteria) and all(c.verdict == 'PASS' for c in criteria) and all(c.compliant is True for c in constraint_compliances if getattr(c, 'is_hard', False))
-        complete = complete and getattr(goal, 'is_confirmed', False) and not any(getattr(a, 'severity', None) == 'blocking' and not getattr(a, 'resolved', True) for a in getattr(goal, 'ambiguities', []))
+        # Compute evidence freshness & integrity before determining completion verdict
+        current_digest = workspace_service.digest(repo) if repo else None
+        goal_version = getattr(goal, 'goal_model_version', None)
+        test_goal_version = getattr(latest_test, 'goal_model_version', None) if latest_test else None
+        goal_matches = (test_goal_version is None or test_goal_version == goal_version)
+        digest_matches = bool(
+            latest_test is not None
+            and getattr(latest_test, 'workspace_digest', None) is not None
+            and getattr(latest_test, 'workspace_digest', None) == current_digest
+        )
+        fresh = bool(
+            latest_test
+            and getattr(latest_test, 'evidence_version', None) == 'junit-v1'
+            and digest_matches
+            and goal_matches
+        )
+
+        test_passed_clean = bool(
+            latest_test
+            and getattr(latest_test, 'status', None) == 'PASSED'
+            and getattr(latest_test, 'exit_code', -1) == 0
+            and getattr(latest_test, 'passed_tests', 0) > 0
+            and getattr(latest_test, 'failed_tests', 0) == 0
+            and not getattr(latest_test, 'execution_error', None)
+        )
+
+        total_crit = len(criteria)
+        norm_verdicts = [((getattr(c, "verdict", None) or "").strip().upper()) for c in criteria]
+        passed_crit_count = sum(1 for v in norm_verdicts if v == "PASS")
+        failed_crit_count = sum(1 for v in norm_verdicts if v == "FAIL")
+        unverified_crit_count = sum(1 for v in norm_verdicts if v not in ("PASS", "FAIL"))
+
+        coverage = round(100.0 * (passed_crit_count / total_crit), 2) if total_crit > 0 else None
+        evidence_coverage = round(100.0 * ((passed_crit_count + failed_crit_count) / total_crit), 2) if total_crit > 0 else None
+
+        # Confirmed failures: any failed criterion or failed test execution
+        failed = (failed_crit_count > 0) or bool(
+            latest_test is not None
+            and getattr(latest_test, 'status', None) in ('FAILED', 'ERROR')
+            and getattr(latest_test, 'failed_tests', 0) > 0
+        )
+
+        # Verification completion requirements:
+        # All criteria verified PASS, all hard constraints compliant, goal confirmed, no blocking ambiguities.
+        # In a repository workspace, fresh clean test evidence is mandatory for VERIFIED_PASSED!
+        all_criteria_passed = bool(criteria) and (passed_crit_count == total_crit) and (unverified_crit_count == 0)
+        hard_constraints_compliant = all(c.compliant is True for c in constraint_compliances if getattr(c, 'is_hard', False))
+        goal_confirmed = getattr(goal, 'is_confirmed', False)
+        no_blocking_ambiguities = not any(
+            getattr(a, 'severity', None) == 'blocking' and not getattr(a, 'resolved', True)
+            for a in getattr(goal, 'ambiguities', [])
+        )
+        tests_required = any(
+            getattr(c, 'verification_method', '') == 'automated_test'
+            for c in getattr(goal, 'success_criteria', [])
+        )
+        if latest_test is not None:
+            test_evidence_sufficient = bool(fresh and test_passed_clean)
+        elif tests_required:
+            test_evidence_sufficient = False
+        else:
+            test_evidence_sufficient = True
+
+        complete = (
+            all_criteria_passed
+            and hard_constraints_compliant
+            and goal_confirmed
+            and no_blocking_ambiguities
+            and test_evidence_sufficient
+        )
         verified = False if failed else True if complete else None
-        coverage = 100.0 * sum(c.verdict == 'PASS' for c in criteria)/len(criteria) if criteria else None
 
         if repo:
             verdict = 'FAILED_VERIFICATION' if failed else 'VERIFIED_PASSED' if complete else 'UNVERIFIED'
@@ -281,6 +410,24 @@ class VerifierService:
 
         pass_rate_val = coverage if repo else test_pass_rate
 
+        summary_parts = [f"{passed_crit_count}/{total_crit} criteria independently verified"]
+        if unverified_crit_count > 0:
+            summary_parts.append(f"{unverified_crit_count} lack supported evidence")
+        if failed_crit_count > 0:
+            summary_parts.append(f"{failed_crit_count} failed")
+        if repo and latest_test and not fresh:
+            stale_details = []
+            if not digest_matches:
+                stale_details.append("workspace changed since testing")
+            if not goal_matches:
+                stale_details.append("goal model updated since testing")
+            summary_parts.append(f"test evidence stale ({', '.join(stale_details) if stale_details else 'invalid digest'})")
+        review_summary = "; ".join(summary_parts) + "."
+
+        recommendations = list(dict.fromkeys(c.evidence for c in criteria if getattr(c, 'verdict', None) in ('UNVERIFIED', 'NOT_VERIFIED')))
+        if repo and latest_test and not fresh:
+            recommendations.append("Re-run test suite on current workspace state to refresh independent test evidence.")
+
         report = VerificationReport(
             id=f'ver_{uuid.uuid4().hex[:8]}',
             run_id=run_id,
@@ -291,14 +438,18 @@ class VerifierService:
             verifier_version='2',
             verified_success=verified,
             goal_model_version=getattr(goal, 'goal_model_version', None),
-            review_summary=f'{sum(c.verdict == "PASS" for c in criteria)}/{len(criteria)} criteria independently verified; {sum(c.verdict in ("UNVERIFIED", "NOT_VERIFIED") for c in criteria)} lack supported evidence.',
-            recommendations=list(dict.fromkeys(c.evidence for c in criteria if c.verdict in ('UNVERIFIED', 'NOT_VERIFIED'))),
+            review_summary=review_summary,
+            recommendations=recommendations,
             tests_passed=tests_passed,
             tests_total=tests_total,
+            criteria_passed=passed_crit_count,
+            criteria_failed=failed_crit_count,
+            criteria_unverified=unverified_crit_count,
+            criteria_total=total_crit,
+            evidence_coverage_percent=evidence_coverage,
             security_verdict=security_verdict
         )
 
-        fresh = bool(latest_test and getattr(latest_test, 'evidence_version', None) == 'junit-v1' and getattr(latest_test, 'workspace_digest', None) == (workspace_service.digest(repo) if repo else None))
         logs = db_service.get_execution_logs(run_id) if hasattr(db_service, 'get_execution_logs') else (getattr(record, 'logs', []) or [])
         model_results = [getattr(e, 'details', {}) for e in logs if getattr(e, 'event_type', None) == 'model_result' and getattr(e, 'details', None)]
         def tokens(key):
@@ -324,7 +475,12 @@ class VerifierService:
             lines_added=sum(getattr(c, 'lines_added', 0) for c in code_changes),
             lines_removed=sum(getattr(c, 'lines_removed', 0) for c in code_changes),
             tests_passed=latest_test.passed_tests if (fresh or not repo) and latest_test else 0,
-            tests_total=latest_test.total_tests if (fresh or not repo) and latest_test else 0
+            tests_total=latest_test.total_tests if (fresh or not repo) and latest_test else 0,
+            criteria_passed=passed_crit_count,
+            criteria_failed=failed_crit_count,
+            criteria_unverified=unverified_crit_count,
+            criteria_total=total_crit,
+            evidence_coverage_percent=evidence_coverage
         )
 
         state = goal_tracker_service.get_state(run_id)
@@ -355,6 +511,11 @@ class VerifierService:
 
         extras = dict(
             criteria_completion_rate=coverage,
+            evidence_coverage_percent=evidence_coverage,
+            criteria_passed=passed_crit_count,
+            criteria_failed=failed_crit_count,
+            criteria_unverified=unverified_crit_count,
+            criteria_total=total_crit,
             test_pass_rate=scoring['test_pass_rate'],
             component_penalties=scoring['component_penalties'],
             score_status=scoring['score_status'],

@@ -24,7 +24,7 @@ from ..models.goal_model import (
 from .db import db_service
 from .workspace_service import workspace_service
 from .goal_parser_service import goal_parser_service
-from .planner_service import planner_service
+from .planner_service import planner_service, resolve_sub_goal_for_file
 from .coder_service import coder_service
 from .test_runner_service import test_runner_service
 from .debugger_service import debugger_service
@@ -393,7 +393,8 @@ class OrchestratorService:
             original_request=request_text,
             complexity_profile=routing.task_tier,
             target_files=routing.target_files,
-            acceptance_criteria=[c.model_dump() for c in goal_model.success_criteria]
+            acceptance_criteria=[c.model_dump() for c in goal_model.success_criteria],
+            sub_goals=goal_model.sub_goals
         )
         tracking_state.current_goal = goal_model.main_goal
         if previous_tracking:
@@ -402,20 +403,55 @@ class OrchestratorService:
             tracking_state.failed_attempts_count = previous_tracking.failed_attempts_count
         goal_tracker_service._persist_state(tracking_state)
 
+        # Helper mapping to resolve sub-goals across workflow phases
+        sub_goals = goal_model.sub_goals or []
+        def find_sg(keywords, fallback_idx, reverse=False):
+            items = list(reversed(sub_goals)) if reverse else list(sub_goals)
+            for sg in items:
+                text = f"{sg.title} {sg.description}".lower()
+                if any(w in text for w in keywords):
+                    return sg.id
+            if 0 <= fallback_idx < len(sub_goals):
+                return sub_goals[fallback_idx].id
+            return sub_goals[0].id if sub_goals else None
+
+        sg_analysis = find_sg(["inspect", "analys", "architect", "context", "baseline", "explore", "scan"], 0, reverse=False)
+        sg_impl = find_sg(["implement", "code", "modifi", "feature", "build", "write"], 1 if len(sub_goals) > 1 else 0, reverse=False)
+        sg_test = find_sg(["regression", "linter", "audit", "recovery", "pytest", "verif", "test"], len(sub_goals) - 1, reverse=True)
+
+        if len(sub_goals) >= 3:
+            if sg_test == sg_impl:
+                sg_test = sub_goals[-1].id
+            if sg_impl == sg_analysis:
+                sg_impl = sub_goals[1].id
+
+        def mark_subgoal_completed(sg_id: Optional[str]):
+            if not sg_id or not goal_model:
+                return
+            updated = False
+            for sg in goal_model.sub_goals:
+                if sg.id == sg_id and sg.status != "completed":
+                    sg.status = "completed"
+                    updated = True
+            if updated:
+                db_service.save_goal_model(goal_model)
+
         # =====================================================================
         # FAST PATH FOR SIMPLE ISOLATED TASKS
         # =====================================================================
         if routing.use_fast_path:
             logger.info(f"[{run_id}] Executing Adaptive Fast Path for {routing.task_tier} task.")
-            goal_tracker_service.start_subtask(run_id, "SUBTASK-1")
+            if sg_analysis:
+                goal_tracker_service.start_subtask(run_id, sg_analysis)
             
             # Fast Path Step 1: Targeted Workspace Inspection
             t_span = tracker.start_span("workspace", "targeted_inspection")
-            inspection = workspace_service.inspect_targeted(
-                target_path=target_repo,
-                file_list=routing.relevant_inspection_files,
-                run_id=run_id
-            )
+            with workflow.attempt(run_id, sub_goal_id=sg_analysis):
+                inspection = workspace_service.inspect_targeted(
+                    target_path=target_repo,
+                    file_list=routing.relevant_inspection_files,
+                    run_id=run_id
+                )
             tracker.end_span("workspace", "targeted_inspection", t_span)
 
             db_service.add_log(
@@ -426,6 +462,9 @@ class OrchestratorService:
                 message=f"Targeted inspection complete for {len(inspection['files'])} relevant files ({inspection['total_lines_of_code']} LoC). Bypassed full repo walk.",
                 details={"files": [f["path"] for f in inspection["files"]]}
             )
+            if sg_analysis:
+                goal_tracker_service.complete_subtask(run_id, sg_analysis, evidence=f"Targeted inspection complete for {len(inspection['files'])} files")
+                mark_subgoal_completed(sg_analysis)
 
             # Fast Path Step 2: Concise Specification & Implementation Plan
             t_span = tracker.start_span("requirement", "concise_plan_synthesis")
@@ -435,11 +474,23 @@ class OrchestratorService:
                 exists = os.path.exists(os.path.join(target_repo, tf_norm))
                 action = "modify" if exists else "create"
                 desc = f"{'Update' if exists else 'Create'} {tf_norm} according to isolated specification."
+                file_sg_id = resolve_sub_goal_for_file(tf_norm, action, goal_model) or sg_impl or (goal_model.sub_goals[0].id if goal_model.sub_goals else None)
                 planned_files.append(
                     PlannedFile(path=tf_norm, action=action, description=desc, estimated_loc=30,
-                                sub_goal_id=goal_model.sub_goals[0].id if len(goal_model.sub_goals) == 1 else None)
+                                sub_goal_id=file_sg_id)
                 )
 
+            if routing.target_test_files:
+                for ttf in routing.target_test_files:
+                    ttf_norm = ttf.replace("\\", "/")
+                    if not any(pf.path == ttf_norm for pf in planned_files):
+                        test_sg_id = resolve_sub_goal_for_file(ttf_norm, "test", goal_model) or sg_test or (goal_model.sub_goals[-1].id if goal_model.sub_goals else None)
+                        planned_files.append(
+                            PlannedFile(path=ttf_norm, action="test", description=f"Targeted test verification for {ttf_norm}", estimated_loc=30,
+                                        sub_goal_id=test_sg_id)
+                        )
+
+            plan_step_subgoals = list(dict.fromkeys([pf.sub_goal_id for pf in planned_files if pf.sub_goal_id])) or ([sg_impl] if sg_impl else [])
             plan = ImplementationPlan(
                 id=f"plan_{uuid.uuid4().hex[:8]}",
                 run_id=run_id,
@@ -457,7 +508,8 @@ class OrchestratorService:
                         assigned_agent="Coding Agent",
                         target_files=routing.target_files,
                         dependencies=[],
-                        expected_outcome="Functional implementation meeting acceptance criteria."
+                        expected_outcome="Functional implementation meeting acceptance criteria.",
+                        sub_goal_ids=plan_step_subgoals
                     )
                 ],
                 testing_strategy=f"Targeted pytest execution on {routing.target_test_files}",
@@ -477,6 +529,8 @@ class OrchestratorService:
             )
 
             # Fast Path Step 3: Single Coding Agent (with 1.5B high-speed model)
+            if sg_impl and sg_impl != sg_analysis:
+                goal_tracker_service.start_subtask(run_id, sg_impl)
             t_span = tracker.start_span("coder", "code_generation")
             code_changes = await coder_service.execute_plan(
                 run_id=run_id,
@@ -484,14 +538,20 @@ class OrchestratorService:
                 temperature=temperature
             )
             tracker.end_span("coder", "code_generation", t_span)
+            if sg_impl:
+                goal_tracker_service.complete_subtask(run_id, sg_impl, evidence=f"{len(code_changes or [])} files modified")
+                mark_subgoal_completed(sg_impl)
 
             # Fast Path Step 4: Targeted Test Execution
+            if sg_test and sg_test != sg_impl:
+                goal_tracker_service.start_subtask(run_id, sg_test)
             t_span = tracker.start_span("testing", "targeted_pytest")
-            test_run = test_runner_service.run_tests(
-                run_id=run_id,
-                attempt_number=1,
-                target_test_files=routing.target_test_files
-            )
+            with workflow.attempt(run_id, sub_goal_id=sg_test):
+                test_run = test_runner_service.run_tests(
+                    run_id=run_id,
+                    attempt_number=1,
+                    target_test_files=routing.target_test_files
+                )
             tracker.end_span("testing", "targeted_pytest", t_span)
 
             # Escalation Check: If targeted tests fail or AST syntax is invalid, escalate to full recovery loop
@@ -505,13 +565,18 @@ class OrchestratorService:
                     message=f"Targeted verification failed (Status: {test_run.status}, Syntax Valid: {not any_syntax_invalid}). Escalating to Bounded Recovery Debugger Loop.",
                     details={"exit_code": test_run.exit_code, "failed_tests": test_run.failed_tests}
                 )
-                await debugger_service.run_testing_and_recovery_loop(
-                    run_id=run_id,
-                    max_recovery_retries=max_recovery_retries,
-                    model_name=effective_model,
-                    target_test_files=routing.target_test_files,
-                    initial_test_result=test_run
-                )
+                with workflow.attempt(run_id, sub_goal_id=sg_test):
+                    await debugger_service.run_testing_and_recovery_loop(
+                        run_id=run_id,
+                        max_recovery_retries=max_recovery_retries,
+                        model_name=effective_model,
+                        target_test_files=routing.target_test_files,
+                        initial_test_result=test_run
+                    )
+
+            if sg_test:
+                goal_tracker_service.complete_subtask(run_id, sg_test, evidence="Targeted verification passed")
+                mark_subgoal_completed(sg_test)
 
             # Fast Path Step 5: Independent Verification
             t_span = tracker.start_span("verifier", "verification")
@@ -522,11 +587,18 @@ class OrchestratorService:
             )
             tracker.end_span("verifier", "verification", t_span)
 
+            # Mark all completed sub_goals if verified passed
+            if verification_report.overall_verdict in ("VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS"):
+                for sg in goal_model.sub_goals:
+                    sg.status = "completed"
+                db_service.save_goal_model(goal_model)
+
             # Fast Path Completion & Drift Verification Check
-            if verification_report.overall_verdict == "VERIFIED_PASSED":
+            if verification_report.overall_verdict in ("VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS"):
                 comp_check = drift_controller_service.check_completion(run_id)
                 if comp_check.allowed:
-                    goal_tracker_service.complete_subtask(run_id, "SUBTASK-1", evidence=verification_report.review_summary)
+                    if sg_test:
+                        goal_tracker_service.complete_subtask(run_id, sg_test, evidence=verification_report.review_summary)
                     goal_tracker_service.terminate_task(run_id, status="completed", reason="criteria_verified", evidence={"verdict": verification_report.overall_verdict})
                 else:
                     goal_tracker_service.terminate_task(run_id, status="failed", reason=comp_check.reason, evidence={"verdict": verification_report.overall_verdict})
@@ -538,11 +610,13 @@ class OrchestratorService:
         # =====================================================================
         else:
             logger.info(f"[{run_id}] Executing Standard Multi-Agent Workflow for {routing.task_tier} task.")
-            goal_tracker_service.start_subtask(run_id, "SUBTASK-1")
+            if sg_analysis:
+                goal_tracker_service.start_subtask(run_id, sg_analysis)
             
             # Step 2: Full Directory Inspection
             t_span = tracker.start_span("workspace", "full_inspection")
-            inspection = workspace_service.inspect_directory(target_repo, run_id=run_id)
+            with workflow.attempt(run_id, sub_goal_id=sg_analysis):
+                inspection = workspace_service.inspect_directory(target_repo, run_id=run_id)
             tracker.end_span("workspace", "full_inspection", t_span)
 
             # Step 3: Requirement Analyst Agent (Ollama / Goal Model)
@@ -568,16 +642,20 @@ class OrchestratorService:
                 details={"repo_path": target_repo}
             )
             t_span = tracker.start_span("planner", "plan_generation")
-            plan = await planner_service.generate_plan(
-                run_id=run_id,
-                repo_path=target_repo,
-                model_name=effective_model,
-                temperature=temperature
-            )
+            with workflow.attempt(run_id, sub_goal_id=sg_analysis):
+                plan = await planner_service.generate_plan(
+                    run_id=run_id,
+                    repo_path=target_repo,
+                    model_name=effective_model,
+                    temperature=temperature
+                )
             tracker.end_span("planner", "plan_generation", t_span)
 
-            goal_tracker_service.complete_subtask(run_id, "SUBTASK-1", evidence="Architecture plan generated")
-            goal_tracker_service.start_subtask(run_id, "SUBTASK-2")
+            if sg_analysis:
+                goal_tracker_service.complete_subtask(run_id, sg_analysis, evidence="Architecture plan generated")
+                mark_subgoal_completed(sg_analysis)
+            if sg_impl and sg_impl != sg_analysis:
+                goal_tracker_service.start_subtask(run_id, sg_impl)
 
             # Step 5: Coding Agent
             db_service.add_log(
@@ -596,8 +674,11 @@ class OrchestratorService:
             )
             tracker.end_span("coder", "code_generation", t_span)
 
-            goal_tracker_service.complete_subtask(run_id, "SUBTASK-2", evidence=f"{len(code_changes or [])} files modified")
-            goal_tracker_service.start_subtask(run_id, "SUBTASK-3")
+            if sg_impl:
+                goal_tracker_service.complete_subtask(run_id, sg_impl, evidence=f"{len(code_changes or [])} files modified")
+                mark_subgoal_completed(sg_impl)
+            if sg_test and sg_test != sg_impl:
+                goal_tracker_service.start_subtask(run_id, sg_test)
 
             # Step 6: Testing + Debugging Agent (Bounded Recovery Loop)
             db_service.add_log(
@@ -609,12 +690,17 @@ class OrchestratorService:
                 details={"max_retries": max_recovery_retries}
             )
             t_span = tracker.start_span("testing", "recovery_loop")
-            test_recovery_result = await debugger_service.run_testing_and_recovery_loop(
-                run_id=run_id,
-                max_recovery_retries=max_recovery_retries,
-                model_name=effective_model
-            )
+            with workflow.attempt(run_id, sub_goal_id=sg_test):
+                test_recovery_result = await debugger_service.run_testing_and_recovery_loop(
+                    run_id=run_id,
+                    max_recovery_retries=max_recovery_retries,
+                    model_name=effective_model
+                )
             tracker.end_span("testing", "recovery_loop", t_span)
+
+            if sg_test:
+                goal_tracker_service.complete_subtask(run_id, sg_test, evidence="Testing and recovery completed")
+                mark_subgoal_completed(sg_test)
 
             # Step 7: Independent Code Reviewer / Verifier
             db_service.add_log(
@@ -633,11 +719,18 @@ class OrchestratorService:
             )
             tracker.end_span("verifier", "verification", t_span)
 
+            # Mark all completed sub_goals if verified passed
+            if verification_report.overall_verdict in ("VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS"):
+                for sg in goal_model.sub_goals:
+                    sg.status = "completed"
+                db_service.save_goal_model(goal_model)
+
             # Standard Path Completion & Drift Verification Check
             if verification_report.overall_verdict in ("VERIFIED_PASSED", "VERIFIED_WITH_WARNINGS"):
                 comp_check = drift_controller_service.check_completion(run_id)
                 if comp_check.allowed:
-                    goal_tracker_service.complete_subtask(run_id, "SUBTASK-3", evidence=verification_report.review_summary)
+                    if sg_test:
+                        goal_tracker_service.complete_subtask(run_id, sg_test, evidence=verification_report.review_summary)
                     goal_tracker_service.terminate_task(run_id, status="completed", reason="criteria_verified", evidence={"verdict": verification_report.overall_verdict})
                 else:
                     goal_tracker_service.terminate_task(run_id, status="failed", reason=comp_check.reason, evidence={"verdict": verification_report.overall_verdict})

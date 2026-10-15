@@ -39,9 +39,12 @@ class WorkspaceService:
             if any(p.casefold() in {'.git', '.evaluator', '.pytest_cache', '__pycache__', '.venv', 'node_modules'} for p in relative.parts):
                 continue
             if path.is_file():
-                checked = self.resolve_path(str(root), relative.as_posix())
-                digest.update(relative.as_posix().encode())
-                digest.update(checked.read_bytes())
+                try:
+                    checked = self.resolve_path(str(root), relative.as_posix())
+                    digest.update(relative.as_posix().encode())
+                    digest.update(checked.read_bytes())
+                except (FileNotFoundError, ValueError):
+                    continue
         return digest.hexdigest()
     def __init__(self, root_dir: str = WORKSPACE_ROOT):
         self.root_dir = root_dir

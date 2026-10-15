@@ -108,7 +108,7 @@ async def test_fast_path_execution_and_verification(deterministic_model):
     assert run_record.verification is not None
     assert run_record.evaluation is not None
     assert run_record.evaluation.telemetry is not None
-    assert run_record.evaluation.verified_success is not True
+    assert run_record.evaluation.verified_success is True
     telemetry = run_record.evaluation.telemetry
     assert telemetry["total_wall_clock_seconds"] > 0
     assert "workspace" in telemetry["stage_durations"]
@@ -131,3 +131,52 @@ async def test_existing_repo_used_when_explicitly_provided(deterministic_model):
     run_record = await orchestrator_service.run_full_pipeline(request_text=prompt, repo_path=existing_repo)
     assert run_record.goal_model.is_confirmed is False
     assert os.path.abspath(run_record.repo_path) == os.path.abspath(existing_repo)
+
+
+@pytest.mark.asyncio
+async def test_multi_subgoal_execution_and_attribution(deterministic_model):
+    from app.services.workflow_reports import workflow_report
+    from app.models.schema import SubGoal, SuccessCriterion
+
+    prompt = "Implement multiply(a: int, b: int) -> int in app/service.py and test in tests/test_service.py"
+    prepared = await orchestrator_service.run_full_pipeline(request_text=prompt, repo_path=None)
+
+    # Define 3 sub-goals on the goal model
+    goal_model = db_service.get_goal_model(prepared.run_id)
+    goal_model.sub_goals = [
+        SubGoal(id="SG-1", title="Analyze Codebase Context & Establish Baseline", description="Inspect codebase", status="pending"),
+        SubGoal(id="SG-2", title="Implement Code Modifications and Unit Tests", description="Write code", status="pending"),
+        SubGoal(id="SG-3", title="Execute Regression Verification & Linter Audit", description="Verify code", status="pending")
+    ]
+    goal_model.success_criteria = [
+        SuccessCriterion(id="SC-1", sub_goal_id="SG-2", description="multiply exists", metric="python_syntax", expected_output="app/service.py"),
+        SuccessCriterion(id="SC-2", sub_goal_id="SG-3", description="pytest passes", metric="pytest", expected_output="tests/test_service.py")
+    ]
+    goal_model.ambiguities = []
+    goal_model.is_confirmed = True
+    db_service.save_goal_model(goal_model)
+
+    run_record = await orchestrator_service.run_full_pipeline(
+        request_text=prompt, existing_run_id=prepared.run_id, max_recovery_retries=0
+    )
+
+    report, events = workflow_report(db_service, prepared.run_id)
+
+    # Verify sub-goal mapping coverage is high and no unmapped leaf actions
+    assert report["coverage"]["sub_goal_mapping"] > 0.0
+    assert report["summary"]["unmapped_actions"] == 0
+
+    # Verify each sub-goal received explicit attempts and was executed
+    subgoals = {sg["id"]: sg for sg in report["sub_goals"]}
+    assert "SG-1" in subgoals
+    assert "SG-2" in subgoals
+    assert "SG-3" in subgoals
+
+    assert subgoals["SG-1"]["attempts"] >= 1
+    assert subgoals["SG-2"]["attempts"] >= 1
+    assert subgoals["SG-3"]["attempts"] >= 1
+
+    # Verify reported status was completed for all sub-goals
+    for sg_id in ("SG-1", "SG-2", "SG-3"):
+        assert subgoals[sg_id]["reported_status"] == "completed"
+

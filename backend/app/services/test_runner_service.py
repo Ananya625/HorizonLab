@@ -57,6 +57,8 @@ class TestRunnerService:
             raise ValueError('Unknown run')
         plan = db_service.get_plan(run_id)
         repo = plan.target_repo_path if plan else record.repo_path
+        goal_model = db_service.get_goal_model(run_id) if hasattr(db_service, 'get_goal_model') else None
+        goal_model_version = getattr(goal_model, 'goal_model_version', None) if goal_model else None
         if test_file_target:
             file_part = test_file_target.split('::')[0] if '::' in test_file_target else test_file_target
             workspace_service.resolve_path(repo, file_part)
@@ -70,7 +72,8 @@ class TestRunnerService:
             target=cmd_target_str, payload_str=str(attempt_number), repo_path=repo)
         if not decision.allowed:
             result = TestRunResult(id=f'testrun_{uuid.uuid4().hex}',run_id=run_id,attempt_number=attempt_number,
-                exit_code=1,status='ERROR',execution_error=decision.reason,evidence_version='junit-v1')
+                exit_code=1,status='ERROR',execution_error=decision.reason,evidence_version='junit-v1',
+                goal_model_version=goal_model_version)
             db_service.save_test_result(result)
             goal_tracker_service.record_action(run_id=run_id,action_type='command_exec',target=cmd_target_str,
                 payload_str=str(attempt_number),status='blocked',error_message=decision.reason)
@@ -118,7 +121,8 @@ class TestRunnerService:
             failed_tests=failed, skipped_tests=skipped, duration_seconds=time.perf_counter()-start,
             stdout=stdout, stderr=stderr, exit_code=exit_code, status=status,
             test_items=items, execution_error=execution_error,
-            evidence_version='junit-v1', workspace_digest=before)
+            evidence_version='junit-v1', workspace_digest=before,
+            goal_model_version=goal_model_version)
         db_service.save_test_result(result)
         db_service.add_log(run_id, 'testing', 'Test Runner', 'test_run', f'Pytest: {status}', {'result_id': result.id, 'duration_seconds': result.duration_seconds})
         drift_controller_service.validate_result(run_id=run_id,action_type='test_run',target=cmd_target_str,

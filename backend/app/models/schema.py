@@ -148,6 +148,7 @@ class TestRunResult(BaseModel):
     skipped_tests: int = 0
     execution_error: Optional[str] = None
     test_items: List[TestResultItem] = []
+    goal_model_version: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
     @model_validator(mode='after')
@@ -211,6 +212,11 @@ class VerificationReport(BaseModel):
     goal_drift_score: Optional[float] = None  # 0.0 = perfect alignment, 100.0 = total drift
     goal_alignment_score: Optional[float] = None  # 100.0 = fully aligned, 0.0 = completely misaligned
     criteria_completion_rate: Optional[float] = None  # 0.0 - 100.0%
+    evidence_coverage_percent: Optional[float] = None  # 0.0 - 100.0%
+    criteria_passed: Optional[int] = 0
+    criteria_failed: Optional[int] = 0
+    criteria_unverified: Optional[int] = 0
+    criteria_total: Optional[int] = 0
     test_pass_rate: Optional[float] = None  # 0.0 - 100.0%, None if tests unavailable
     component_penalties: Dict[str, float] = Field(default_factory=dict)  # goal_misalignment, criteria_gap, execution_failure
     security_violation_count: int = 0
@@ -255,6 +261,11 @@ class EvaluationMetrics(BaseModel):
     goal_drift_score: Optional[float] = None
     goal_alignment_score: Optional[float] = None
     criteria_completion_rate: Optional[float] = None
+    evidence_coverage_percent: Optional[float] = None
+    criteria_passed: Optional[int] = 0
+    criteria_failed: Optional[int] = 0
+    criteria_unverified: Optional[int] = 0
+    criteria_total: Optional[int] = 0
     test_pass_rate: Optional[float] = None
     component_penalties: Dict[str, float] = Field(default_factory=dict)
     security_violation_count: int = 0

@@ -215,9 +215,12 @@ def test_handling_of_unresolved_or_unverified_acceptance_criteria():
     # Crucial assertion: UNVERIFIED criteria does NOT generate criteria_gap_penalty!
     assert scores["component_penalties"]["criteria_gap_penalty"] == 0.0
     assert scores["goal_drift_score"] == 0.0
-    assert scores["goal_alignment_score"] == 100.0
+    # Crucial assertion: Unverified criteria must NOT silently yield 100% certified alignment!
+    assert scores["goal_alignment_score"] is None
     assert scores["score_status"] == "partial_evidence"
     assert scores["criteria_completion_rate"] == 50.0
+    assert scores["criteria_unverified"] == 1
+    assert scores["criteria_passed"] == 1
 
 
 # ---------------------------------------------------------------------------

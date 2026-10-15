@@ -62,25 +62,89 @@ def analyze(events, run_id, execution_mode='unknown', evidence_gap=False):
     run_outcome = None
     run_evidence = None
 
-    def finding(kind, evidence, message, confidence='observed', **detail):
-        ids = [e['event_id'] for e in evidence]
-        findings.append({'id':digest([VERSION,kind,ids])[:20], 'kind':kind,'confidence':confidence,
-                         'message':message,'event_ids':ids,'detector_version':VERSION,'details':detail})
+    dedup_findings = {}
 
-    def sub_status(sg, rev=None, at_state=None):
+    def finding(kind, evidence, message='', confidence='observed', title=None, status=None,
+                reason=None, recommended_action=None, **detail):
+        ids = [e['event_id'] for e in evidence if e.get('event_id')]
+        readable_kind = kind.replace('_', ' ')
+        final_title = title or (message if message and len(message) <= 60 else f"{readable_kind.capitalize()}")
+        final_message = message or final_title or f"A {readable_kind} condition was detected."
+        final_status = status or ('observed' if confidence == 'observed' else 'heuristic')
+        final_reason = reason or final_message
+        final_action = recommended_action or "Review referenced execution events."
+
+        dep_step = detail.get('prerequisite_step') or detail.get('dep')
+        target_step = detail.get('dependent_step') or detail.get('step')
+        if kind == 'plan_dependency_unverified':
+            key = (run_id, 'plan_dependency_unverified', str(dep_step), str(target_step), str(final_status), revision)
+        elif kind == 'dependency_unverified':
+            key = (run_id, 'dependency_unverified', str(detail.get('prerequisite')), str(detail.get('dependent_sub_goal')), str(final_status), revision)
+        elif kind == 'repetition':
+            key = (run_id, 'repetition', str(detail.get('operation')), str(detail.get('target')), str(detail.get('arguments_hash')))
+        elif kind == 'suspected_loop':
+            key = (run_id, 'suspected_loop', detail.get('width'), detail.get('lo'), detail.get('hi'))
+        elif kind in ('post_completion_work', 'premature_completion_claim'):
+            key = (run_id, kind, revision)
+        elif kind == 'regression':
+            key = (run_id, 'regression', str(detail.get('criterion_id')), revision)
+        elif kind in ('justified_revisit', 'unexplained_rework'):
+            key = (run_id, kind, str(detail.get('sub_goal_id')), revision)
+        else:
+            key = (run_id, kind, str(detail.get('operation_id') or detail.get('criterion_id') or final_message))
+
+        if key in dedup_findings:
+            existing = dedup_findings[key]
+            existing['occurrence_count'] += 1
+            for eid in ids:
+                if eid not in existing['event_ids']:
+                    existing['event_ids'].append(eid)
+            if evidence and evidence[-1].get('timestamp'):
+                existing['last_seen'] = evidence[-1].get('timestamp')
+        else:
+            entry = {
+                'id': digest([VERSION, kind, str(key)])[:20],
+                'kind': kind,
+                'title': final_title,
+                'status': final_status,
+                'confidence': confidence,
+                'message': final_message,
+                'reason': final_reason,
+                'recommended_action': final_action,
+                'occurrence_count': 1,
+                'event_ids': ids,
+                'detector_version': VERSION,
+                'first_seen': evidence[0].get('timestamp') if evidence else None,
+                'last_seen': evidence[-1].get('timestamp') if evidence else None,
+                'details': detail
+            }
+            if dep_step is not None:
+                entry['prerequisite_step'] = dep_step
+            if target_step is not None:
+                entry['dependent_step'] = target_step
+            if 'prerequisite_sub_goals' in detail:
+                entry['prerequisite_sub_goals'] = detail['prerequisite_sub_goals']
+            if 'dependent_sub_goal' in detail:
+                entry['dependent_sub_goal'] = detail['dependent_sub_goal']
+            dedup_findings[key] = entry
+
+    def sub_status(sg, rev=None, at_state=None, detailed=False):
         rev = rev or revision
         current = snapshots.get(rev, {})
         required = [c['id'] for c in current.get('criteria',[]) if c.get('sub_goal_id')==sg]
         if not required:
             return 'unverified'
         rows = [criterion_evidence.get((rev,c)) for c in required]
-        fresh = [e for e in rows if e and e.get('after_state') and e['after_state']==(at_state or state)]
-        if any(e['data'].get('verdict')=='FAIL' for e in fresh):
-            return 'failed'
+        target_state = at_state if at_state is not None else state
+        fresh = [e for e in rows if e and e.get('after_state') and e['after_state']==target_state]
         if len(fresh)==len(required) and all(e['data'].get('verdict')=='PASS' for e in fresh):
             return 'verified'
-        if any(e and e['data'].get('verdict')=='PASS' and e not in fresh for e in rows):
+        if any(e and e['data'].get('verdict')=='FAIL' for e in fresh) or any(e and e['data'].get('verdict')=='FAIL' for e in rows):
+            return 'failed'
+        if any(e and e['data'].get('verdict')=='PASS' for e in rows):
             return 'stale'
+        if detailed and all(e is None for e in rows):
+            return 'not_checked'
         return 'unverified'
 
     for e in events:
@@ -127,20 +191,52 @@ def analyze(events, run_id, execution_mode='unknown', evidence_gap=False):
                     if sub['id']==sg:
                         for dep in sub.get('dependencies',[]):
                             dependency_checks += 1
-                            status = sub_status(dep, at_state=e.get('before_state'))
-                            if status!='verified':
-                                finding('dependency_unverified',[e],f'Prerequisite {dep} was not freshly verified before {sg}.',
-                                        prerequisite=dep, status=status)
+                            status = sub_status(dep, at_state=e.get('before_state'), detailed=True)
+                            if status not in ('verified', 'passed'):
+                                finding('dependency_unverified', [e],
+                                        message=f'Prerequisite sub-goal {dep} was {status} before starting {sg}.',
+                                        title=f'Sub-goal {sg} started before prerequisite {dep} was verified',
+                                        prerequisite=dep, dependent_sub_goal=sg, status=status,
+                                        reason=f'Sub-goal {sg} has explicit dependency on {dep}, which is currently {status}.',
+                                        recommended_action=f'Verify sub-goal {dep} before proceeding with {sg}.')
                 # Plan prerequisites are only checkable when explicit step-to-sub-goal mappings exist.
                 plan = plans.get(e.get('plan_revision'), {})
                 for step in plan.get('steps',[]):
                     if sg and sg in step.get('sub_goal_ids',[]):
                         for dep in step.get('dependencies',[]):
-                            prerequisite = next((s for s in plan.get('steps',[]) if s['step_number']==dep),None)
+                            prerequisite = next((s for s in plan.get('steps',[]) if str(s['step_number'])==str(dep)), None)
                             if prerequisite and prerequisite.get('sub_goal_ids'):
                                 dependency_checks += 1
-                                if any(sub_status(g)!='verified' for g in prerequisite['sub_goal_ids']):
-                                    finding('plan_dependency_unverified',[e],f'Plan step {dep} prerequisites were not verified.', step=step['step_number'])
+                                prereq_statuses = {g: sub_status(g, at_state=e.get('before_state'), detailed=True) for g in prerequisite['sub_goal_ids']}
+                                if any(st not in ('verified', 'passed') for st in prereq_statuses.values()):
+                                    if any(st == 'failed' for st in prereq_statuses.values()):
+                                        worst = 'failed'
+                                        reason_text = f"Prerequisite Step {dep} failed independent verification."
+                                        action_text = f"Fix failing requirements in Step {dep} before proceeding with Step {step['step_number']}."
+                                    elif any(st == 'stale' for st in prereq_statuses.values()):
+                                        worst = 'stale'
+                                        reason_text = f"Prerequisite Step {dep} was verified previously, but subsequent workspace changes made its verification stale."
+                                        action_text = f"Re-run verification test suite on the current workspace to re-establish Step {dep} evidence."
+                                    elif any(st == 'not_checked' for st in prereq_statuses.values()):
+                                        worst = 'not_checked'
+                                        reason_text = f"Prerequisite Step {dep} ({', '.join(prerequisite['sub_goal_ids'])}) has no recorded verification checks."
+                                        action_text = f"Execute and pass verification checks for Step {dep} before executing Step {step['step_number']}."
+                                    else:
+                                        worst = 'unverified'
+                                        reason_text = f"Prerequisite Step {dep} lacks conclusive passing verification evidence."
+                                        action_text = f"Execute and pass verification checks for Step {dep} before executing Step {step['step_number']}."
+
+                                    finding('plan_dependency_unverified', [e],
+                                            message=f'Plan step {step["step_number"]} prerequisites (Step {dep}) were {worst}.',
+                                            title=f'Plan Step {step["step_number"]} started before Step {dep} was verified',
+                                            status=worst,
+                                            reason=reason_text,
+                                            recommended_action=action_text,
+                                            prerequisite_step=dep,
+                                            dependent_step=step['step_number'],
+                                            prerequisite_sub_goals=prerequisite['sub_goal_ids'],
+                                            dependent_sub_goal=sg,
+                                            step=step['step_number'])
         elif kind=='action_result':
             a = actions.get(e['action_id'])
             if a:
@@ -275,9 +371,79 @@ def analyze(events, run_id, execution_mode='unknown', evidence_gap=False):
     fresh_run = bool(run_pass and run_pass.get('after_state')==state and run_pass.get('goal_revision')==revision)
     def overhead_resources(group):
         return resources(group) if measured else {k:None for k in resources([])}
+
+    findings = list(dedup_findings.values())
+
+    unmapped_leaf = [a for a in leaf if not a.get('sub_goal_id')]
+    unmapped_count = len(unmapped_leaf) if measured else 0
+    mapped_count = (len(leaf) - unmapped_count) if measured else 0
+    mapped_pct = round(((mapped_count / len(leaf)) * 100.0), 1) if (measured and leaf) else 0.0
+    unmapped_pct = round(((unmapped_count / len(leaf)) * 100.0), 1) if (measured and leaf) else 0.0
+
+    if fresh_run:
+        task_verification_status = 'verified_passed'
+    elif run_evidence and run_outcome == 'FAIL' and run_evidence.get('after_state') == state and run_evidence.get('goal_revision') == revision:
+        task_verification_status = 'verified_failed'
+    elif goals and verified == len(goals) and len(goals) > 0:
+        task_verification_status = 'verified_passed'
+    elif goals and any(s['status'] == 'failed' for s in subgoals):
+        task_verification_status = 'verified_failed'
+    else:
+        task_verification_status = 'unverified'
+
+    unreferenced_state = sum(not a.get('before_state') or not a.get('result', {}).get('after_state') for a in leaf)
+    is_partial = bool(evidence_gap or missing or resource['unknown_usage_calls'] or unmapped_count or unreferenced_state)
+    if not measured:
+        workflow_evidence_completeness = 'unavailable'
+    elif is_partial:
+        workflow_evidence_completeness = 'partial'
+    else:
+        workflow_evidence_completeness = 'complete'
+
+    partial_evidence_reasons = []
+    if not measured:
+        partial_evidence_reasons.append("No workflow telemetry or actions recorded.")
+    else:
+        if evidence_gap:
+            partial_evidence_reasons.append("Telemetry sequence gap or instrumentation error detected.")
+        if missing:
+            partial_evidence_reasons.append(f"{missing} recorded action(s) lack completion results.")
+        if resource.get('unknown_usage_calls'):
+            partial_evidence_reasons.append(f"{resource['unknown_usage_calls']} call(s) have unrecorded resource metrics.")
+        if unmapped_leaf:
+            partial_evidence_reasons.append(
+                f"{len(unmapped_leaf)} of {len(leaf)} action(s) ({unmapped_pct}%) were executed outside sub-goal scopes (e.g., initial system inspection, planning, or independent verification)."
+            )
+        if unreferenced_state:
+            partial_evidence_reasons.append(f"{unreferenced_state} action(s) lack before or after workspace state references.")
+
+    sub_goal_mapping_coverage = {
+        'total_actions': len(leaf) if measured else 0,
+        'mapped_actions': mapped_count,
+        'unmapped_actions': unmapped_count,
+        'mapped_ratio': ratio(mapped_count, len(leaf)),
+        'unmapped_ratio': ratio(unmapped_count, len(leaf)),
+        'mapped_percentage': mapped_pct,
+        'unmapped_percentage': unmapped_pct,
+        'unmapped_details': [
+            {
+                'action_id': a['action_id'],
+                'operation': a.get('operation'),
+                'category': a.get('category'),
+                'sequence': a.get('sequence'),
+                'reason': a.get('reason') or ('Initial environment inspection / discovery' if a.get('sequence', 0) <= 5 else 'Telemetry / verification step')
+            }
+            for a in unmapped_leaf
+        ] if measured else []
+    }
+
     return {'version':VERSION,'run_id':run_id,'execution_mode':execution_mode,
         'snapshot_sequence':events[-1]['sequence'] if events else 0,
         'evidence_status':'unavailable' if not measured else 'partial' if evidence_gap or missing or resource['unknown_usage_calls'] or any(not a.get('before_state') or not a.get('sub_goal_id') for a in leaf) else 'observed',
+        'task_verification_status': task_verification_status,
+        'workflow_evidence_completeness': workflow_evidence_completeness,
+        'partial_evidence_reasons': partial_evidence_reasons,
+        'sub_goal_mapping_coverage': sub_goal_mapping_coverage,
         'limitations':['Observational coverage is not proof that all external actions were captured.',
                       'Unmapped work and unsupported criteria are not assigned inferred completion.',
                       'Suspected loops and unexplained rework are review findings, not automatic interventions.'],
@@ -287,6 +453,10 @@ def analyze(events, run_id, execution_mode='unknown', evidence_gap=False):
                    'incomplete_actions':missing if measured else None,'tool_outcomes':{key:counts[key] for key in ('success','failed','error','rejected','incomplete')} if measured else {},
                    'verified_sub_goals':verified if goals else None,'required_sub_goals':len(goals) if goals else None,
                    'progress_rate':ratio(verified,len(goals)), 'verified_outcome':True if fresh_run else False if run_evidence and run_outcome=='FAIL' and run_evidence.get('after_state')==state and run_evidence.get('goal_revision')==revision else None,
+                   'task_verification_status': task_verification_status,
+                   'workflow_evidence_completeness': workflow_evidence_completeness,
+                   'partial_evidence_reasons': partial_evidence_reasons,
+                   'sub_goal_mapping_coverage': sub_goal_mapping_coverage,
                    'repeated_actions':repeats if measured else None,'completion_claims':completion_claims if measured else None,
                    'wall_seconds':max(0,seconds(events[-1])-seconds(events[0])) if len(events)>1 else None,
                    'unmapped_actions':sum(not a.get('sub_goal_id') for a in leaf) if measured else None,
@@ -298,6 +468,10 @@ def analyze(events, run_id, execution_mode='unknown', evidence_gap=False):
         'coverage':{'paired_outcomes':ratio(paired,len(all_actions)),
                     'state_references':ratio(sum(bool(a.get('before_state') and a.get('result',{}).get('after_state')) for a in leaf),len(leaf)),
                     'sub_goal_mapping':ratio(sum(bool(a.get('sub_goal_id')) for a in leaf),len(leaf)),
+                    'mapped_actions':mapped_count,
+                    'unmapped_actions':unmapped_count,
+                    'mapped_percentage':mapped_pct,
+                    'unmapped_percentage':unmapped_pct,
                     'instrumentation_error':evidence_gap},
         'stagnation':{'baseline':'last_verified_progress' if last_progress else 'first_observation',
                       'actions':sum(a['sequence']>baseline['sequence'] for a in tool_actions) if baseline else None,

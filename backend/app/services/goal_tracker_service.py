@@ -82,7 +82,8 @@ class GoalTrackerService:
         complexity_profile: str = "simple",
         acceptance_criteria: Optional[List[Dict[str, Any]]] = None,
         target_files: Optional[List[str]] = None,
-        deadline_seconds: Optional[float] = None
+        deadline_seconds: Optional[float] = None,
+        sub_goals: Optional[List[Any]] = None
     ) -> TaskTrackingState:
         """Initializes a deterministic goal tracker state for a task."""
         now = time.time()
@@ -113,9 +114,22 @@ class GoalTrackerService:
                 metric="pytest == PASS"
             ))
 
-        # Generate subtasks ONLY when decomposition adds engineering value
+        # Generate subtasks from defined sub_goals or fallback to profile decomposition
         subtasks: List[GoalSubtask] = []
-        if complexity_profile == "simple":
+        if sub_goals:
+            for i, sg in enumerate(sub_goals):
+                sg_id = getattr(sg, "id", None) or (sg.get("id") if isinstance(sg, dict) else f"SG-{i+1}")
+                sg_title = getattr(sg, "title", None) or (sg.get("title") if isinstance(sg, dict) else f"Sub-goal {i+1}")
+                sg_desc = getattr(sg, "description", None) or (sg.get("description") if isinstance(sg, dict) else sg_title)
+                subtasks.append(GoalSubtask(
+                    id=sg_id,
+                    order=i + 1,
+                    title=sg_title,
+                    description=sg_desc,
+                    target_files=target_files or [],
+                    status="pending"
+                ))
+        elif complexity_profile == "simple":
             # For simple tasks: single direct execution subtask
             subtasks.append(GoalSubtask(
                 id="SUBTASK-1",
@@ -219,13 +233,30 @@ class GoalTrackerService:
         if not state:
             return None
 
+        target_st = None
         for st in state.ordered_subtasks:
             if st.id == subtask_id:
-                st.status = "running"
-                st.started_at = datetime.now().isoformat()
-                state.current_active_subtask_id = subtask_id
-                self._persist_state(state)
-                return st
+                target_st = st
+                break
+
+        if not target_st:
+            for prefix in ("SUBTASK-", "SG-"):
+                if subtask_id.startswith(prefix):
+                    try:
+                        idx = int(subtask_id[len(prefix):]) - 1
+                        if 0 <= idx < len(state.ordered_subtasks):
+                            target_st = state.ordered_subtasks[idx]
+                            break
+                    except Exception:
+                        pass
+
+        if target_st:
+            target_st.status = "running"
+            target_st.started_at = datetime.now().isoformat()
+            state.current_active_subtask_id = target_st.id
+            self._persist_state(state)
+            return target_st
+
         return None
 
     def complete_subtask(self, run_id: str, subtask_id: str, evidence: str) -> Optional[GoalSubtask]:
@@ -234,22 +265,37 @@ class GoalTrackerService:
         if not state:
             return None
 
-        target_st = None
+        target_idx = None
         for i, st in enumerate(state.ordered_subtasks):
             if st.id == subtask_id:
-                st.status = "completed"
-                st.completed_at = datetime.now().isoformat()
-                st.evidence = evidence
-                target_st = st
-                # Advance active subtask to next pending subtask if available
-                if i + 1 < len(state.ordered_subtasks):
-                    state.current_active_subtask_id = state.ordered_subtasks[i + 1].id
-                else:
-                    state.current_active_subtask_id = None
+                target_idx = i
                 break
 
-        self._persist_state(state)
-        return target_st
+        if target_idx is None:
+            for prefix in ("SUBTASK-", "SG-"):
+                if subtask_id.startswith(prefix):
+                    try:
+                        idx = int(subtask_id[len(prefix):]) - 1
+                        if 0 <= idx < len(state.ordered_subtasks):
+                            target_idx = idx
+                            break
+                    except Exception:
+                        pass
+
+        if target_idx is not None:
+            st = state.ordered_subtasks[target_idx]
+            st.status = "completed"
+            st.completed_at = datetime.now().isoformat()
+            st.evidence = evidence
+            # Advance active subtask to next pending subtask if available
+            if target_idx + 1 < len(state.ordered_subtasks):
+                state.current_active_subtask_id = state.ordered_subtasks[target_idx + 1].id
+            else:
+                state.current_active_subtask_id = None
+            self._persist_state(state)
+            return st
+
+        return None
 
     def record_action(
         self,

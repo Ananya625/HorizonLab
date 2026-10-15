@@ -632,7 +632,19 @@ class DebuggerService:
 
             fixed_files = []
             attempt_recorded_num = attempt_number
-            with workflow.attempt(run_id, recovery_id=rec_id, reason="recovery"):
+            rec_sub_goal_id = None
+            goal_model_rec = db_service.get_goal_model(run_id) if hasattr(db_service, "get_goal_model") else None
+            if goal_model_rec and goal_model_rec.sub_goals:
+                if diagnosis.get("files_to_fix"):
+                    from .planner_service import resolve_sub_goal_for_file
+                    rec_sub_goal_id = resolve_sub_goal_for_file(diagnosis["files_to_fix"][0], "modify", goal_model_rec)
+                elif last_modified_files:
+                    from .planner_service import resolve_sub_goal_for_file
+                    rec_sub_goal_id = resolve_sub_goal_for_file(last_modified_files[0], "modify", goal_model_rec)
+                if not rec_sub_goal_id:
+                    rec_sub_goal_id = goal_model_rec.sub_goals[-1].id
+
+            with workflow.attempt(run_id, sub_goal_id=rec_sub_goal_id, recovery_id=rec_id, reason="recovery"):
                 try:
                     regression_target = last_modified_files[0] if is_import_regression else None
 

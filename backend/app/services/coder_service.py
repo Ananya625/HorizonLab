@@ -243,7 +243,11 @@ class CoderService:
         # Tests need the actual implementation interface, even when the planner
         # lists them first. Keep relative order within each group.
         for planned_file in sorted(plan.planned_files, key=lambda f: f.action == 'test' or os.path.basename(f.path).startswith('test_')):
-            with workflow.attempt(run_id, planned_file.sub_goal_id):
+            file_sg_id = planned_file.sub_goal_id
+            if not file_sg_id and goal_model and goal_model.sub_goals:
+                from .planner_service import resolve_sub_goal_for_file
+                file_sg_id = resolve_sub_goal_for_file(planned_file.path, planned_file.action, goal_model)
+            with workflow.attempt(run_id, file_sg_id):
                 file_rel_path = planned_file.path
                 action = planned_file.action
                 description = planned_file.description

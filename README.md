@@ -21,7 +21,7 @@ AgentEval-X is a software engineering workflow prototype. It extracts requiremen
 4. **Coding Agent**: Implements multi-file source changes, computes unified Git-style diffs (`+`/`-`), and performs AST syntax checks.
 5. **Testing + Debugging Agents**: Executes real pytest test suites in the repository, parses test outputs, and runs a bounded self-healing recovery loop if tests fail.
 6. **Independent Code Reviewer / Verifier**: Checks explicitly supported Python syntax criteria. Unsupported acceptance criteria, security constraints, drift, and quality measurements remain unverified. Controlled fixtures use protected behavioral and side-effect checks.
-7. **Results + Evaluation Dashboard**: Persists measured outcomes, calls, durations, and recovery attempts, and runs controlled simulation comparisons. Legacy scores are labeled unvalidated; unavailable evidence is shown explicitly.
+7. **Results + Evaluation Dashboard**: Persists measured outcomes, calls, durations, and recovery attempts, and runs controlled simulation comparisons. Features live **Actual Workflow Analysis** with multi-dimensional status tracking (Task Verification, Evidence Completeness, and Sub-Goal Mapping) and an accessible Behaviour Findings engine.
 
 ---
 
@@ -82,6 +82,8 @@ SicProject/
 │   │   │   ├── test_runner_service.py # Real pytest runner & log parser
 │   │   │   ├── debugger_service.py    # Bounded recovery self-healing loop
 │   │   │   ├── verifier_service.py    # Independent Code Reviewer & Verifier
+│   │   │   ├── workflow_service.py    # Workflow event instrumentation & attempt tracking
+│   │   │   ├── workflow_analysis.py   # Telemetry audit, tri-status calculation & findings detector
 │   │   │   └── orchestrator_service.py# End-to-end pipeline orchestrator
 │   │   └── main.py                    # FastAPI application entrypoint
 │   ├── sandbox/                       # Isolated sandbox repository workspaces
@@ -99,6 +101,7 @@ SicProject/
 │   │   │   ├── TestingDebugView.jsx   # Stage 5: Testing & Debugging Agents
 │   │   │   ├── VerificationView.jsx   # Stage 6: Independent Code Reviewer
 │   │   │   ├── EvaluationDashboard.jsx# Stage 7: Benchmark Comparisons & SQLite stats
+│   │   │   ├── WorkflowAnalysis.jsx   # Actual Workflow Analysis & Behaviour Findings cockpit
 │   │   │   └── ExecutionControlRoom.jsx# Live real-time agent telemetry drawer
 │   │   ├── services/
 │   │   │   └── api.js                 # API client for all stage endpoints
@@ -107,6 +110,21 @@ SicProject/
 │   └── package.json
 └── README.md
 ```
+
+---
+
+## 🔬 Workflow Telemetry, Verification & Findings Engine
+
+In addition to pipeline execution, HorizonLab includes a comprehensive workflow telemetry auditing engine:
+
+- **Multi-Dimensional Status Separation**:
+  - **Task Verification**: `verified_passed`, `verified_failed`, or `unverified` strictly reflecting independent verification checks with fresh evidence tied to the active run and current workspace state.
+  - **Workflow Evidence Completeness**: `complete`, `partial`, or `unavailable` measuring full telemetry capture, paired action results, and workspace references.
+  - **Sub-Goal Mapping Coverage**: `mapped_percentage` versus `unmapped_percentage`, accounting for activities executed outside sub-goal scopes (e.g. preliminary inspection, planning, or independent verification calls) with clear UI explanations.
+- **Behaviour Findings Engine**:
+  - Deduplicates repeated findings using stable keys across run revisions.
+  - Evaluates prerequisite freshness (`not_checked`, `unverified`, `failed`, `stale`, and `passed`).
+  - Renders accessible, expandable cards with visible titles, occurrence counts, prerequisite-dependent step paths, reasons, and recommended actions.
 
 ---
 

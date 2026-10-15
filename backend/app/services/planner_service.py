@@ -55,6 +55,37 @@ You must respond ONLY with a valid JSON object matching this schema:
 }
 """
 
+def resolve_sub_goal_for_file(file_path: str, action: str, goal_model: Optional[GoalModel]) -> Optional[str]:
+    if not goal_model or not goal_model.sub_goals:
+        return None
+    sub_goals = goal_model.sub_goals
+    if len(sub_goals) == 1:
+        return sub_goals[0].id
+
+    norm_path = file_path.replace("\\", "/").lower()
+    is_test = action == "test" or "test" in norm_path or os.path.basename(norm_path).startswith("test_")
+
+    if goal_model.success_criteria:
+        for sc in goal_model.success_criteria:
+            if sc.expected_output and sc.sub_goal_id:
+                exp_norm = sc.expected_output.replace("\\", "/").lower()
+                if exp_norm in norm_path or norm_path in exp_norm:
+                    return sc.sub_goal_id
+
+    if is_test:
+        test_sg = next((sg.id for sg in reversed(sub_goals) if any(w in (sg.title + " " + sg.description).lower() for w in ["test", "verif", "audit", "linter", "regress"])), None)
+        if test_sg:
+            return test_sg
+        return sub_goals[-1].id
+
+    impl_sg = next((sg.id for sg in sub_goals if any(w in (sg.title + " " + sg.description).lower() for w in ["implement", "code", "modifi", "feature", "build", "write"])), None)
+    if impl_sg:
+        return impl_sg
+
+    if len(sub_goals) >= 2:
+        return sub_goals[1].id
+    return sub_goals[0].id
+
 # File sub-goal links are explicit plan data, not inferred by the evaluator.
 class PlannerService:
     @observed('planner', 'stage', reason=None)
@@ -170,6 +201,16 @@ Generate the detailed Implementation Plan JSON for the Coding Agent."""
                 dependencies=[len(steps)] if steps else [],
                 expected_outcome="Passing test suite verification"
             ))
+
+        # Explicitly map planned files and steps to goal model sub-goals
+        if goal_model and goal_model.sub_goals:
+            for pf in planned_files:
+                if not pf.sub_goal_id:
+                    pf.sub_goal_id = resolve_sub_goal_for_file(pf.path, pf.action, goal_model)
+            for s in steps:
+                if not s.sub_goal_ids:
+                    mapped = [resolve_sub_goal_for_file(tf, "modify", goal_model) for tf in s.target_files]
+                    s.sub_goal_ids = [m for m in mapped if m] or [goal_model.sub_goals[0].id]
 
         plan = ImplementationPlan(
             run_id=run_id,

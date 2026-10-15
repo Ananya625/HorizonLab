@@ -457,4 +457,7 @@ def test_coding_testing_verification_and_drift_results_remain_separate():
 
     # 4. Composite drift score reflects execution failure weight (0.25 * 50 = 12.5), keeping components separated
     assert scores["goal_drift_score"] == 12.5
-    assert scores["goal_alignment_score"] == 87.5
+    # Since SC-2 is UNVERIFIED, goal_alignment_score must remain uncertified (None)
+    assert scores["goal_alignment_score"] is None
+    assert scores["criteria_unverified"] == 1
+    assert scores["criteria_passed"] == 1
